@@ -1,0 +1,11 @@
+# dependencies
+node_modules/
+
+# OS junk
+.DS_Store
+
+# local tooling config (machine-specific paths)
+.claude/
+
+# reference copy of the original game (lives in its own repo)
+ref/

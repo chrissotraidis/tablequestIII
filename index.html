@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SANDY'S TABLE QUEST 3D</title>
+    <style>
+        :root {
+            --wood: #d9a066;
+            --wood-bright: #ffcc88;
+            --blood: #8B0000;
+            --gold: #ffdd44;
+        }
+
+        * { box-sizing: border-box; }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            color: #eee;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        #game-canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        .hidden { display: none !important; }
+
+        /* ============ FULLSCREEN OVERLAY SCREENS ============ */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        /* CRT scanlines for retro screens */
+        .crt::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(0deg,
+                    rgba(0, 0, 0, 0.18) 0px,
+                    rgba(0, 0, 0, 0.18) 1px,
+                    transparent 1px,
+                    transparent 3px);
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* ---- Boot screens (original images) ---- */
+        .boot-screen {
+            background-color: #000;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            cursor: pointer;
+            z-index: 400;
+        }
+
+        .boot-hint {
+            position: absolute;
+            bottom: 4%;
+            width: 100%;
+            text-align: center;
+            color: #ffcc88;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 #000;
+            animation: blink 1.1s infinite;
+            z-index: 60;
+        }
+
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0.15; }
+        }
+
+        /* ---- Main menu ---- */
+        #menu-screen {
+            z-index: 300;
+            background:
+                radial-gradient(ellipse at 50% -20%, rgba(255, 60, 30, 0.25), transparent 60%),
+                linear-gradient(180deg, #4a0000 0%, #2e0000 45%, #160000 100%);
+            flex-direction: row;
+            gap: 5vw;
+        }
+
+        #menu-screen::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.7) 100%);
+            pointer-events: none;
+        }
+
+        .menu-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 10;
+        }
+
+        #menu-boxart {
+            height: 62vh;
+            max-height: 640px;
+            border: 4px solid #1a1a1a;
+            border-radius: 4px;
+            box-shadow: 0 18px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 80, 40, 0.15);
+            transform: rotate(-2.5deg);
+        }
+
+        .menu-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            z-index: 10;
+            min-width: 380px;
+        }
+
+        .menu-title {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-style: italic;
+            font-weight: bold;
+            font-size: clamp(36px, 4.5vw, 60px);
+            color: #fff;
+            letter-spacing: 3px;
+            margin: 0 0 4px 0;
+            text-shadow:
+                2px 2px 0 #B22222,
+                4px 4px 0 #8B0000,
+                6px 6px 12px rgba(0, 0, 0, 0.9),
+                0 0 30px rgba(255, 100, 100, 0.35);
+        }
+
+        .menu-sub {
+            color: var(--wood);
+            font-size: 15px;
+            letter-spacing: 4px;
+            margin-bottom: 36px;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        .menu-item {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-size: 30px;
+            font-weight: bold;
+            color: #997766;
+            margin: 7px 0;
+            cursor: pointer;
+            position: relative;
+            padding-left: 48px;
+            letter-spacing: 1px;
+            text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9);
+            transition: color .12s;
+        }
+
+        .menu-item:hover { color: #ddbbaa; }
+
+        .menu-item.selected {
+            color: #fff;
+            text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9), 0 0 14px rgba(255, 220, 180, 0.45);
+        }
+
+        .menu-item.selected::before {
+            content: '🖌️';
+            position: absolute;
+            left: 2px;
+            animation: cursorBob 0.6s ease-in-out infinite;
+        }
+
+        @keyframes cursorBob {
+            0%, 100% { transform: translateX(0); }
+            50% { transform: translateX(6px); }
+        }
+
+        .menu-footer-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 34px;
+            background: linear-gradient(180deg, #3a3a3a, #1c1c1c);
+            border-top: 2px solid #555;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 20;
+            font-size: 11px;
+            color: #999;
+            letter-spacing: 1px;
+        }
+
+        /* ---- Sub panels (instructions / level select / pause) ---- */
+        .panel {
+            background: linear-gradient(180deg, #5A0000 0%, #380000 100%);
+            border: 3px solid #777;
+            border-top-color: #999;
+            border-left-color: #999;
+            border-bottom-color: #333;
+            border-right-color: #333;
+            padding: 28px 48px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            z-index: 30;
+            max-width: min(620px, 88vw);
+            max-height: 84vh;
+            overflow-y: auto;
+        }
+
+        .panel h2 {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-style: italic;
+            color: #fff;
+            text-shadow: 2px 2px 0 #600;
+            margin: 0 0 18px 0;
+            text-align: center;
+            font-size: 30px;
+        }
+
+        .panel p {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-size: 17px;
+            color: #ecd9c0;
+            margin: 7px 0;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
+        }
+
+        .panel .key {
+            display: inline-block;
+            min-width: 28px;
+            text-align: center;
+            background: #2a2a2a;
+            border: 1px solid #777;
+            border-radius: 4px;
+            padding: 1px 7px;
+            color: #ffd;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-right: 6px;
+        }
+
+        .panel-footer {
+            margin-top: 20px;
+            font-size: 13px;
+            color: #c9a;
+            text-align: center;
+            animation: blink 1.6s infinite alternate;
+        }
+
+        .level-item {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-size: 21px;
+            font-weight: bold;
+            color: #a98;
+            margin: 6px 0;
+            cursor: pointer;
+            padding-left: 36px;
+            position: relative;
+            text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.8);
+        }
+
+        .level-item:hover { color: #dcb; }
+        .level-item.selected { color: #fff; }
+
+        .level-item.selected::before {
+            content: '🖌️';
+            position: absolute;
+            left: 0;
+            font-size: 17px;
+        }
+
+        /* ---- Story intro crawl ---- */
+        #intro-screen {
+            background: radial-gradient(ellipse at center, #1a0505 0%, #0a0000 60%, #000 100%);
+            overflow: hidden;
+            z-index: 350;
+        }
+
+        #intro-screen::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(139, 0, 0, 0.3) 100%);
+            pointer-events: none;
+            animation: vignettePulse 4s ease-in-out infinite;
+        }
+
+        @keyframes vignettePulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .intro-container {
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            width: 85%;
+            max-width: 720px;
+            transform: translateX(-50%);
+            z-index: 5;
+        }
+
+        .intro-text {
+            color: var(--wood);
+            font-family: Georgia, serif;
+            font-size: 19px;
+            line-height: 1.75;
+            text-align: center;
+        }
+
+        .intro-text h1 {
+            font-size: 36px;
+            letter-spacing: 3px;
+            text-shadow: 0 0 14px rgba(217, 160, 102, 0.4);
+        }
+
+        .intro-text h2 {
+            font-size: 15px;
+            color: #8b4513;
+            font-style: italic;
+            margin-bottom: 34px;
+        }
+
+        .intro-text .emphasis { color: #ff6b6b; font-weight: bold; }
+
+        .intro-text .dramatic {
+            font-size: 24px;
+            color: #b22222;
+            margin: 28px 0;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .intro-text .final-title {
+            font-size: 30px;
+            margin-top: 56px;
+            letter-spacing: 4px;
+            text-shadow: 0 0 14px rgba(217, 160, 102, 0.5);
+        }
+
+        .intro-skip {
+            position: absolute;
+            bottom: 18px;
+            right: 22px;
+            color: #775;
+            font-size: 12px;
+            animation: blink 2s infinite;
+            z-index: 20;
+        }
+
+        /* ---- Level transition / result cards ---- */
+        .card {
+            background: rgba(0, 0, 0, 0.88);
+            padding: 34px 52px;
+            border: 4px double var(--wood);
+            text-align: center;
+            z-index: 40;
+            box-shadow: 0 0 60px rgba(0,0,0,.9);
+        }
+
+        .card h1 {
+            font-family: 'Times New Roman', Georgia, serif;
+            font-style: italic;
+            margin: 0 0 14px 0;
+            font-size: 38px;
+            letter-spacing: 2px;
+        }
+
+        .card p { font-size: 16px; color: #ccc; margin: 6px 0; }
+        .card .stat-line { color: var(--gold); font-size: 18px; }
+
+        .card button {
+            margin-top: 22px;
+            background: var(--wood);
+            border: 2px solid #fff;
+            color: #000;
+            padding: 10px 26px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+
+        .card button:hover { background: #fff; }
+
+        #screen-transition { background: transparent; z-index: 250; pointer-events: none; }
+        #screen-gameover { background: radial-gradient(ellipse at center, rgba(80,0,0,.55), rgba(0,0,0,.92)); z-index: 260; }
+        #screen-victory { background: radial-gradient(ellipse at center, rgba(60,40,0,.6), rgba(0,0,0,.95)); z-index: 260; }
+        #screen-pause { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(3px); z-index: 240; }
+
+        /* ---- Credits ---- */
+        #credits-content {
+            text-align: center;
+            animation: creditsRise 1.2s ease-out;
+        }
+
+        @keyframes creditsRise {
+            from { opacity: 0; transform: translateY(40px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============ HUD ============ */
+        #hud {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 84px;
+            background: linear-gradient(to bottom, rgba(46,46,50,.92) 0%, rgba(24,24,28,.95) 100%);
+            border-top: 3px solid #61615f;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 6px 22px;
+            z-index: 150;
+        }
+
+        .hud-group { display: flex; gap: 26px; align-items: center; }
+
+        .hud-stat { display: flex; flex-direction: column; align-items: center; min-width: 74px; }
+
+        .hud-stat .label {
+            color: #909088;
+            font-size: 10px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        .hud-stat .value {
+            color: #fff;
+            font-weight: bold;
+            font-size: 26px;
+            text-shadow: 1px 1px 2px #000, 0 0 8px rgba(255,255,255,.12);
+            font-family: 'Courier New', monospace;
+        }
+
+        .hud-stat.health .value { color: #ff6655; }
+        .hud-stat.ammo .value { color: #66aaff; }
+        .hud-stat.tables .value { color: #66ff66; }
+        .hud-stat.floor .value { color: #ffcc66; }
+        .hud-stat.score .value { color: var(--gold); }
+
+        #healthbar-wrap {
+            width: 110px; height: 9px;
+            background: #20100e;
+            border: 1px solid #553;
+            margin-top: 3px;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        #healthbar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #c22, #f55);
+            transition: width .25s;
+        }
+
+        #face-canvas {
+            width: 64px;
+            height: 64px;
+            background: #3a3a3e;
+            border: 2px solid #666;
+            border-radius: 4px;
+            image-rendering: pixelated;
+        }
+
+        .weapon-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 3px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .weapon-indicator .slot { color: #888; font-size: 10px; }
+
+        .weapon-indicator .name {
+            color: var(--wood);
+            font-weight: bold;
+            text-shadow: 0 0 4px rgba(217, 160, 102, 0.5);
+        }
+
+        /* crosshair */
+        #crosshair {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 140;
+            pointer-events: none;
+            color: rgba(255, 255, 255, 0.75);
+            font-size: 20px;
+            text-shadow: 0 0 4px #000;
+        }
+
+        /* damage / pickup flashes */
+        #damage-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, rgba(255,0,0,.18), rgba(180,0,0,.55));
+            opacity: 0;
+            transition: opacity 0.25s;
+            pointer-events: none;
+            z-index: 160;
+        }
+
+        #pickup-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 220, 120, 0.25));
+            opacity: 0;
+            transition: opacity 0.4s;
+            pointer-events: none;
+            z-index: 160;
+        }
+
+        /* toast notifications */
+        #toast {
+            position: absolute;
+            top: 16%;
+            width: 100%;
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--wood-bright);
+            text-shadow: 2px 2px 0 #000, 0 0 18px rgba(255, 200, 120, 0.4);
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 170;
+            letter-spacing: 2px;
+        }
+
+        /* objective banner */
+        #objective {
+            position: absolute;
+            top: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 13px;
+            color: rgba(255, 235, 200, 0.85);
+            text-shadow: 1px 1px 0 #000;
+            letter-spacing: 2px;
+            z-index: 150;
+            pointer-events: none;
+        }
+
+        /* minimap */
+        #minimap {
+            position: absolute;
+            top: 34px;
+            left: 14px;
+            border: 2px solid rgba(140, 130, 110, 0.7);
+            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.55);
+            z-index: 150;
+            image-rendering: pixelated;
+        }
+
+        /* boss health */
+        #boss-bar-wrap {
+            position: absolute;
+            top: 38px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(560px, 60vw);
+            z-index: 150;
+            text-align: center;
+            pointer-events: none;
+        }
+
+        #boss-bar-label {
+            color: #ff9a9a;
+            font-size: 13px;
+            letter-spacing: 3px;
+            text-shadow: 1px 1px 0 #000;
+            margin-bottom: 4px;
+        }
+
+        #boss-bar-bg {
+            height: 14px;
+            background: #200;
+            border: 2px solid #944;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        #boss-bar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #a00, #f33, #f96);
+            transition: width 0.2s;
+        }
+
+        /* hit marker — flashes at crosshair on confirmed hits */
+        #hit-marker {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) rotate(45deg);
+            z-index: 141;
+            pointer-events: none;
+            color: #ffdd66;
+            font-size: 26px;
+            font-weight: bold;
+            text-shadow: 0 0 6px rgba(255, 200, 80, 0.8);
+            opacity: 0;
+            transition: opacity 0.18s;
+        }
+
+        /* persistent red pulse when nearly dead */
+        #lowhp-overlay {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, transparent 45%, rgba(170, 0, 0, 0.4));
+            pointer-events: none;
+            z-index: 159;
+            animation: lowhpPulse 1.1s ease-in-out infinite;
+        }
+
+        @keyframes lowhpPulse {
+            0%, 100% { opacity: 0.35; }
+            50% { opacity: 0.85; }
+        }
+
+        /* pointer-lock hint */
+        #lock-hint {
+            position: absolute;
+            bottom: 96px;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 240, 210, 0.85);
+            font-size: 14px;
+            letter-spacing: 2px;
+            text-shadow: 1px 1px 0 #000;
+            z-index: 150;
+            pointer-events: none;
+            animation: blink 1.6s infinite;
+        }
+
+        /* mute icon */
+        #mute-indicator {
+            position: absolute;
+            top: 8px;
+            right: 14px;
+            color: #aa8;
+            font-size: 15px;
+            z-index: 150;
+            text-shadow: 1px 1px 0 #000;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+
+        <!-- ============ HUD ============ -->
+        <div id="crosshair" class="hidden">+</div>
+        <div id="hit-marker">✕</div>
+        <div id="lowhp-overlay" class="hidden"></div>
+        <div id="lock-hint" class="hidden">CLICK TO CAPTURE MOUSE&nbsp;&nbsp;·&nbsp;&nbsp;← → KEYS ALSO TURN</div>
+        <div id="damage-overlay"></div>
+        <div id="pickup-overlay"></div>
+        <div id="toast"></div>
+        <div id="objective" class="hidden"></div>
+        <canvas id="minimap" class="hidden" width="160" height="120"></canvas>
+        <div id="mute-indicator" class="hidden">🔇 MUTED</div>
+
+        <div id="boss-bar-wrap" class="hidden">
+            <div id="boss-bar-label">⚜ THE HEAD DESIGNER ⚜</div>
+            <div id="boss-bar-bg">
+                <div id="boss-bar"></div>
+            </div>
+        </div>
+
+        <div id="hud" class="hidden">
+            <div class="hud-group">
+                <div class="hud-stat floor">
+                    <span class="label">Floor</span>
+                    <span class="value" id="hud-floor">1</span>
+                </div>
+                <div class="hud-stat score">
+                    <span class="label">Score</span>
+                    <span class="value" id="hud-score">0</span>
+                </div>
+            </div>
+
+            <div class="hud-group">
+                <div class="hud-stat health">
+                    <span class="label">Health</span>
+                    <span class="value" id="hud-health">100</span>
+                    <div id="healthbar-wrap">
+                        <div id="healthbar"></div>
+                    </div>
+                </div>
+                <div class="hud-stat">
+                    <canvas id="face-canvas" width="32" height="32"></canvas>
+                    <div class="weapon-indicator">
+                        <span class="slot" id="hud-weapon-slot">[1]</span>
+                        <span class="name" id="hud-weapon">PAINTBRUSH</span>
+                    </div>
+                </div>
+                <div class="hud-stat ammo">
+                    <span class="label">Paint</span>
+                    <span class="value" id="hud-ammo">25</span>
+                </div>
+            </div>
+
+            <div class="hud-group">
+                <div class="hud-stat tables">
+                    <span class="label">Tables</span>
+                    <span class="value" id="hud-tables">0/0</span>
+                </div>
+                <div class="hud-stat">
+                    <span class="label">Enemies</span>
+                    <span class="value" id="hud-enemies" style="color:#cc99ff">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ============ BOOT SEQUENCE ============ -->
+        <div id="boot-memory" class="overlay boot-screen crt">
+            <div class="boot-hint">PRESS ANY KEY</div>
+        </div>
+        <div id="boot-title" class="overlay boot-screen crt hidden">
+            <div class="boot-hint">PRESS ANY KEY TO CONTINUE</div>
+        </div>
+
+        <!-- ============ MAIN MENU ============ -->
+        <div id="menu-screen" class="overlay crt hidden">
+            <div class="menu-left">
+                <img id="menu-boxart" alt="Sandy's Table Quest box art" draggable="false">
+            </div>
+            <div class="menu-right">
+                <h1 class="menu-title">Sandy's Table Quest</h1>
+                <div class="menu-sub">3D REMASTERED &nbsp;·&nbsp; THE FURNITURE OPERATIONS</div>
+                <div id="menu-items">
+                    <div class="menu-item selected">New Game</div>
+                    <div class="menu-item">Level Select</div>
+                    <div class="menu-item">Instructions</div>
+                    <div class="menu-item">Toggle Sound</div>
+                </div>
+                <p style="color:#876;margin-top:38px;font-size:13px" id="menu-highscore"></p>
+            </div>
+            <div class="menu-footer-bar"><span>© 199X ARTISAN SOFTWARE · v2.0 3D REMASTER · ↑↓ SELECT · ENTER CONFIRM</span></div>
+        </div>
+
+        <div id="menu-instructions" class="overlay hidden" style="z-index:320;background:rgba(0,0,0,.5)">
+            <div class="panel">
+                <h2>Instructions</h2>
+                <p>🖌️ Collect every <b style="color:#6f6">TABLE</b> on the floor, then ride the elevator.</p>
+                <p>👔 Cartel staff will try to stop you. Splatter them.</p>
+                <p style="margin-top:14px"><span class="key">W A S D</span> Move &nbsp; <span class="key">MOUSE</span> Look</p>
+                <p><span class="key">←</span><span class="key">→</span> Turn (classic mode)</p>
+                <p><span class="key">SPACE</span> / <span class="key">CLICK</span> Fire weapon</p>
+                <p><span class="key">E</span> Open doors &nbsp; <span class="key">SHIFT</span> Sprint</p>
+                <p><span class="key">1</span><span class="key">2</span><span class="key">3</span> / <span class="key">Q</span> / <span class="key">WHEEL</span> Switch weapon &nbsp; <span class="key">TAB</span> Minimap</p>
+                <p><span class="key">[</span><span class="key">]</span> Mouse sensitivity &nbsp; <span class="key">U</span> Mute &nbsp; <span class="key">ESC</span> Pause</p>
+                <p style="margin-top:14px;color:#fc6">🩹 Wood Polish +25 HP &nbsp; 🎨 Paint Bucket +12 ammo</p>
+                <p style="color:#fc6">💰 Cash & Gold = score. Find secret weapons!</p>
+                <div class="panel-footer">PRESS ENTER OR ESC TO RETURN</div>
+            </div>
+        </div>
+
+        <div id="menu-levels" class="overlay hidden" style="z-index:320;background:rgba(0,0,0,.5)">
+            <div class="panel">
+                <h2>Floor Select</h2>
+                <div id="level-list"></div>
+                <div class="panel-footer">ENTER TO SELECT · ESC TO RETURN</div>
+            </div>
+        </div>
+
+        <!-- ============ INTRO CRAWL ============ -->
+        <div id="intro-screen" class="overlay crt hidden">
+            <div class="intro-container">
+                <div class="intro-text">
+                    <h1>🪵 SANDY'S TABLE QUEST 3D</h1>
+                    <h2>A Chronicle of Wood, Will, and Warped Taste</h2>
+                    <p class="dramatic">In the year 199X,</p>
+                    <p>The <span class="emphasis">Interior Design Cartel</span> declared war on durability. They
+                        replaced craftsmanship with 'fast furniture' — flimsy, soulless, and impossible to repair.</p>
+                    <p>St. Louis fell first. Then the world.</p>
+                    <p>Grandmothers wept as their oak dining sets were seized and replaced by honeycomb cardboard.</p>
+                    <p class="dramatic">But one artisan refused to fold.</p>
+                    <p class="emphasis">Sandy.</p>
+                    <p>She didn't design for trends. She built tables that could survive a nuclear winter. When they
+                        raided her workshop, they made one fatal mistake:</p>
+                    <p class="dramatic">They left her alive.</p>
+                    <p>Tonight, she enters their headquarters — six floors of beige carpet, particle board,
+                        and armed middle-management.</p>
+                    <p>Her mission:</p>
+                    <p class="emphasis">Reclaim the tables.<br>Splatter the critics.<br>Remind them what 'solid
+                        wood' feels like.</p>
+                    <p class="final-title">SANDY'S TABLE QUEST 3D</p>
+                    <p class="dramatic" style="font-size:18px">They took the tables.<br>She's taking them back.</p>
+                </div>
+            </div>
+            <div class="intro-skip">PRESS ENTER TO SKIP</div>
+        </div>
+
+        <!-- ============ STATE CARDS ============ -->
+        <div id="screen-transition" class="overlay hidden">
+            <div class="card">
+                <h1 style="color:#0f0">FLOOR CLEARED!</h1>
+                <p id="transition-stats"></p>
+                <p class="stat-line" id="transition-bonus"></p>
+                <p style="color:#9cf">Riding elevator up…</p>
+            </div>
+        </div>
+
+        <div id="screen-gameover" class="overlay hidden">
+            <div class="card">
+                <h1 style="color:#f33">FIRED!</h1>
+                <p>The critics were too harsh.</p>
+                <p class="stat-line" id="gameover-score"></p>
+                <button id="btn-retry">Retry Floor</button>
+                <button id="btn-quit-menu">Main Menu</button>
+            </div>
+        </div>
+
+        <div id="screen-pause" class="overlay hidden">
+            <div class="panel" style="text-align:center">
+                <h2>Paused</h2>
+                <div id="pause-items">
+                    <div class="menu-item selected">Resume</div>
+                    <div class="menu-item">Restart Floor</div>
+                    <div class="menu-item">Toggle Sound</div>
+                    <div class="menu-item">Quit to Menu</div>
+                </div>
+                <div class="panel-footer">↑↓ SELECT · ENTER CONFIRM · ESC RESUME</div>
+            </div>
+        </div>
+
+        <div id="screen-victory" class="overlay crt hidden">
+            <div class="card" style="max-width:640px">
+                <div id="credits-content">
+                    <h1 style="color:gold">MASTERPIECE RECLAIMED!</h1>
+                    <p style="color:var(--wood);font-size:18px">The Head Designer has been splattered.</p>
+                    <p>Sandy reclaimed every table and saved the furniture industry.</p>
+                    <p class="stat-line" id="victory-score"></p>
+                    <div style="margin-top:30px;color:#888">
+                        <p style="font-size:12px">— CREDITS —</p>
+                        <p style="margin-top:12px;font-size:15px;color:#ccc">SANDY'S TABLE QUEST 3D</p>
+                        <p style="font-size:12px;color:#777">A Remaster of the Artisan Software Classic</p>
+                        <p style="font-size:12px;color:#777">Engine · WebGL via three.js</p>
+                        <p style="font-size:12px;color:#777">Music & SFX · Procedural Web Audio Synthesis</p>
+                        <p style="margin-top:18px;font-size:13px;color:#999">Thank you for playing!</p>
+                    </div>
+                    <button id="btn-victory-menu">Main Menu</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+</body>
+
+</html>
