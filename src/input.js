@@ -5,7 +5,8 @@ export const input = {
     forward: false, back: false, strafeL: false, strafeR: false,
     turnL: false, turnR: false,
     fire: false,            // one-shot, consumed each frame
-    spaceHeld: false, mouseHeld: false,
+    jump: false,            // one-shot, consumed each frame
+    fireKeyHeld: false, mouseHeld: false,
     interact: false, sprint: false,
     cycleWeapon: 0,         // +1 / -1 per frame (wheel or Q)
     mouseDX: 0, mouseDY: 0,
@@ -13,7 +14,7 @@ export const input = {
     everLocked: false,
 };
 
-export const fireHeld = () => input.spaceHeld || input.mouseHeld;
+export const fireHeld = () => input.fireKeyHeld || input.mouseHeld;
 
 const pressCallbacks = [];
 export function onKeyPress(fn) { pressCallbacks.push(fn); }
@@ -60,7 +61,7 @@ export function initInput(canvasEl) {
 export function releaseAllKeys() {
     input.forward = input.back = input.strafeL = input.strafeR = false;
     input.turnL = input.turnR = input.sprint = false;
-    input.spaceHeld = input.mouseHeld = false;
+    input.fireKeyHeld = input.mouseHeld = false;
 }
 
 export function requestPointerLock() {
@@ -80,7 +81,11 @@ function setKey(code, down) {
         case 'KeyD': input.strafeR = down; break;
         case 'ArrowLeft': input.turnL = down; break;
         case 'ArrowRight': input.turnR = down; break;
-        case 'Space': if (down && !input.spaceHeld) input.fire = true; input.spaceHeld = down; break;
+        case 'Space': if (down) input.jump = true; break;
+        case 'ControlLeft': case 'ControlRight': // classic DOS fire key
+            if (down && !input.fireKeyHeld) input.fire = true;
+            input.fireKeyHeld = down;
+            break;
         case 'KeyE': if (down) input.interact = true; break;
         case 'KeyQ': if (down) input.cycleWeapon += 1; break;
         case 'ShiftLeft': case 'ShiftRight': input.sprint = down; break;
@@ -90,6 +95,7 @@ function setKey(code, down) {
 /** consume one-shot flags after each frame */
 export function clearFrameInput() {
     input.fire = false;
+    input.jump = false;
     input.interact = false;
     input.cycleWeapon = 0;
     input.mouseDX = 0;

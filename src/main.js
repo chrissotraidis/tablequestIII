@@ -11,7 +11,7 @@ import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioD
 // original artwork, preserved from the 199X release
 import dosScreenUrl from './assets/title_screen.jpg';     // DOS boot/memory screen
 import titleArtUrl from './assets/memory_screen.png';     // pixel-art title card
-import boxArtUrl from './assets/tableboxart.png';         // box art
+import boxArtUrl from './assets/tableboxart2.png';        // box art (remaster edition)
 
 const $ = (id) => document.getElementById(id);
 
@@ -64,6 +64,7 @@ const game = new Game(scene, camera, {
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
                 game.loadLevel(next);
+                renderer.compile(scene, camera); // pre-warm shaders behind the card
                 snapshotLevel();
                 setState('play');
             }
@@ -237,7 +238,10 @@ function startGameAt(idx) {
     game.loadLevel(idx, { keepStats: false });
     // floor-select fairness: grant the weapons a player would have found by now
     if (idx >= 2 && !game.player.weapons.includes('tableLeg')) game.player.weapons.push('tableLeg');
+    if (idx >= 3 && !game.player.weapons.includes('nailgun')) game.player.weapons.push('nailgun');
+    if (idx >= 4 && !game.player.weapons.includes('roller')) game.player.weapons.push('roller');
     if (idx >= 5 && !game.player.weapons.includes('sprayer')) game.player.weapons.push('sprayer');
+    renderer.compile(scene, camera); // pre-warm shaders so play starts hitch-free
     snapshotLevel();
     setState('play');
 }
@@ -251,6 +255,7 @@ function retryFloor() {
         game.player.ammo = Math.max(game.player.ammo, 20);
     }
     game.loadLevel(game.levelIndex, { keepStats: true });
+    renderer.compile(scene, camera);
     setState('play');
 }
 
@@ -304,6 +309,8 @@ onKeyPress((e) => {
             else if (e.code === 'Digit1') game.switchWeapon(1);
             else if (e.code === 'Digit2') game.switchWeapon(2);
             else if (e.code === 'Digit3') game.switchWeapon(3);
+            else if (e.code === 'Digit4') game.switchWeapon(4);
+            else if (e.code === 'Digit5') game.switchWeapon(5);
             else if (e.code === 'Tab') hud.toggleMinimap();
             else if (e.code === 'KeyU') updateMute(toggleMute());
             else if (e.code === 'BracketLeft') game.adjustSensitivity(-0.0004);
@@ -421,7 +428,7 @@ const bot = { target: null, fightFor: 0, stuck: 0, lastD: 1e9, resolve: null, fi
 
 function botRelease() {
     input.forward = input.back = input.strafeL = input.strafeR = false;
-    input.spaceHeld = false;
+    input.fireKeyHeld = false;
 }
 
 function botStep(dt) {
@@ -449,7 +456,7 @@ function botStep(dt) {
             foes.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y));
             const e = foes[0];
             p.rot = Math.atan2(e.y - p.y, e.x - p.x);
-            input.spaceHeld = true;
+            input.fireKeyHeld = true;
             const d = Math.hypot(e.x - p.x, e.y - p.y);
             // out of paint? swing the table leg instead of starving
             const meleeIdx = p.weapons.indexOf('tableLeg');
@@ -511,7 +518,7 @@ window.TQ = {
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {
         const p = game.player;
-        p.weapons = ['paintbrush', 'tableLeg', 'sprayer'];
+        p.weapons = ['paintbrush', 'tableLeg', 'nailgun', 'roller', 'sprayer'];
         p.ammo = 99;
         p.health = 100;
         game.updateViewmodel();

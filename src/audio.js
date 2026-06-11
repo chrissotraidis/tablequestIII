@@ -32,10 +32,21 @@ export function initAudio() {
 
     masterGain = audioCtx.createGain();
     masterGain.gain.value = muted ? 0 : 0.6;
-    masterGain.connect(compressorNode);
+    // gentle smile EQ: a little warmth below, a little air on top
+    const lowShelf = audioCtx.createBiquadFilter();
+    lowShelf.type = 'lowshelf';
+    lowShelf.frequency.value = 130;
+    lowShelf.gain.value = 1.6;
+    const highShelf = audioCtx.createBiquadFilter();
+    highShelf.type = 'highshelf';
+    highShelf.frequency.value = 5200;
+    highShelf.gain.value = 2.4;
+    masterGain.connect(lowShelf);
+    lowShelf.connect(highShelf);
+    highShelf.connect(compressorNode);
 
     musicGain = audioCtx.createGain();
-    musicGain.gain.value = 0.8;
+    musicGain.gain.value = 0.74;
     musicGain.connect(masterGain);
 
     sfxGain = audioCtx.createGain();
@@ -52,7 +63,7 @@ export function initAudio() {
     }
     reverbNode.buffer = impulse;
     const reverbGain = audioCtx.createGain();
-    reverbGain.gain.value = 0.28;
+    reverbGain.gain.value = 0.33;
     reverbNode.connect(reverbGain);
     reverbGain.connect(masterGain);
 
@@ -104,8 +115,16 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
 
     const vcf = audioCtx.createBiquadFilter();
     const vca = audioCtx.createGain();
-    src1.connect(vcf);
-    src2.connect(vcf);
+    // stereo staging: the two detuned voices sit left/right of center
+    const width = instr.width ?? 0.2;
+    const panL = audioCtx.createStereoPanner();
+    const panR = audioCtx.createStereoPanner();
+    panL.pan.value = -width;
+    panR.pan.value = width;
+    src1.connect(panL);
+    src2.connect(panR);
+    panL.connect(vcf);
+    panR.connect(vcf);
     vcf.connect(vca);
     vca.connect(bus);
     if (instr.reverb) vca.connect(reverbNode);
@@ -152,53 +171,64 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
 function playDrum(type, time, vol = 1) {
     if (!audioCtx) return;
     const t = time;
+    // place each drum in the stereo field like a real kit
+    const kitOut = (pan) => {
+        const p = audioCtx.createStereoPanner();
+        p.pan.value = pan;
+        p.connect(musicGain);
+        return p;
+    };
     if (type === 'kick') {
         const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.connect(g); g.connect(musicGain);
+        o.connect(g); g.connect(musicGain); // kick stays dead center
         o.frequency.setValueAtTime(150, t);
         o.frequency.exponentialRampToValueAtTime(40, t + 0.1);
         g.gain.setValueAtTime(0.75 * vol, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
         o.start(t); o.stop(t + 0.2);
     } else if (type === 'snare') {
+        const out = kitOut(0.08);
         const n = audioCtx.createBufferSource();
         n.buffer = getNoise();
         const f = audioCtx.createBiquadFilter();
         f.type = 'highpass'; f.frequency.value = 900;
         const g = audioCtx.createGain();
-        n.connect(f); f.connect(g); g.connect(musicGain); g.connect(reverbNode);
+        n.connect(f); f.connect(g); g.connect(out); g.connect(reverbNode);
         g.gain.setValueAtTime(0.5 * vol, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.18);
         n.start(t); n.stop(t + 0.2);
         const o = audioCtx.createOscillator(), og = audioCtx.createGain();
-        o.connect(og); og.connect(musicGain);
+        o.connect(og); og.connect(out);
         o.frequency.setValueAtTime(190, t);
         og.gain.setValueAtTime(0.25 * vol, t);
         og.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
         o.start(t); o.stop(t + 0.1);
     } else if (type === 'hat') {
+        const out = kitOut(-0.25);
         const n = audioCtx.createBufferSource();
         n.buffer = getNoise();
         const f = audioCtx.createBiquadFilter();
         f.type = 'highpass'; f.frequency.value = 6000;
         const g = audioCtx.createGain();
-        n.connect(f); f.connect(g); g.connect(musicGain);
+        n.connect(f); f.connect(g); g.connect(out);
         g.gain.setValueAtTime(0.16 * vol, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
         n.start(t); n.stop(t + 0.05);
     } else if (type === 'ride') {
+        const out = kitOut(0.3);
         const n = audioCtx.createBufferSource();
         n.buffer = getNoise();
         const f = audioCtx.createBiquadFilter();
         f.type = 'highpass'; f.frequency.value = 7500;
         const g = audioCtx.createGain();
-        n.connect(f); f.connect(g); g.connect(musicGain); g.connect(reverbNode);
+        n.connect(f); f.connect(g); g.connect(out); g.connect(reverbNode);
         g.gain.setValueAtTime(0.09 * vol, t);
         g.gain.exponentialRampToValueAtTime(0.005, t + 0.34);
         n.start(t); n.stop(t + 0.36);
     } else if (type === 'tom') {
+        const out = kitOut(Math.random() * 0.6 - 0.3); // toms roll across the kit
         const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-        o.connect(g); g.connect(musicGain); g.connect(reverbNode);
+        o.connect(g); g.connect(out); g.connect(reverbNode);
         o.type = 'sine';
         o.frequency.setValueAtTime(185, t);
         o.frequency.exponentialRampToValueAtTime(72, t + 0.22);
@@ -214,61 +244,63 @@ const INSTRUMENTS = {
     PAD_WARM: {
         type1: 'sawtooth', type2: 'sawtooth', detune: 12,
         attack: 0.7, decay: 0.5, sustain: 0.7, release: 1.6,
-        cutoff: 650, res: 2, vol: 0.22, reverb: true,
+        cutoff: 650, res: 2, vol: 0.22, reverb: true, width: 0.5,
         lfo: true, lfoRate: 0.5, lfoDepth: 120,
     },
     PAD_DARK: {
         type1: 'sawtooth', type2: 'triangle', detune: 8,
         attack: 1.2, decay: 0.6, sustain: 0.8, release: 2.2,
-        cutoff: 380, res: 4, vol: 0.26, reverb: true,
+        cutoff: 380, res: 4, vol: 0.26, reverb: true, width: 0.45,
         lfo: true, lfoRate: 0.3, lfoDepth: 90,
     },
     LEAD: {
         type1: 'square', type2: 'triangle', detune: 5,
         attack: 0.04, decay: 0.1, sustain: 0.6, release: 0.25,
-        cutoff: 2100, res: 3, vol: 0.3, reverb: true, delay: true,
+        cutoff: 2100, res: 3, vol: 0.3, reverb: true, delay: true, width: 0.12,
         lfo: true, lfoRate: 6, lfoDepth: 14, lfoTarget: 'freq',
     },
     LEAD_HARD: {
         type1: 'sawtooth', type2: 'square', detune: 7,
         attack: 0.01, decay: 0.08, sustain: 0.55, release: 0.15,
-        cutoff: 2600, res: 4, vol: 0.27, reverb: true,
+        cutoff: 2600, res: 4, vol: 0.27, reverb: true, width: 0.1,
         lfo: true, lfoRate: 7, lfoDepth: 18, lfoTarget: 'freq',
     },
     BASS: {
         type1: 'sawtooth', type2: 'square', detune: 8,
         attack: 0.01, decay: 0.28, sustain: 0.3, release: 0.1,
         cutoff: 420, res: 5, vol: 0.55, filterEnv: true, filterEnvAmt: 1400,
+        width: 0, // bass stays mono and anchored
     },
     BASS_SUB: {
         type1: 'sine', type2: 'triangle', detune: 3,
         attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.15,
-        cutoff: 300, vol: 0.6,
+        cutoff: 300, vol: 0.6, width: 0,
     },
     ARP: {
         type1: 'square', type2: 'sawtooth', detune: 5,
         attack: 0.005, decay: 0.09, sustain: 0.1, release: 0.08,
-        cutoff: 1400, res: 1, vol: 0.24, delay: true,
+        cutoff: 1400, res: 1, vol: 0.24, delay: true, width: 0.38,
     },
     EP: { // electric-piano-ish pluck for the lobby lounge
         type1: 'sine', type2: 'triangle', detune: 6,
         attack: 0.005, decay: 0.35, sustain: 0.25, release: 0.4,
-        cutoff: 1800, res: 0.7, vol: 0.34, reverb: true,
+        cutoff: 1800, res: 0.7, vol: 0.34, reverb: true, width: 0.28,
     },
     CLAV: {
         type1: 'square', type2: 'square', detune: 4,
         attack: 0.004, decay: 0.12, sustain: 0.12, release: 0.07,
         cutoff: 1700, res: 6, vol: 0.3, filterEnv: true, filterEnvAmt: 1800,
+        width: 0.2,
     },
     BELL: { // glassy bell for counter-melodies
         type1: 'sine', type2: 'sine', detune: 7,
         attack: 0.004, decay: 0.5, sustain: 0.12, release: 0.6,
-        cutoff: 5200, res: 0.5, vol: 0.2, reverb: true, delay: true,
+        cutoff: 5200, res: 0.5, vol: 0.2, reverb: true, delay: true, width: 0.34,
     },
     HORN: { // short brassy section stab
         type1: 'sawtooth', type2: 'sawtooth', detune: 14,
         attack: 0.03, decay: 0.12, sustain: 0.5, release: 0.12,
-        cutoff: 1500, res: 2, vol: 0.2, reverb: true,
+        cutoff: 1500, res: 2, vol: 0.2, reverb: true, width: 0.3,
     },
     KICK: { drum: 'kick' }, SNARE: { drum: 'snare' }, HIHAT: { drum: 'hat' },
     RIDE: { drum: 'ride' }, TOM: { drum: 'tom' },
@@ -278,8 +310,8 @@ const INSTRUMENTS = {
 
 const nf = (m) => 440 * Math.pow(2, (m - 69) / 12); // midi → Hz
 
-function song(bpm, lengthBeats) {
-    const s = { bpm, length: lengthBeats, tracks: {} };
+function song(bpm, lengthBeats, swing = 0) {
+    const s = { bpm, length: lengthBeats, swing, tracks: {} };
     s.note = (instr, beat, midi, dur, vol = 1) => {
         (s.tracks[instr] = s.tracks[instr] || []).push([beat, nf(midi), dur, vol]);
     };
@@ -291,7 +323,7 @@ function song(bpm, lengthBeats) {
 
 // — Menu: "Workshop Dreams" — wistful Am9 progression, 88 BPM
 function buildMenuSong() {
-    const s = song(88, 64);
+    const s = song(88, 64, 0.12);
     const chords = [
         [57, 60, 64, 71], // Am9
         [53, 57, 60, 65], // Fmaj7
@@ -352,7 +384,7 @@ function buildIntroSong() {
 
 // — L1 Lobby: "Beige Carpet Lounge" — smooth groove, 112 BPM, 16 bars AABB
 function buildLobbySong() {
-    const s = song(112, 64);
+    const s = song(112, 64, 0.16);
     const prog = [
         { bass: [41, 45, 48, 45], chord: [65, 69, 72, 76] }, // Fmaj7
         { bass: [40, 43, 47, 43], chord: [64, 67, 71, 74] }, // Em7
@@ -395,7 +427,7 @@ function buildLobbySong() {
 
 // — L2 Office: "Cubicle Crusade" — driving anthem, 135 BPM, 16 bars
 function buildOfficeSong() {
-    const s = song(135, 64);
+    const s = song(135, 64, 0.05);
     const bassA = [40, 40, 43, 40, 45, 40, 47, 40]; // E G A B drive
     const bassB = [45, 45, 48, 45, 43, 43, 47, 43]; // lift to A / G for the B section
     for (let i = 0; i < 64; i++) {
@@ -429,7 +461,7 @@ function buildOfficeSong() {
 
 // — L3 Archives: "Dust & Echoes" — dark phrygian, 96 BPM, 16 bars
 function buildArchivesSong() {
-    const s = song(96, 64);
+    const s = song(96, 64, 0.1);
     const bass = [38, 38, 39, 38, 41, 38, 39, 36]; // D Eb phrygian motion
     for (let i = 0; i < 64; i++) {
         const bar = Math.floor(i / 4);
@@ -468,7 +500,7 @@ function buildArchivesSong() {
 
 // — L4 Showroom: "Particle Board Funk" — G mixolydian funk, 122 BPM, 16 bars
 function buildShowroomSong() {
-    const s = song(122, 64);
+    const s = song(122, 64, 0.18);
     const bass = [43, 43, 50, 43, 41, 43, 38, 41];
     for (let i = 0; i < 64; i++) {
         const bar = Math.floor(i / 4);
@@ -652,8 +684,11 @@ export function stopMusic() {
 function scheduler() {
     if (!playing || !audioCtx) return;
     while (nextNoteTime < audioCtx.currentTime + 0.12) {
-        scheduleStep(step16, nextNoteTime);
-        nextNoteTime += (60 / currentSong.bpm) / 4;
+        const step16Dur = (60 / currentSong.bpm) / 4;
+        // swing: every off-16th leans late for a human pocket
+        const lean = (step16 % 2) ? (currentSong.swing || 0) * step16Dur : 0;
+        scheduleStep(step16, nextNoteTime + lean);
+        nextNoteTime += step16Dur;
         step16++;
         if (step16 >= currentSong.length * 4) step16 = 0;
     }
@@ -715,6 +750,23 @@ export function playSound(type, opts = {}) {
             noise('bandpass', 3000 + Math.random() * 1000, 0, 0.09, 0.12, 2);
             osc('square', 300 + Math.random() * 100, 120, 0, 0.06, 0.05);
             break;
+        case 'nail': // pneumatic snap
+            osc('square', 1900 + Math.random() * 300, 300, 0, 0.05, 0.1);
+            noise('highpass', 4500, 0, 0.04, 0.1);
+            osc('sine', 140, 90, 0, 0.05, 0.08);
+            break;
+        case 'roller_fire': // heavy pneumatic thump
+            osc('sine', 130, 55, 0, 0.2, 0.3);
+            noise('lowpass', 700, 0, 0.14, 0.16);
+            break;
+        case 'roller_boom': { // wet paint detonation
+            const g = osc('sine', 95, 30, 0, 0.4, 0.4);
+            g.connect(reverbNode);
+            noise('lowpass', 520, 0, 0.32, 0.3);
+            noise('bandpass', 1100, 0.03, 0.18, 0.18, 1.5);
+            osc('sine', 200, 70, 0.02, 0.16, 0.18);
+            break;
+        }
         case 'swing':
             noise('bandpass', 700, 0, 0.16, 0.14, 3);
             break;
@@ -729,6 +781,30 @@ export function playSound(type, opts = {}) {
         }
         case 'pain':
             osc('square', 280, 160, 0, 0.18, 0.18);
+            break;
+        case 'enemy_pain': // staff grunt when splattered
+            osc('square', 170 + Math.random() * 70, 110, 0, 0.13, 0.11);
+            noise('bandpass', 850, 0, 0.07, 0.05, 2);
+            break;
+        case 'door_close':
+            osc('sawtooth', 52, 72, 0, 0.4, 0.08, 'linear');
+            noise('lowpass', 240, 0.34, 0.12, 0.13); // soft thunk at the end
+            break;
+        case 'wood_hit': // furniture takes a knock
+            osc('triangle', 220 + Math.random() * 60, 90, 0, 0.08, 0.18);
+            noise('lowpass', 1200, 0, 0.05, 0.1);
+            break;
+        case 'wood_break': { // furniture gives up
+            noise('lowpass', 900, 0, 0.22, 0.28);
+            osc('triangle', 160, 50, 0, 0.18, 0.25);
+            // splinter crackle
+            for (let i = 0; i < 4; i++)
+                noise('bandpass', 2200 + Math.random() * 1800, 0.02 + i * 0.035, 0.04, 0.1, 3);
+            break;
+        }
+        case 'heartbeat': // low-health pulse
+            osc('sine', 58, 36, 0, 0.12, 0.3);
+            osc('sine', 50, 32, 0.16, 0.1, 0.2);
             break;
         case 'munch': // health pickup
             [0, 0.12, 0.24].forEach((t, i) => {
@@ -761,6 +837,14 @@ export function playSound(type, opts = {}) {
         }
         case 'step':
             noise('lowpass', 350 + Math.random() * 100, 0, 0.05, 0.05);
+            break;
+        case 'jump':
+            noise('bandpass', 700, 0, 0.13, 0.07, 2);
+            osc('sine', 220, 330, 0, 0.12, 0.05);
+            break;
+        case 'land':
+            noise('lowpass', 320, 0, 0.09, 0.14);
+            osc('sine', 130, 60, 0, 0.08, 0.1);
             break;
         case 'alert':
             osc('sawtooth', 440, 880, 0, 0.2, 0.09, 'linear');

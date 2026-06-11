@@ -20,6 +20,21 @@ export const LEVELS = [
         ambient: 0x8890a8, ambientIntensity: 1.15,
         accent: 0xffd9a0,
         music: 'lobby',
+        // Design: corporate ground floor. Reception counters greet you, security
+        // booths flank the hall, a waiting lounge faces them; behind the wall sit
+        // the staff lounge, break room (snacks!) and a manager's office, with a
+        // security checkpoint guarding the elevator.
+        zones: [
+            { rect: [2, 1, 28, 2], kind: 'garden', density: 0.18, rug: false }, // entry planters
+            { rect: [9, 4, 10, 3], kind: 'reception' },
+            { rect: [2, 8, 28, 2], kind: 'lounge', density: 0.3, rug: false },
+            { rect: [2, 11, 8, 4], kind: 'lounge' },
+            { rect: [12, 11, 8, 4], kind: 'breakroom' },
+            { rect: [23, 11, 7, 4], kind: 'managerOffice' },
+            { rect: [2, 16, 28, 3], kind: 'security', density: 0.22 },
+        ],
+        props: { plant: 3, cooler: 1 },
+        decor: { paintings: 8, rugs: 2, rugColor: 0x7a2a22 },
         map: [
             "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO",
             "OS.............................O",
@@ -55,6 +70,20 @@ export const LEVELS = [
         ambient: 0x9090a0, ambientIntensity: 1.0,
         accent: 0xfff2cc,
         music: 'office',
+        // Design: a working floor. Open-plan desks at the entry, a conference
+        // room and the manager's office up top, the dense cubicle farm in the
+        // middle, then the break room and supply room (grab the nail gun there).
+        zones: [
+            { rect: [2, 1, 36, 4], kind: 'cubicles', gap: 3 },
+            { rect: [8, 6, 8, 4], kind: 'conference' },
+            { rect: [24, 6, 8, 4], kind: 'managerOffice' },
+            { rect: [2, 11, 36, 4], kind: 'cubicles' },
+            { rect: [8, 16, 11, 3], kind: 'breakroom' },
+            { rect: [21, 16, 11, 3], kind: 'supply' },
+            { rect: [2, 21, 36, 3], kind: 'copyRoom' }, // print row by the elevator
+        ],
+        props: { plant: 3, cooler: 1, cabinet: 2 },
+        decor: { paintings: 5, rugs: 2, rugColor: 0x33455e },
         map: [
             "OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO",
             "OS......$..............................O",
@@ -72,8 +101,8 @@ export const LEVELS = [
             "O..........$........Z........$........O",
             "O......................................O",
             "O......WWWWWWWWWWWWWWWWWWWWWWWWWW......O",
-            "O......W........................W......O",
-            "O......W.......T....m.....Z.....W......O",
+            "O......W..H.....................W......O",
+            "O......W.......T....m.....Z.N...W......O",
             "O......W........................W......O",
             "O......+........................+......O",
             "O......WWWWWWWWWWWWWWWWWWWWWWWWWW......O",
@@ -95,6 +124,23 @@ export const LEVELS = [
         ambient: 0x556070, ambientIntensity: 0.85,
         accent: 0xff9944,
         music: 'archives',
+        // Design: the records basement. Locked records vaults on the flanks,
+        // long shelf stacks through the middle, reading rooms with banquet
+        // tables (the nail gun got misfiled in one), and a supply corridor.
+        zones: [
+            { rect: [4, 3, 6, 4], kind: 'vault' },
+            { rect: [14, 3, 13, 4], kind: 'aisles' },
+            { rect: [31, 3, 6, 4], kind: 'vault' },
+            { rect: [2, 8, 37, 3], kind: 'supply', density: 0.12 }, // cart corridor
+            { rect: [10, 12, 14, 5], kind: 'readingRoom' },
+            { rect: [26, 12, 12, 5], kind: 'aisles' },
+            { rect: [2, 18, 37, 3], kind: 'supply', density: 0.18 },
+            { rect: [9, 22, 21, 4], kind: 'readingRoom' },
+            { rect: [2, 22, 5, 4], kind: 'vault' },   // overflow records
+            { rect: [33, 22, 6, 4], kind: 'vault' },
+        ],
+        props: { crate: 4, cabinet: 2 },
+        decor: { paintings: 2 },
         map: [
             "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
             "BS..........$......A................$..B",
@@ -109,7 +155,7 @@ export const LEVELS = [
             "B......................................B",
             "BBBBB+BBBBBBBBBBBBBBBBBBBBBBBBBB+BBBBBBB",
             "B..$....B...............B............$.B",
-            "B..m....B.......T.......B.......m......B",
+            "B..m....B.......T.N.....B.......m......B",
             "B.......B.......g.......B..............B",
             "B.......+...............+..............B",
             "B.......B.......Z.......B..............B",
@@ -138,6 +184,22 @@ export const LEVELS = [
         ambient: 0xb09878, ambientIntensity: 1.0,
         accent: 0xffe0b0,
         music: 'showroom',
+        // Design: fast-furniture retail. Display pods up front with staged
+        // living-room vignettes between them, the warehouse flat-pack aisles
+        // in the middle (roller launcher fell off a pallet), vignette gallery
+        // to the right, checkout lanes before the elevator.
+        zones: [
+            { rect: [9, 3, 5, 4], kind: 'vignette' },
+            { rect: [20, 3, 5, 4], kind: 'vignette' },
+            { rect: [31, 3, 7, 4], kind: 'vignette' },
+            { rect: [2, 8, 36, 3], kind: 'lounge', density: 0.2, rug: false },
+            { rect: [2, 12, 22, 6], kind: 'flatpack' },
+            { rect: [27, 12, 12, 6], kind: 'vignette', count: 6 },
+            { rect: [4, 19, 32, 2], kind: 'gallery', props: ['plant'], step: 4, accents: [] }, // queue planters
+            { rect: [4, 21, 32, 2], kind: 'checkout' },
+        ],
+        props: { plant: 2, bench: 2 },
+        decor: { paintings: 6, rugs: 3, rugColor: 0x8a4a26 },
         map: [
             "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
             "WS.....$...............................W",
@@ -153,7 +215,7 @@ export const LEVELS = [
             "WWWWWW+WWWWWWWWWWWWWWWWWWWWWWWWW+WWWWWWW",
             "W.......................W.............W",
             "W..$........T...........W....m....$...W",
-            "W............m..........W.............W",
+            "W.....R......m..........W.............W",
             "W........................+............W",
             "W..g.....................W......Z.....W",
             "W.........Z..............W............W",
@@ -177,6 +239,18 @@ export const LEVELS = [
         ambient: 0x607080, ambientIntensity: 0.9,
         accent: 0x88ddff,
         music: 'factory',
+        // Design: the particle-board plant. Receiving dock up top, the main
+        // assembly line of machines across the second band, paint stock and
+        // the lumber yard in the middle, shipping dock by the freight elevator.
+        zones: [
+            { rect: [3, 1, 42, 4], kind: 'dock' },
+            { rect: [3, 7, 42, 3], kind: 'assembly' },
+            { rect: [4, 12, 18, 5], kind: 'paintstock' },
+            { rect: [26, 12, 18, 5], kind: 'lumberyard' },
+            { rect: [4, 19, 16, 5], kind: 'lumberyard' },
+            { rect: [26, 19, 18, 5], kind: 'dock', count: 8 },
+        ],
+        props: { crate: 3, barrel: 3, machine: 1 },
         map: [
             "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
             "MS.....T.......................................M",
@@ -220,6 +294,18 @@ export const LEVELS = [
         accent: 0xff5533,
         music: 'boss',
         boss: true,
+        // Design: the Head Designer's penthouse. A statue gallery antechamber
+        // (golden tables on plinths — his trophies), then the duel arena ringed
+        // with executive garden corners. The center stays open for the fight.
+        zones: [
+            { rect: [2, 1, 28, 5], kind: 'gallery' },
+            { rect: [2, 8, 6, 5], kind: 'garden' },
+            { rect: [24, 8, 6, 5], kind: 'garden' },
+            { rect: [2, 16, 6, 5], kind: 'garden' },
+            { rect: [24, 16, 6, 5], kind: 'garden' },
+        ],
+        props: { plant: 2 },
+        decor: { paintings: 6, rugs: 2, rugColor: 0x5a1430 },
         map: [
             "MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM",
             "MS......A.......H.......A......M",

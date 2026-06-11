@@ -16,7 +16,9 @@ import { hud } from './hud.js';
 import {
     buildEnemy, buildTable, buildAmmo, buildHealth, buildMoney,
     buildGoldBar, buildTableLegPickup, buildSprayerPickup,
+    buildNailgunPickup, buildRollerPickup,
     buildBrushViewmodel, buildLegViewmodel, buildSprayerViewmodel,
+    buildNailgunViewmodel, buildRollerViewmodel,
 } from './models.js';
 import { Effects } from './effects.js';
 
@@ -74,11 +76,27 @@ export class Game {
         this.muzzleLight.position.set(0.15, -0.05, -0.5);
         camera.add(this.muzzleLight);
 
+        // Pooled projectile lights. Adding/removing lights mid-fight forces
+        // three.js to recompile every shader (visible hitch), so a fixed set
+        // lives in the scene permanently and gets parked under the floor.
+        this.lightPool = [];
+        for (let i = 0; i < 5; i++) {
+            const l = new THREE.PointLight(0xffffff, 0, 4, 1.8);
+            l.position.set(0, -50, 0);
+            scene.add(l);
+            this.lightPool.push(l);
+        }
+        // Pooled projectile meshes — avoids per-shot geometry/material allocs (GC stutter)
+        this.projGeos = new Map(); // radius -> shared geometry
+        this.projMeshPool = [];
+
         // weapon viewmodels
         this.viewmodels = {
             paintbrush: buildBrushViewmodel(),
             tableLeg: buildLegViewmodel(),
             sprayer: buildSprayerViewmodel(),
+            nailgun: buildNailgunViewmodel(),
+            roller: buildRollerViewmodel(),
         };
         for (const vm of Object.values(this.viewmodels)) {
             vm.visible = false;
@@ -91,6 +109,17 @@ export class Game {
         this.elevatorTriggered = false;
         this.godmode = false;
         this.moving = false;
+
+        // controls feel: smoothed look + camera lean state
+        this.smDX = 0;
+        this.smDY = 0;
+        this.turnVel = 0;
+        this.lean = 0;
+        this.lastFullHint = -10;
+        this.lastHeartbeat = -10;
+        // jump state: height above the floor + vertical velocity
+        this.jumpZ = 0;
+        this.jumpVel = 0;
     }
 
     newPlayer() {
@@ -128,10 +157,16 @@ export class Game {
         this.transitioning = false;
         this.vel.set(0, 0);
         this.pitch = 0;
+        this.lean = 0;
+        this.smDX = 0;
+        this.smDY = 0;
+        this.jumpZ = 0;
+        this.jumpVel = 0;
+        this.camera.rotation.z = 0;
 
         this.levelIndex = index;
         this.level = LEVELS[index];
-        this.world = new World(this.scene, this.level);
+        this.world = new World(this.scene, this.level, index);
 
         const prev = this.player;
         this.player = this.newPlayer();
@@ -198,7 +233,7 @@ export class Game {
                 stateTimer: 0, attackTimer: 0.5 + Math.random() * 1.5,
                 meleeTimer: 0,
                 patrolTimer: Math.random() * 2, patrolDir: Math.random() * Math.PI * 2,
-                patrolMove: true,
+                patrolMove: true, hopT: 0,
                 strafeSign: Math.random() < 0.5 ? 1 : -1, strafeTimer: 1 + Math.random() * 1.5,
                 walkPhase: Math.random() * 6, painT: 0, deathT: 0,
                 lostSightTimer: 0, phase2: false,
@@ -211,6 +246,7 @@ export class Game {
             T: ['table', buildTable], A: ['ammo', buildAmmo], H: ['health', buildHealth],
             $: ['money', buildMoney], Z: ['goldBar', buildGoldBar],
             L: ['weapon:tableLeg', buildTableLegPickup], P: ['weapon:sprayer', buildSprayerPickup],
+            N: ['weapon:nailgun', buildNailgunPickup], R: ['weapon:roller', buildRollerPickup],
         };
         const b = builders[char];
         if (!b) return;
@@ -246,11 +282,21 @@ export class Game {
     updatePlayer(dt) {
         const p = this.player;
 
-        // --- look ---
-        if (input.turnL) p.rot -= TURN_SPEED * dt;
-        if (input.turnR) p.rot += TURN_SPEED * dt;
-        p.rot += input.mouseDX * this.sens;
-        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - input.mouseDY * this.sens));
+        // --- look: lightly smoothed mouse + eased keyboard turn ---
+        const lookBlend = 1 - Math.exp(-dt * 30); // ~1 frame of smoothing, kills jitter
+        this.smDX += (input.mouseDX - this.smDX) * lookBlend;
+        this.smDY += (input.mouseDY - this.smDY) * lookBlend;
+        const turnTarget = (input.turnR ? 1 : 0) - (input.turnL ? 1 : 0);
+        this.turnVel += (turnTarget - this.turnVel) * Math.min(1, dt * 11);
+        p.rot += this.turnVel * TURN_SPEED * dt;
+        p.rot += this.smDX * this.sens;
+        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - this.smDY * this.sens));
+
+        // low-health heartbeat
+        if (p.health > 0 && p.health <= 25 && this.time - this.lastHeartbeat > 0.85) {
+            this.lastHeartbeat = this.time;
+            playSound('heartbeat');
+        }
 
         // --- move: smoothed velocity for snappy-but-not-instant feel ---
         const speed = input.sprint ? PLAYER_SPRINT : PLAYER_SPEED;
@@ -273,10 +319,28 @@ export class Game {
             const nx = p.x + this.vel.x * dt;
             const ny = p.y + this.vel.y * dt;
             [p.x, p.y] = this.world.collide(nx, ny, PLAYER_RADIUS);
-            this.bobPhase += dt * (3.2 + speedNow * 1.6);
-            if (performance.now() - this.lastStepTime > 1150 / speedNow) {
-                playSound('step');
-                this.lastStepTime = performance.now();
+            if (this.jumpZ <= 0) { // feet only work on the ground
+                this.bobPhase += dt * (3.2 + speedNow * 1.6);
+                if (performance.now() - this.lastStepTime > 1150 / speedNow) {
+                    playSound('step');
+                    this.lastStepTime = performance.now();
+                }
+            }
+        }
+
+        // --- jump: a quick hop ---
+        if (input.jump && this.jumpZ <= 0.001 && this.jumpVel === 0) {
+            this.jumpVel = 2.7;
+            playSound('jump');
+        }
+        if (this.jumpZ > 0 || this.jumpVel !== 0) {
+            this.jumpZ += this.jumpVel * dt;
+            this.jumpVel -= 10.5 * dt;
+            if (this.jumpZ <= 0) {
+                this.jumpZ = 0;
+                this.jumpVel = 0;
+                playSound('land');
+                this.shake = Math.max(this.shake, 0.06);
             }
         }
 
@@ -326,27 +390,44 @@ export class Game {
                     hit = true;
                 }
             }
+            // the table leg also wrecks furniture
+            for (const reach of [0.7, 1.3]) {
+                const fx = Math.floor(p.x + Math.cos(p.rot) * reach);
+                const fy = Math.floor(p.y + Math.sin(p.rot) * reach);
+                const res = this.world.damageProp(fx, fy, w.damage);
+                if (res) {
+                    this.onPropHit(res, fx + 0.5, 0.45, fy + 0.5);
+                    hit = true;
+                    break;
+                }
+            }
             if (hit) {
                 playSound('hit');
                 hud.hitMarker();
                 this.shake = Math.max(this.shake, 0.12);
             }
         } else {
-            playSound(w === WEAPONS.sprayer ? 'spray' : 'shoot');
+            playSound(w.sound || (w === WEAPONS.sprayer ? 'spray' : 'shoot'));
             const spread = (w.spread || 0) * (Math.random() - 0.5) * 2;
             const ang = p.rot + spread;
-            const color = new THREE.Color().setHSL(Math.random(), 1, 0.55);
+            const color = w.fixedColor !== undefined
+                ? new THREE.Color(w.fixedColor)
+                : new THREE.Color().setHSL(Math.random(), 1, 0.55);
             this.muzzleColor = color;
+            const speed = w.speed || PROJECTILE_SPEED;
             this.spawnProjectile({
                 x: p.x + Math.cos(ang) * 0.3,
                 y: p.y + Math.sin(ang) * 0.3,
-                z: EYE_HEIGHT - 0.06,
-                vx: Math.cos(ang) * PROJECTILE_SPEED,
-                vy: Math.sin(ang) * PROJECTILE_SPEED,
+                z: EYE_HEIGHT - 0.06 + this.jumpZ,
+                vx: Math.cos(ang) * speed,
+                vy: Math.sin(ang) * speed,
                 owner: 'player',
                 damage: w.damage,
                 color,
-                light: w !== WEAPONS.sprayer,
+                size: w.size,
+                light: !!w.light,
+                splash: w.splash,
+                splashDamage: w.splashDamage,
             });
         }
         this.cb.onHUD();
@@ -367,23 +448,49 @@ export class Game {
         for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === key;
     }
 
-    spawnProjectile(opts) {
-        const geo = new THREE.SphereGeometry(opts.owner === 'player' ? 0.05 : 0.065, 8, 8);
-        const mat = new THREE.MeshBasicMaterial({ color: opts.color });
-        const mesh = new THREE.Mesh(geo, mat);
-        mesh.position.set(opts.x, opts.z, opts.y);
-        if (opts.light) {
-            const light = new THREE.PointLight(opts.color, 2.2, 4, 1.8);
-            mesh.add(light);
+    acquireLight(color) {
+        const l = this.lightPool.find(l => !l.userData.inUse);
+        if (!l) return null; // pool exhausted: shot just flies unlit
+        l.userData.inUse = true;
+        l.color.set(color);
+        l.intensity = 2.2;
+        return l;
+    }
+
+    releaseLight(l) {
+        if (!l) return;
+        l.userData.inUse = false;
+        l.intensity = 0;
+        l.position.set(0, -50, 0);
+    }
+
+    getProjGeo(size) {
+        let g = this.projGeos.get(size);
+        if (!g) {
+            g = new THREE.SphereGeometry(size, 8, 8);
+            this.projGeos.set(size, g);
         }
+        return g;
+    }
+
+    spawnProjectile(opts) {
+        const size = opts.size || (opts.owner === 'player' ? 0.05 : 0.065);
+        let mesh = this.projMeshPool.pop();
+        if (!mesh) mesh = new THREE.Mesh(this.getProjGeo(size), new THREE.MeshBasicMaterial());
+        mesh.geometry = this.getProjGeo(size);
+        mesh.material.color.set(opts.color);
+        mesh.position.set(opts.x, opts.z, opts.y);
         this.scene.add(mesh);
-        this.projectiles.push({ ...opts, mesh, life: 3 });
+        const light = opts.light ? this.acquireLight(opts.color) : null;
+        if (light) light.position.set(opts.x, opts.z, opts.y);
+        this.projectiles.push({ ...opts, mesh, pLight: light, life: 3 });
     }
 
     removeProjectileMesh(pr) {
         this.scene.remove(pr.mesh);
-        pr.mesh.geometry.dispose();
-        pr.mesh.material.dispose();
+        this.projMeshPool.push(pr.mesh);
+        this.releaseLight(pr.pLight);
+        pr.pLight = null;
     }
 
     updateProjectiles(dt) {
@@ -395,8 +502,18 @@ export class Game {
             const ny = pr.y + pr.vy * dt;
             let dead = pr.life <= 0;
 
+            // furniture hit → smash it up
+            if (!dead) {
+                const prop = this.world.propAt(Math.floor(nx), Math.floor(ny));
+                if (prop && pr.z < prop.def.height) {
+                    dead = true;
+                    const res = this.world.damageProp(Math.floor(nx), Math.floor(ny), pr.damage);
+                    this.onPropHit(res, nx, pr.z, ny);
+                }
+            }
+
             // wall hit → splat
-            if (!dead && this.world.blocksShots(Math.floor(nx), Math.floor(ny))) {
+            if (!dead && this.world.isStructureSolid(Math.floor(nx), Math.floor(ny))) {
                 dead = true;
                 const pos = new THREE.Vector3(pr.x, pr.z, pr.y);
                 const cellX = Math.floor(nx);
@@ -434,12 +551,60 @@ export class Game {
             }
 
             if (dead) {
+                if (pr.splash) this.explodeSplash(pr);
                 this.removeProjectileMesh(pr);
                 this.projectiles.splice(i, 1);
             } else {
                 pr.x = nx; pr.y = ny;
                 pr.mesh.position.set(nx, pr.z, ny);
+                if (pr.pLight) pr.pLight.position.set(nx, pr.z, ny);
             }
+        }
+    }
+
+    /** Roller impact: paint everything, hurt everyone standing in the coat. */
+    explodeSplash(pr) {
+        playSound('roller_boom');
+        const pos = new THREE.Vector3(pr.x, pr.z, pr.y);
+        this.effects.burst(pos, pr.color, 26, 3.4, 0.6);
+        this.effects.splat(
+            new THREE.Vector3(pr.x, 0.02, pr.y),
+            new THREE.Vector3(0, 1, 0),
+            pr.color, 0.9 + Math.random() * 0.4);
+        let hitAny = false;
+        for (const e of this.enemies) {
+            if (!e.alive) continue;
+            const d = Math.hypot(e.x - pr.x, e.y - pr.y);
+            if (d < pr.splash) {
+                this.damageEnemy(e, pr.splashDamage * (1 - 0.6 * d / pr.splash));
+                hitAny = true;
+            }
+        }
+        // the blast wrecks nearby furniture too
+        for (const rec of this.world.propsInRadius(pr.x, pr.y, pr.splash)) {
+            const res = this.world.damageProp(rec.x, rec.y, pr.splashDamage * 0.8);
+            if (res) this.onPropHit(res, rec.x + 0.5, 0.4, rec.y + 0.5);
+        }
+        if (hitAny) hud.hitMarker();
+        const pd = Math.hypot(this.player.x - pr.x, this.player.y - pr.y);
+        if (pd < 3) this.shake = Math.max(this.shake, 0.3 * (1 - pd / 3));
+    }
+
+    /** Feedback for furniture damage: knocks, splinters, and the odd cash stash. */
+    onPropHit(res, x, z, y) {
+        if (!res) return;
+        const wood = new THREE.Color(0x9a7442);
+        if (res.destroyed) {
+            playSound('wood_break');
+            this.effects.burst(new THREE.Vector3(res.x, 0.45, res.y), wood, 22, 3.0, 0.6);
+            this.effects.burst(new THREE.Vector3(res.x, 0.2, res.y), new THREE.Color(0x6e5436), 12, 2.0, 0.5);
+            this.player.score += 5; // demolition bonus
+            // the cartel hides cash in the furniture
+            if (Math.random() < 0.12) this.spawnEntity({ char: '$', x: res.x, y: res.y });
+            this.cb.onHUD();
+        } else {
+            playSound('wood_hit');
+            this.effects.burst(new THREE.Vector3(x, z, y), wood, 6, 1.4, 0.3);
         }
     }
 
@@ -464,6 +629,7 @@ export class Game {
     damageEnemy(e, dmg) {
         if (!e.alive) return;
         e.health -= dmg;
+        if (e.painT <= 0 && e.health > 0) playSound('enemy_pain'); // grunt (throttled by painT)
         e.painT = 0.22;
         if (e.state === 'idle' || e.state === 'alert') {
             e.state = 'chase'; // getting shot wakes them up
@@ -474,6 +640,9 @@ export class Game {
             e.state = 'dead';
             e.deathT = 0;
             for (const mat of e.model.flashMats) mat.emissive?.setRGB(0, 0, 0);
+            // they go down in a spray of paint
+            this.effects.burst(new THREE.Vector3(e.x, 0.5, e.y),
+                new THREE.Color().setHSL(Math.random(), 0.9, 0.55), 18, 2.6, 0.55);
             this.killsThisLevel++;
             this.enemiesAlive = this.enemies.filter(en => en.alive).length;
             playSound('enemy_death');
@@ -502,6 +671,7 @@ export class Game {
             if (Math.hypot(o.x - src.x, o.y - src.y) < PACK_ALERT_RADIUS) {
                 o.state = 'alert';
                 o.stateTimer = 0.3 + Math.random() * 0.5;
+                o.hopT = 0.3; // startled jump
             }
         }
     }
@@ -554,6 +724,7 @@ export class Game {
                 if (los && dist < stats.detectRange && this.spawnGrace <= 0) {
                     e.state = 'alert';
                     e.stateTimer = 0.35;
+                    e.hopT = 0.3; // startled jump
                     playSound(e.variant === 'boss' ? 'boss_roar' : 'alert');
                     this.packAlert(e);
                 }
@@ -637,19 +808,50 @@ export class Game {
             }
 
             // update model transform + walk animation
-            m.group.position.set(e.x, m.group.position.y, e.y);
+            const isMoving = !!(moveX || moveY);
+            // bouncy step + startled hop
+            let bounceY = isMoving ? Math.abs(Math.sin(e.walkPhase)) * 0.045 : 0;
+            if (e.hopT > 0) {
+                e.hopT -= dt;
+                bounceY += Math.sin(Math.max(0, 1 - e.hopT / 0.3) * Math.PI) * 0.12;
+            }
+            m.group.position.set(e.x, bounceY, e.y);
             e.shadow.position.set(e.x, 0.012, e.y);
             const face = (e.state === 'chase' || e.state === 'alert')
                 ? Math.atan2(p.x - e.x, p.y - e.y)
                 : Math.atan2(Math.cos(e.patrolDir), Math.sin(e.patrolDir));
-            m.group.rotation.y = face;
-            const swing = (moveX || moveY) ? Math.sin(e.walkPhase) * 0.55 : 0;
+            // turn smoothly instead of snapping
+            let dFace = face - m.group.rotation.y;
+            while (dFace > Math.PI) dFace -= Math.PI * 2;
+            while (dFace < -Math.PI) dFace += Math.PI * 2;
+            m.group.rotation.y += dFace * Math.min(1, dt * 10);
+
+            const swing = isMoving ? Math.sin(e.walkPhase) * 0.75 : 0;
             m.legL.rotation.x = swing;
             m.legR.rotation.x = -swing;
-            m.armL.rotation.x = -swing * 0.7;
-            m.armR.rotation.x = swing * 0.7;
-            // raise arm when about to attack
-            if (e.state === 'chase' && e.attackTimer < 0.35) m.armR.rotation.x = -1.9;
+            m.armL.rotation.x = -swing * 0.75;
+            m.armR.rotation.x = swing * 0.75;
+            if (isMoving) {
+                // lean into the run, shoulders rolling with the stride
+                const urgency = e.state === 'chase' ? 1 : 0.4;
+                m.torso.rotation.x = 0.1 * urgency;
+                m.torso.rotation.z = Math.sin(e.walkPhase) * 0.07;
+                m.headG.rotation.y = 0;
+            } else {
+                // idle: breathe and glance around
+                m.torso.rotation.x = Math.sin(this.time * 1.8 + e.walkPhase) * 0.022;
+                m.torso.rotation.z = 0;
+                m.armL.rotation.x = Math.sin(this.time * 1.8 + e.walkPhase) * 0.05;
+                m.armR.rotation.x = -Math.sin(this.time * 1.8 + e.walkPhase) * 0.05;
+                m.headG.rotation.y = e.state === 'idle'
+                    ? Math.sin(this.time * 0.7 + e.walkPhase * 2) * 0.45
+                    : m.headG.rotation.y * Math.max(0, 1 - dt * 8);
+            }
+            // wind-up: raise arm and rear back right before attacking
+            if (e.state === 'chase' && e.attackTimer < 0.35) {
+                m.armR.rotation.x = -1.9;
+                m.torso.rotation.x = -0.08;
+            }
         }
     }
 
@@ -699,31 +901,44 @@ export class Game {
                 item.mesh.userData.halo.material.opacity = 0.5 + Math.sin(time * 3) * 0.3;
             }
 
+            // generous radius — standing anywhere on the item always registers
             const dist = Math.hypot(p.x - item.x, p.y - item.y);
-            if (dist > 0.55) continue;
+            if (dist > 0.8) continue;
 
             let collected = true;
             if (item.kind === 'table') {
                 p.tables++;
                 p.score += SCORE_VALUES.table;
                 playSound('table');
+                // golden confetti for the guest of honor
+                const tpos = new THREE.Vector3(item.x, 0.65, item.y);
+                this.effects.burst(tpos, new THREE.Color(0xffd700), 24, 3.2, 0.85);
+                this.effects.burst(tpos, new THREE.Color().setHSL(Math.random(), 1, 0.6), 16, 2.6, 0.7);
                 hud.toast(`TABLE RECLAIMED! (${p.tables}/${this.requiredTables})`, 1800);
                 if (p.tables >= this.requiredTables && this.world.unlockGates()) {
                     playSound('gate');
                     setTimeout(() => hud.toast('⚡ ELEVATOR UNLOCKED — HEAD DOWN! ⚡', 3000), 900);
                 }
             } else if (item.kind === 'ammo') {
-                if (p.ammo >= 99) collected = false;
+                if (p.ammo >= 99) { collected = false; this.fullHint('PAINT'); }
                 else { p.ammo = Math.min(99, p.ammo + 14); playSound('collect'); }
             } else if (item.kind === 'health') {
-                if (p.health >= MAX_HEALTH) collected = false;
-                else { p.health = Math.min(MAX_HEALTH, p.health + 25); playSound('munch'); }
+                if (p.health >= MAX_HEALTH) { collected = false; this.fullHint('HEALTH'); }
+                else {
+                    p.health = Math.min(MAX_HEALTH, p.health + 25);
+                    playSound('munch');
+                    hud.toast('FRITOS! +25 HP', 1100);
+                }
             } else if (item.kind === 'money') {
                 p.score += SCORE_VALUES.money;
                 playSound('money');
+                this.effects.burst(new THREE.Vector3(item.x, 0.4, item.y),
+                    new THREE.Color(0xffd24a), 8, 1.6, 0.45);
             } else if (item.kind === 'goldBar') {
                 p.score += SCORE_VALUES.goldBar;
                 playSound('money');
+                this.effects.burst(new THREE.Vector3(item.x, 0.4, item.y),
+                    new THREE.Color(0xffe27a), 12, 1.9, 0.5);
             } else if (item.kind.startsWith('weapon:')) {
                 const wkey = item.kind.split(':')[1];
                 if (!p.weapons.includes(wkey)) {
@@ -742,6 +957,13 @@ export class Game {
                 this.cb.onHUD();
             }
         }
+    }
+
+    /** Tell the player why an item didn't collect instead of silently ignoring it. */
+    fullHint(what) {
+        if (this.time - this.lastFullHint < 1.5) return;
+        this.lastFullHint = this.time;
+        hud.toast(`${what} ALREADY FULL`, 900);
     }
 
     checkElevator() {
@@ -766,16 +988,31 @@ export class Game {
         const speedNow = this.vel.length();
         const bobAmp = 0.014 + speedNow * 0.0035;
         const bob = this.moving ? Math.sin(this.bobPhase) * bobAmp : 0;
+        // subtle figure-8: head also sways sideways with the stride
+        const sway = this.moving ? Math.cos(this.bobPhase * 0.5) * bobAmp * 0.9 : 0;
+        // player-right vector (matches strafeR input direction)
+        const rightX = -Math.sin(p.rot), rightY = Math.cos(p.rot);
 
         // screen shake decays fast
         this.shake = Math.max(0, this.shake - dt * 1.8);
         const shx = (Math.random() - 0.5) * this.shake * 0.05;
         const shy = (Math.random() - 0.5) * this.shake * 0.05;
 
-        this.camera.position.set(p.x + shx, EYE_HEIGHT + bob + shy, p.y);
+        this.camera.position.set(
+            p.x + shx + rightX * sway,
+            EYE_HEIGHT + bob + shy + this.jumpZ,
+            p.y + rightY * sway);
         this.camera.rotation.order = 'YXZ';
         this.camera.rotation.y = -(p.rot + Math.PI / 2);
         this.camera.rotation.x = this.pitch + (Math.random() - 0.5) * this.shake * 0.03;
+
+        // dynamic roll: bank into strafes and quick turns
+        const lateral = this.vel.x * rightX + this.vel.y * rightY; // + when strafing right
+        const turnRoll = (this.smDX * this.sens) / Math.max(dt, 0.001); // rad/s of yaw
+        const leanTarget = THREE.MathUtils.clamp(
+            lateral * 0.012 + turnRoll * 0.004, -0.05, 0.05);
+        this.lean += (leanTarget - this.lean) * Math.min(1, dt * 7);
+        this.camera.rotation.z = -this.lean; // bank into the move
 
         // sprint FOV kick
         const targetFov = this.baseFov + (input.sprint && this.moving ? 7 : 0);

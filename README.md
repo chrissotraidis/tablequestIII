@@ -1,7 +1,7 @@
 # 🎮 SANDY'S TABLE QUEST 3D
 
 <p align="center">
-  <img src="src/assets/tableboxart.png" alt="Sandy's Table Quest box art" width="420" />
+  <img src="src/assets/tableboxart2.png" alt="Sandy's Table Quest box art" width="420" />
 </p>
 
 <p align="center">
@@ -23,9 +23,11 @@ The original boot screens, title art, box art, and story are lovingly preserved 
 ### ✨ Features
 
 - **True 3D Engine** — WebGL via three.js: real geometry, per-floor fog and lighting palettes, ACES tone mapping, muzzle flashes, screen shake, paint-splat decals, and particles
-- **Six Unique Floors** — from the marble Lobby to the Penthouse boss suite, each with its own textures, lighting, and music
+- **Six Unique Floors** — from the marble Lobby to the Penthouse boss suite, each with its own textures, lighting, music, and **purpose-built rooms**: reception desks, break rooms, cubicle farms, archive stacks, showroom vignettes, assembly lines
+- **Destructible Furniture** — every prop can be smashed for splinters (and the occasional hidden cash)
 - **Enemies That Hunt** — pack alerts, combat strafing, shot leading by rank, door breaching, and a two-phase final boss
-- **Three Weapons** — the trusty Paintbrush, the hidden Table Leg (melee), and the full-auto Paint Sprayer
+- **Five Weapons** — the trusty Paintbrush, the Table Leg (melee), the pneumatic Nail Gun, the room-repainting Roller Launcher, and the full-auto Paint Sprayer
+- **The Fritos® Bag** — the original game's legendary health pickup, ported sprite-for-sprite (crunch included)
 - **Procedural Everything** — all textures, models, music, and sound effects are generated in code; the original artwork is the only asset
 - **Single-File Distribution** — the entire game compiles to one HTML file
 
@@ -47,7 +49,7 @@ Requires [Node.js](https://nodejs.org/) v18+.
 git clone https://github.com/chrissotraidis/tablequestIII.git
 cd tablequestIII
 npm install
-npm run dev      # → http://localhost:5179
+npm run dev      # → http://localhost:5173
 npm run build    # → dist/index.html (single file)
 ```
 
@@ -66,12 +68,13 @@ Collect all the **Tables** on each floor to unlock the elevator and ride it up. 
 | `W A S D` | Move / strafe |
 | Mouse (click to capture) | Look — full yaw + pitch |
 | `←` `→` | Turn (classic mode) |
-| `Space` / Left click | Fire weapon (hold for continuous) |
+| Left click / `Ctrl` | Fire weapon (hold for continuous) |
+| `Space` | Jump |
 | `E` | Open doors (any adjacent door) |
 | `Shift` | Sprint (with FOV kick) |
-| `1` `2` `3` / `Q` / Wheel | Switch / cycle weapon |
+| `1`–`5` / `Q` / Wheel | Switch / cycle weapon |
 | `[` `]` | Mouse sensitivity (saved) |
-| `Tab` | Minimap |
+| `Tab` | Blueprint minimap |
 | `U` | Mute |
 | `Esc` | Pause (also auto-pauses on focus loss) |
 
@@ -80,10 +83,12 @@ Collect all the **Tables** on each floor to unlock the elevator and ride it up. 
 | Item | Description |
 |:---|:---|
 | 🪑 **Tables** | Your stolen masterpieces — collect them all! |
-| 🩹 **First-Aid Wood Polish** | Restores +25 HP (max 100) |
+| 🌽 **Fritos® Bag** | The classic — restores +25 HP (max 100). Crunch. |
 | 🎨 **Blue Paint Bucket** | Replenishes +14 paint |
-| 💰 **Cash & Gold Bars** | Pure score |
+| 💰 **Cash & Gold Bars** | Pure score — also check inside furniture |
 | 🪵 **Table Leg** | Hidden melee weapon — no ammo required |
+| 🔨 **Nail Gun** | Hidden pneumatic precision — staple their blazers shut |
+| 🖌️ **Roller Launcher** | Hidden heavy launcher — a fresh coat for everyone in the room |
 | 🔫 **Paint Sprayer** | Hidden full-auto industrial paint delivery |
 
 ### Enemies
@@ -115,14 +120,14 @@ Collect all the **Tables** on each floor to unlock the elevator and ride it up. 
 | | Original (1.0) | 3D Remaster (2.x) |
 |:--|:--|:--|
 | Renderer | 320×200 CPU raycaster | WebGL (three.js), real 3D geometry, fog, dynamic lights, ACES tone mapping |
-| Levels | 4 | **6**, each with its own palette, materials, fog, and music |
-| Enemies | Billboard sprites | Animated 3D models with walk cycles, attack telegraphs, death falls, pack AI, shot leading, door breaching |
-| Weapons | Paintbrush, table leg | + full-auto **Paint Sprayer**; viewmodels with sway, recoil, and muzzle-flash lighting |
-| Physics | Axis-aligned cell checks | Circle-vs-grid sliding collision, velocity smoothing, projectile travel, mercy windows |
+| Levels | 4 | **6**, each zone-designed into real places — break rooms, cubicle farms, archive stacks, showroom vignettes, assembly lines — full of **destructible furniture** |
+| Enemies | Billboard sprites | Animated 3D models with bouncy walk cycles, startled hops, attack telegraphs, death falls, pack AI, shot leading, door breaching |
+| Weapons | Paintbrush, table leg | **Five**: + pneumatic Nail Gun, splash-damage Roller Launcher, full-auto Paint Sprayer; viewmodels with Sandy's arms, sway, recoil, and muzzle-flash lighting |
+| Movement | Grid shuffle | Circle-vs-grid sliding collision, velocity smoothing, head-bob with strafe banking, **jumping**, mercy windows |
 | Doors | Cells that vanish | Animated sliding doors, sinking elevator gates |
-| Effects | — | Splat decals, particle bursts, screen shake, hit markers, damage vignette, blob shadows |
-| Audio | Procedural synth (4 songs) | Same synth architecture, **9 all-new 16-bar compositions** + expanded SFX |
-| UI | DOM HUD | Live pixel-art Sandy face, minimap, boss health bar, toasts, pause menu, floor select, persistent high score |
+| Effects | — | Splat decals, particle bursts, wood splinters, screen shake, hit markers, damage vignette, blob shadows |
+| Audio | Procedural synth (4 songs) | Same synth architecture, **9 all-new 16-bar compositions** with stereo staging and swing + expanded SFX |
+| UI | DOM HUD | Carved-workbench HUD with brass plaques and a pegboard weapon rack, pixel-art Sandy portrait, blueprint minimap, boss bar, floor select, persistent high score |
 | Boss | Stat block | Two-phase fight with rage volleys, supply drops, and a cover-built arena |
 
 ---

@@ -96,12 +96,16 @@
             50%, 100% { opacity: 0.15; }
         }
 
-        /* ---- Main menu ---- */
+        /* ---- Main menu: Sandy's workshop after hours ---- */
         #menu-screen {
             z-index: 300;
             background:
-                radial-gradient(ellipse at 50% -20%, rgba(255, 60, 30, 0.25), transparent 60%),
-                linear-gradient(180deg, #4a0000 0%, #2e0000 45%, #160000 100%);
+                radial-gradient(ellipse at 50% -20%, rgba(255, 90, 40, 0.28), transparent 60%),
+                radial-gradient(ellipse at 18% 110%, rgba(60, 24, 6, 0.65), transparent 55%),
+                repeating-linear-gradient(90deg,
+                    rgba(72, 34, 12, 0.16) 0px, rgba(72, 34, 12, 0.16) 38px,
+                    rgba(28, 10, 2, 0.22) 38px, rgba(28, 10, 2, 0.22) 42px),
+                linear-gradient(180deg, #4e0d00 0%, #320500 45%, #140100 100%);
             flex-direction: row;
             gap: 5vw;
         }
@@ -110,8 +114,48 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.7) 100%);
+            background: radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.72) 100%);
             pointer-events: none;
+        }
+
+        /* dried paint thrown across the workshop walls */
+        .menu-splats {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(circle 100px at 7% 84%, rgba(40, 110, 255, 0.16), transparent 68%),
+                radial-gradient(circle 56px at 13% 74%, rgba(40, 110, 255, 0.1), transparent 70%),
+                radial-gradient(circle 120px at 91% 14%, rgba(255, 205, 60, 0.12), transparent 70%),
+                radial-gradient(circle 48px at 85% 26%, rgba(255, 205, 60, 0.09), transparent 70%),
+                radial-gradient(circle 84px at 88% 82%, rgba(220, 40, 40, 0.15), transparent 68%),
+                radial-gradient(circle 46px at 4% 18%, rgba(90, 200, 120, 0.1), transparent 70%);
+        }
+
+        /* sawdust drifting in the light */
+        .menu-dust span {
+            position: absolute;
+            top: -2%;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            background: rgba(255, 214, 160, 0.5);
+            box-shadow: 0 0 6px rgba(255, 214, 160, 0.35);
+            animation: dustFall linear infinite;
+        }
+
+        .menu-dust span:nth-child(1) { left: 12%; animation-duration: 13s; animation-delay: 0s; }
+        .menu-dust span:nth-child(2) { left: 31%; animation-duration: 17s; animation-delay: 4s; width: 3px; height: 3px; }
+        .menu-dust span:nth-child(3) { left: 52%; animation-duration: 11s; animation-delay: 2s; }
+        .menu-dust span:nth-child(4) { left: 68%; animation-duration: 15s; animation-delay: 7s; width: 3px; height: 3px; }
+        .menu-dust span:nth-child(5) { left: 84%; animation-duration: 19s; animation-delay: 1s; }
+        .menu-dust span:nth-child(6) { left: 43%; animation-duration: 21s; animation-delay: 9s; width: 2px; height: 2px; }
+
+        @keyframes dustFall {
+            0% { transform: translateY(-4vh) translateX(0); opacity: 0; }
+            8% { opacity: 1; }
+            90% { opacity: 0.7; }
+            100% { transform: translateY(106vh) translateX(4vw); opacity: 0; }
         }
 
         .menu-left {
@@ -128,6 +172,12 @@
             border-radius: 4px;
             box-shadow: 0 18px 60px rgba(0, 0, 0, 0.9), 0 0 40px rgba(255, 80, 40, 0.15);
             transform: rotate(-2.5deg);
+            transition: transform .4s ease, box-shadow .4s ease;
+        }
+
+        #menu-boxart:hover {
+            transform: rotate(-1deg) scale(1.02);
+            box-shadow: 0 22px 70px rgba(0, 0, 0, 0.95), 0 0 60px rgba(255, 110, 50, 0.3);
         }
 
         .menu-right {
@@ -135,57 +185,112 @@
             flex-direction: column;
             align-items: flex-start;
             z-index: 10;
-            min-width: 380px;
+            min-width: 400px;
+            max-width: 560px;
         }
 
         .menu-title {
             font-family: 'Times New Roman', Georgia, serif;
             font-style: italic;
             font-weight: bold;
-            font-size: clamp(36px, 4.5vw, 60px);
+            font-size: clamp(38px, 4.6vw, 62px);
             color: #fff;
-            letter-spacing: 3px;
-            margin: 0 0 4px 0;
-            text-shadow:
-                2px 2px 0 #B22222,
-                4px 4px 0 #8B0000,
-                6px 6px 12px rgba(0, 0, 0, 0.9),
-                0 0 30px rgba(255, 100, 100, 0.35);
+            letter-spacing: 1px;
+            line-height: 1.05;
+            margin: 0 0 6px 0;
+            animation: titleGlow 3.6s ease-in-out infinite;
+        }
+
+        @keyframes titleGlow {
+            0%, 100% {
+                text-shadow:
+                    2px 2px 0 #B22222,
+                    4px 4px 0 #8B0000,
+                    6px 6px 12px rgba(0, 0, 0, 0.9),
+                    0 0 26px rgba(255, 100, 100, 0.3);
+            }
+            50% {
+                text-shadow:
+                    2px 2px 0 #B22222,
+                    4px 4px 0 #8B0000,
+                    6px 6px 12px rgba(0, 0, 0, 0.9),
+                    0 0 44px rgba(255, 150, 110, 0.55);
+            }
         }
 
         .menu-sub {
             color: var(--wood);
-            font-size: 15px;
-            letter-spacing: 4px;
-            margin-bottom: 36px;
+            font-size: 14px;
+            letter-spacing: 3px;
             text-shadow: 1px 1px 0 #000;
+        }
+
+        /* gold inlay rule under the subtitle */
+        .menu-rule {
+            width: 100%;
+            height: 2px;
+            margin: 14px 0 26px;
+            background: linear-gradient(90deg, #c9a227 0%, rgba(201, 162, 39, 0.25) 70%, transparent 100%);
+            box-shadow: 0 1px 0 rgba(0, 0, 0, 0.6);
+        }
+
+        /* the carved wooden sign */
+        #menu-items {
+            align-self: stretch;
+            padding: 14px 18px;
+            background:
+                repeating-linear-gradient(0deg,
+                    rgba(255, 218, 168, 0.04) 0px, rgba(255, 218, 168, 0.04) 2px,
+                    rgba(0, 0, 0, 0.05) 2px, rgba(0, 0, 0, 0.05) 5px),
+                repeating-linear-gradient(90deg,
+                    rgba(0, 0, 0, 0) 0px, rgba(0, 0, 0, 0) 110px,
+                    rgba(18, 8, 2, 0.4) 110px, rgba(18, 8, 2, 0.4) 113px),
+                linear-gradient(180deg, #56371a 0%, #432a10 45%, #341e0a 100%);
+            border: 3px solid #2a1808;
+            outline: 1px solid rgba(201, 162, 39, 0.55);
+            outline-offset: -7px;
+            border-radius: 6px;
+            box-shadow:
+                inset 0 2px 10px rgba(0, 0, 0, 0.5),
+                inset 0 -3px 8px rgba(0, 0, 0, 0.4),
+                0 12px 32px rgba(0, 0, 0, 0.65),
+                0 1px 0 rgba(255, 220, 170, 0.18);
         }
 
         .menu-item {
             font-family: 'Times New Roman', Georgia, serif;
-            font-size: 30px;
+            font-size: 31px;
             font-weight: bold;
-            color: #997766;
-            margin: 7px 0;
+            color: #b08d6a;
             cursor: pointer;
             position: relative;
-            padding-left: 48px;
+            padding: 9px 18px 9px 58px;
             letter-spacing: 1px;
             text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9);
-            transition: color .12s;
+            transition: color .12s, background .12s;
+            border-radius: 4px;
         }
 
-        .menu-item:hover { color: #ddbbaa; }
+        .menu-item:not(:last-child) {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+            box-shadow: 0 1px 0 rgba(255, 218, 168, 0.07);
+        }
+
+        .menu-item:hover { color: #e8c8a8; }
 
         .menu-item.selected {
-            color: #fff;
-            text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9), 0 0 14px rgba(255, 220, 180, 0.45);
+            color: #ffe9cb;
+            background: linear-gradient(90deg, rgba(201, 162, 39, 0.16), rgba(201, 162, 39, 0.02) 70%, transparent);
+            text-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9), 0 0 16px rgba(255, 210, 150, 0.55);
         }
 
         .menu-item.selected::before {
             content: '🖌️';
             position: absolute;
-            left: 2px;
+            left: 12px;
+            top: 50%;
+            translate: 0 -50%;
+            font-size: 26px;
             animation: cursorBob 0.6s ease-in-out infinite;
         }
 
@@ -194,35 +299,62 @@
             50% { transform: translateX(6px); }
         }
 
+        /* high score on a little brass plate */
+        #menu-highscore {
+            margin-top: 20px !important;
+            padding: 5px 18px 6px;
+            background: linear-gradient(180deg, #caa64e 0%, #9a7a2e 50%, #b08c38 100%);
+            border: 2px solid #6a5418;
+            border-radius: 4px;
+            font-family: Georgia, serif;
+            font-size: 13px !important;
+            font-weight: bold;
+            letter-spacing: 2px;
+            color: #3a2a06 !important;
+            text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
+            box-shadow:
+                inset 0 1px 0 rgba(255, 240, 200, 0.7),
+                inset 0 -2px 3px rgba(60, 40, 0, 0.5),
+                0 3px 7px rgba(0, 0, 0, 0.5);
+        }
+
+        #menu-highscore:empty { display: none; }
+
         .menu-footer-bar {
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
-            height: 34px;
-            background: linear-gradient(180deg, #3a3a3a, #1c1c1c);
-            border-top: 2px solid #555;
+            height: 38px;
+            background: linear-gradient(180deg, #4a3a1c, #241a08);
+            border-top: 2px solid #c9a227;
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 20;
-            font-size: 11px;
-            color: #999;
-            letter-spacing: 1px;
+            font-size: 12px;
+            color: #d8c08a;
+            letter-spacing: 2px;
+            text-shadow: 1px 1px 0 #000;
         }
 
         /* ---- Sub panels (instructions / level select / pause) ---- */
         .panel {
-            background: linear-gradient(180deg, #5A0000 0%, #380000 100%);
-            border: 3px solid #777;
-            border-top-color: #999;
-            border-left-color: #999;
-            border-bottom-color: #333;
-            border-right-color: #333;
+            background:
+                repeating-linear-gradient(0deg,
+                    rgba(255, 218, 168, 0.04) 0px, rgba(255, 218, 168, 0.04) 2px,
+                    rgba(0, 0, 0, 0.05) 2px, rgba(0, 0, 0, 0.05) 5px),
+                linear-gradient(180deg, #56371a 0%, #432a10 45%, #321c0a 100%);
+            border: 3px solid #2a1808;
+            outline: 1px solid rgba(201, 162, 39, 0.55);
+            outline-offset: -7px;
+            border-radius: 6px;
             padding: 28px 48px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+            box-shadow:
+                inset 0 2px 10px rgba(0, 0, 0, 0.45),
+                0 14px 44px rgba(0, 0, 0, 0.8);
             z-index: 30;
-            max-width: min(620px, 88vw);
+            max-width: min(640px, 88vw);
             max-height: 84vh;
             overflow-y: auto;
         }
@@ -230,11 +362,20 @@
         .panel h2 {
             font-family: 'Times New Roman', Georgia, serif;
             font-style: italic;
-            color: #fff;
-            text-shadow: 2px 2px 0 #600;
-            margin: 0 0 18px 0;
+            color: #ffe9cb;
+            text-shadow: 2px 2px 0 #1a0e04, 0 0 18px rgba(255, 210, 150, 0.3);
+            margin: 0 0 6px 0;
             text-align: center;
             font-size: 30px;
+        }
+
+        .panel h2::after {
+            content: '';
+            display: block;
+            width: 70%;
+            height: 2px;
+            margin: 10px auto 12px;
+            background: linear-gradient(90deg, transparent, #c9a227 30%, #c9a227 70%, transparent);
         }
 
         .panel p {
@@ -261,32 +402,45 @@
 
         .panel-footer {
             margin-top: 20px;
-            font-size: 13px;
-            color: #c9a;
+            font-size: 12px;
+            letter-spacing: 2px;
+            color: #c8a45e;
             text-align: center;
             animation: blink 1.6s infinite alternate;
         }
 
         .level-item {
             font-family: 'Times New Roman', Georgia, serif;
-            font-size: 21px;
+            font-size: 22px;
             font-weight: bold;
-            color: #a98;
-            margin: 6px 0;
+            color: #b08d6a;
             cursor: pointer;
-            padding-left: 36px;
+            padding: 7px 14px 7px 46px;
             position: relative;
+            border-radius: 4px;
             text-shadow: 2px 2px 2px rgba(0, 0, 0, 0.8);
+            transition: color .12s, background .12s;
         }
 
-        .level-item:hover { color: #dcb; }
-        .level-item.selected { color: #fff; }
+        .level-item:not(:last-child) {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.35);
+            box-shadow: 0 1px 0 rgba(255, 218, 168, 0.07);
+        }
+
+        .level-item:hover { color: #e8c8a8; }
+
+        .level-item.selected {
+            color: #ffe9cb;
+            background: linear-gradient(90deg, rgba(201, 162, 39, 0.16), transparent 75%);
+        }
 
         .level-item.selected::before {
             content: '🖌️';
             position: absolute;
-            left: 0;
-            font-size: 17px;
+            left: 12px;
+            top: 50%;
+            translate: 0 -50%;
+            font-size: 18px;
         }
 
         /* ---- Story intro crawl ---- */
@@ -420,89 +574,282 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* ============ HUD ============ */
+        /* ============ HUD — Sandy's workbench ============ */
         #hud {
             position: absolute;
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 84px;
-            background: linear-gradient(to bottom, rgba(46,46,50,.92) 0%, rgba(24,24,28,.95) 100%);
-            border-top: 3px solid #61615f;
+            height: 122px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 6px 22px;
+            padding: 12px 30px 12px;
+            font-family: Georgia, 'Times New Roman', serif;
+            background:
+                linear-gradient(180deg, rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0) 20%),
+                repeating-linear-gradient(90deg,
+                    rgba(0, 0, 0, 0) 0px, rgba(0, 0, 0, 0) 86px,
+                    rgba(18, 8, 2, 0.5) 86px, rgba(18, 8, 2, 0.5) 90px),
+                repeating-linear-gradient(0deg,
+                    rgba(255, 218, 168, 0.045) 0px, rgba(255, 218, 168, 0.045) 2px,
+                    rgba(0, 0, 0, 0.07) 2px, rgba(0, 0, 0, 0.07) 5px),
+                linear-gradient(180deg, #5c3c1e 0%, #4a2e14 35%, #341d0a 100%);
+            border-top: 3px solid #c9a227;
+            box-shadow:
+                0 -2px 0 #1a0e04,
+                0 -10px 28px rgba(0, 0, 0, 0.6),
+                inset 0 1px 0 rgba(255, 230, 180, 0.3);
             z-index: 150;
         }
 
-        .hud-group { display: flex; gap: 26px; align-items: center; }
+        /* brass corner screws */
+        #hud::before,
+        #hud::after {
+            content: '';
+            position: absolute;
+            top: 9px;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, #ecd9a4, #8a7434 62%, #453610);
+            box-shadow: inset 0 0 2px #000, 0 1px 2px rgba(0, 0, 0, 0.6);
+        }
 
-        .hud-stat { display: flex; flex-direction: column; align-items: center; min-width: 74px; }
+        #hud::before { left: 10px; }
+        #hud::after { right: 10px; }
 
-        .hud-stat .label {
-            color: #909088;
-            font-size: 10px;
-            letter-spacing: 2px;
+        .hud-left, .hud-right { display: flex; align-items: center; gap: 14px; }
+        .hud-center { display: flex; align-items: center; gap: 20px; }
+
+        /* engraved brass plaques */
+        .plaque {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 92px;
+            padding: 6px 16px 8px;
+            background: linear-gradient(180deg, #caa64e 0%, #9a7a2e 45%, #b08c38 100%);
+            border: 2px solid #6a5418;
+            border-radius: 5px;
+            box-shadow:
+                inset 0 1px 0 rgba(255, 240, 200, 0.7),
+                inset 0 -2px 3px rgba(60, 40, 0, 0.5),
+                0 3px 7px rgba(0, 0, 0, 0.55);
+        }
+
+        .plaque-label {
+            font-size: 11px;
+            letter-spacing: 3px;
             text-transform: uppercase;
+            color: #4a3608;
+            text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
         }
 
-        .hud-stat .value {
-            color: #fff;
+        .plaque-value {
+            font-size: 29px;
             font-weight: bold;
-            font-size: 26px;
-            text-shadow: 1px 1px 2px #000, 0 0 8px rgba(255,255,255,.12);
-            font-family: 'Courier New', monospace;
+            line-height: 1.08;
+            color: #2c1e02;
+            text-shadow: 0 1px 0 rgba(255, 240, 200, 0.55);
+            font-variant-numeric: tabular-nums;
         }
 
-        .hud-stat.health .value { color: #ff6655; }
-        .hud-stat.ammo .value { color: #66aaff; }
-        .hud-stat.tables .value { color: #66ff66; }
-        .hud-stat.floor .value { color: #ffcc66; }
-        .hud-stat.score .value { color: var(--gold); }
+        /* vitals: paint troughs */
+        .gauge { display: flex; flex-direction: column; align-items: center; gap: 4px; }
 
-        #healthbar-wrap {
-            width: 110px; height: 9px;
-            background: #20100e;
-            border: 1px solid #553;
-            margin-top: 3px;
-            border-radius: 3px;
+        .gauge-label {
+            font-size: 12px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #e8c890;
+            text-shadow: 1px 1px 0 #000;
+        }
+
+        .trough {
+            position: relative;
+            width: 168px;
+            height: 27px;
+            background: linear-gradient(180deg, #241204, #150902);
+            border: 2px solid #6e4a22;
+            border-bottom-color: #8a6432;
+            border-radius: 6px;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.85);
             overflow: hidden;
         }
 
         #healthbar {
             height: 100%;
             width: 100%;
-            background: linear-gradient(90deg, #c22, #f55);
+            background: linear-gradient(180deg, #f06048 0%, #c02818 55%, #951308 100%);
+            box-shadow: inset 0 2px 2px rgba(255, 200, 180, 0.45);
+            border-radius: 0 3px 3px 0;
             transition: width .25s;
         }
 
-        #face-canvas {
-            width: 64px;
-            height: 64px;
-            background: #3a3a3e;
-            border: 2px solid #666;
-            border-radius: 4px;
-            image-rendering: pixelated;
+        #paintbar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(180deg, #58a8f0 0%, #2868c0 55%, #16489a 100%);
+            box-shadow: inset 0 2px 2px rgba(190, 225, 255, 0.5);
+            border-radius: 0 3px 3px 0;
+            transition: width .2s;
         }
 
-        .weapon-indicator {
+        .trough-value {
+            position: absolute;
+            inset: 0;
             display: flex;
             align-items: center;
-            gap: 6px;
-            background: rgba(0, 0, 0, 0.4);
-            padding: 3px 10px;
-            border-radius: 3px;
-            font-size: 12px;
-            margin-top: 4px;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.9);
         }
 
-        .weapon-indicator .slot { color: #888; font-size: 10px; }
+        /* portrait in a carved frame */
+        .portrait { display: flex; flex-direction: column; align-items: center; }
 
-        .weapon-indicator .name {
-            color: var(--wood);
+        #face-canvas {
+            width: 78px;
+            height: 78px;
+            background: #3a3a3e;
+            border: 5px solid #5a3414;
+            border-top-color: #8a5a2c;
+            border-left-color: #7a4e24;
+            border-radius: 3px;
+            image-rendering: pixelated;
+            box-shadow: 0 3px 9px rgba(0, 0, 0, 0.65), inset 0 0 5px #000;
+        }
+
+        .portrait-plate {
+            margin-top: -3px;
+            padding: 1px 12px;
+            background: linear-gradient(180deg, #caa64e, #9a7a2e);
+            border: 1px solid #6a5418;
+            border-radius: 3px;
+            font-size: 10px;
             font-weight: bold;
-            text-shadow: 0 0 4px rgba(217, 160, 102, 0.5);
+            letter-spacing: 3px;
+            color: #3a2a06;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+
+        /* pegboard tool rack */
+        .rack { display: flex; gap: 6px; }
+
+        .rack-slot {
+            width: 62px;
+            height: 48px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 2px;
+            background:
+                radial-gradient(circle 2px at 12px 9px, rgba(0, 0, 0, 0.55) 99%, transparent),
+                radial-gradient(circle 2px at 50px 9px, rgba(0, 0, 0, 0.55) 99%, transparent),
+                linear-gradient(180deg, #2e1d0c, #1d1106);
+            border: 2px solid #533a1a;
+            border-radius: 4px;
+            box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.75);
+        }
+
+        .rack-slot .num { font-size: 9px; letter-spacing: 1px; color: #8a7450; }
+        .rack-slot .wname { font-size: 11px; font-weight: bold; letter-spacing: 1px; color: #c8a878; }
+        .rack-slot.empty .wname { color: #4a3a24; }
+
+        .rack-slot.active {
+            border-color: #c9a227;
+            background:
+                radial-gradient(circle 2px at 12px 9px, rgba(0, 0, 0, 0.55) 99%, transparent),
+                radial-gradient(circle 2px at 50px 9px, rgba(0, 0, 0, 0.55) 99%, transparent),
+                linear-gradient(180deg, #4c3514, #311f08);
+            box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 13px rgba(201, 162, 39, 0.5);
+        }
+
+        .rack-slot.active .wname { color: #ffd76a; text-shadow: 0 0 7px rgba(255, 200, 80, 0.65); }
+
+        /* objective counters */
+        .counters { display: flex; flex-direction: column; gap: 7px; }
+        .counter-row { display: flex; align-items: center; gap: 9px; }
+
+        .counter-label {
+            font-size: 11px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #e8c890;
+            text-shadow: 1px 1px 0 #000;
+            min-width: 52px;
+        }
+
+        .counter-value {
+            font-size: 19px;
+            font-weight: bold;
+            color: #f2e2c0;
+            text-shadow: 1px 1px 2px #000;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* mini table icons — light up as you reclaim them */
+        .t-icon {
+            display: inline-block;
+            position: relative;
+            width: 18px;
+            height: 13px;
+            margin-right: 3px;
+            opacity: 0.3;
+        }
+
+        .t-icon::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 4px;
+            background: #8a6a46;
+            border-radius: 1px;
+        }
+
+        .t-icon::after {
+            content: '';
+            position: absolute;
+            top: 4px; left: 2px;
+            width: 3px; height: 8px;
+            background: #6e5436;
+            box-shadow: 11px 0 0 #6e5436;
+        }
+
+        .t-icon.got { opacity: 1; }
+        .t-icon.got::before { background: #ffd700; box-shadow: 0 0 7px rgba(255, 215, 0, 0.75); }
+        .t-icon.got::after { background: #d9a066; box-shadow: 11px 0 0 #d9a066; }
+
+        /* very narrow windows: scale the whole bench down to fit */
+        @media (max-width: 980px) {
+            #hud {
+                transform: scale(0.76);
+                transform-origin: 50% 100%;
+                width: 131.6%;
+                left: -15.8%;
+            }
+        }
+
+        /* keep the workbench on one row on narrow windows */
+        @media (max-width: 1240px) {
+            #hud { padding: 10px 14px; height: 112px; }
+            .hud-left, .hud-right { gap: 8px; }
+            .hud-center { gap: 10px; }
+            .plaque { min-width: 64px; padding: 4px 10px 6px; }
+            .plaque-value { font-size: 21px; }
+            .trough { width: 110px; height: 24px; }
+            .trough-value { font-size: 15px; }
+            #face-canvas { width: 60px; height: 60px; }
+            .rack-slot { width: 46px; height: 42px; }
+            .rack-slot .wname { font-size: 9px; }
+            .counter-label { min-width: 40px; font-size: 10px; }
+            .counter-value { font-size: 15px; }
+            .t-icon { width: 13px; height: 10px; }
         }
 
         /* crosshair */
@@ -513,8 +860,8 @@
             transform: translate(-50%, -50%);
             z-index: 140;
             pointer-events: none;
-            color: rgba(255, 255, 255, 0.75);
-            font-size: 20px;
+            color: rgba(255, 255, 255, 0.78);
+            font-size: 28px;
             text-shadow: 0 0 4px #000;
         }
 
@@ -539,16 +886,23 @@
             z-index: 160;
         }
 
-        /* toast notifications */
+        /* toast notifications — stamped paint label */
         #toast {
             position: absolute;
             top: 16%;
-            width: 100%;
-            text-align: center;
-            font-size: 22px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 9px 34px;
+            background: rgba(22, 11, 4, 0.82);
+            border: 2px solid rgba(217, 160, 102, 0.65);
+            border-radius: 6px;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 26px;
             font-weight: bold;
+            white-space: nowrap;
             color: var(--wood-bright);
             text-shadow: 2px 2px 0 #000, 0 0 18px rgba(255, 200, 120, 0.4);
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
             opacity: 0;
             transition: opacity 0.3s;
             pointer-events: none;
@@ -556,58 +910,71 @@
             letter-spacing: 2px;
         }
 
-        /* objective banner */
+        /* objective — brass plaque up top */
         #objective {
             position: absolute;
             top: 10px;
-            width: 100%;
-            text-align: center;
-            font-size: 13px;
-            color: rgba(255, 235, 200, 0.85);
-            text-shadow: 1px 1px 0 #000;
-            letter-spacing: 2px;
-            z-index: 150;
-            pointer-events: none;
-        }
-
-        /* minimap */
-        #minimap {
-            position: absolute;
-            top: 34px;
-            left: 14px;
-            border: 2px solid rgba(140, 130, 110, 0.7);
-            border-radius: 4px;
-            background: rgba(0, 0, 0, 0.55);
-            z-index: 150;
-            image-rendering: pixelated;
-        }
-
-        /* boss health */
-        #boss-bar-wrap {
-            position: absolute;
-            top: 38px;
             left: 50%;
             transform: translateX(-50%);
-            width: min(560px, 60vw);
+            padding: 6px 28px;
+            background: linear-gradient(180deg, rgba(60, 40, 14, 0.94), rgba(34, 20, 6, 0.94));
+            border: 2px solid #8a6432;
+            border-top-color: #c9a227;
+            border-radius: 4px;
+            font-family: Georgia, 'Times New Roman', serif;
+            font-size: 15px;
+            white-space: nowrap;
+            color: #f2dcad;
+            text-shadow: 1px 1px 0 #000;
+            letter-spacing: 3px;
+            z-index: 150;
+            pointer-events: none;
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 230, 170, 0.25);
+        }
+
+        /* minimap — blueprint in a wooden frame */
+        #minimap {
+            position: absolute;
+            top: 56px;
+            left: 16px;
+            border: 4px solid #5a3c1c;
+            outline: 1px solid #c9a227;
+            border-radius: 3px;
+            background: rgba(8, 20, 38, 0.85);
+            z-index: 150;
+            image-rendering: pixelated;
+            box-shadow: 0 5px 14px rgba(0, 0, 0, 0.55);
+        }
+
+        /* boss health — gilded frame */
+        #boss-bar-wrap {
+            position: absolute;
+            top: 92px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: min(680px, 70vw);
             z-index: 150;
             text-align: center;
             pointer-events: none;
         }
 
         #boss-bar-label {
-            color: #ff9a9a;
-            font-size: 13px;
-            letter-spacing: 3px;
+            font-family: Georgia, 'Times New Roman', serif;
+            color: #ffb09a;
+            font-size: 16px;
+            letter-spacing: 4px;
             text-shadow: 1px 1px 0 #000;
-            margin-bottom: 4px;
+            margin-bottom: 5px;
         }
 
         #boss-bar-bg {
-            height: 14px;
-            background: #200;
-            border: 2px solid #944;
-            border-radius: 4px;
+            height: 19px;
+            background: #1c0a06;
+            border: 2px solid #8a6432;
+            border-top-color: #c9a227;
+            border-radius: 5px;
             overflow: hidden;
+            box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 16px rgba(255, 70, 35, 0.25);
         }
 
         #boss-bar {
@@ -626,7 +993,7 @@
             z-index: 141;
             pointer-events: none;
             color: #ffdd66;
-            font-size: 26px;
+            font-size: 34px;
             font-weight: bold;
             text-shadow: 0 0 6px rgba(255, 200, 80, 0.8);
             opacity: 0;
@@ -648,14 +1015,19 @@
             50% { opacity: 0.85; }
         }
 
-        /* pointer-lock hint */
+        /* pointer-lock hint — small workshop note under the objective plaque */
         #lock-hint {
             position: absolute;
-            bottom: 96px;
-            width: 100%;
-            text-align: center;
-            color: rgba(255, 240, 210, 0.85);
-            font-size: 14px;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 3px 16px;
+            background: rgba(22, 11, 4, 0.6);
+            border-radius: 4px;
+            font-family: Georgia, 'Times New Roman', serif;
+            white-space: nowrap;
+            color: rgba(242, 220, 173, 0.8);
+            font-size: 13px;
             letter-spacing: 2px;
             text-shadow: 1px 1px 0 #000;
             z-index: 150;
@@ -666,10 +1038,10 @@
         /* mute icon */
         #mute-indicator {
             position: absolute;
-            top: 8px;
-            right: 14px;
+            top: 10px;
+            right: 16px;
             color: #aa8;
-            font-size: 15px;
+            font-size: 18px;
             z-index: 150;
             text-shadow: 1px 1px 0 #000;
         }
@@ -689,7 +1061,7 @@
         <div id="pickup-overlay"></div>
         <div id="toast"></div>
         <div id="objective" class="hidden"></div>
-        <canvas id="minimap" class="hidden" width="160" height="120"></canvas>
+        <canvas id="minimap" class="hidden" width="224" height="168"></canvas>
         <div id="mute-indicator" class="hidden">🔇 MUTED</div>
 
         <div id="boss-bar-wrap" class="hidden">
@@ -700,46 +1072,50 @@
         </div>
 
         <div id="hud" class="hidden">
-            <div class="hud-group">
-                <div class="hud-stat floor">
-                    <span class="label">Floor</span>
-                    <span class="value" id="hud-floor">1</span>
+            <div class="hud-left">
+                <div class="plaque">
+                    <span class="plaque-label">Floor</span>
+                    <span class="plaque-value" id="hud-floor">1</span>
                 </div>
-                <div class="hud-stat score">
-                    <span class="label">Score</span>
-                    <span class="value" id="hud-score">0</span>
+                <div class="plaque">
+                    <span class="plaque-label">Score</span>
+                    <span class="plaque-value" id="hud-score">0</span>
                 </div>
             </div>
 
-            <div class="hud-group">
-                <div class="hud-stat health">
-                    <span class="label">Health</span>
-                    <span class="value" id="hud-health">100</span>
-                    <div id="healthbar-wrap">
+            <div class="hud-center">
+                <div class="gauge">
+                    <span class="gauge-label">Health</span>
+                    <div class="trough">
                         <div id="healthbar"></div>
+                        <span class="trough-value" id="hud-health">100</span>
                     </div>
                 </div>
-                <div class="hud-stat">
+                <div class="portrait">
                     <canvas id="face-canvas" width="32" height="32"></canvas>
-                    <div class="weapon-indicator">
-                        <span class="slot" id="hud-weapon-slot">[1]</span>
-                        <span class="name" id="hud-weapon">PAINTBRUSH</span>
-                    </div>
+                    <div class="portrait-plate">SANDY</div>
                 </div>
-                <div class="hud-stat ammo">
-                    <span class="label">Paint</span>
-                    <span class="value" id="hud-ammo">25</span>
+                <div class="gauge">
+                    <span class="gauge-label">Paint</span>
+                    <div class="trough">
+                        <div id="paintbar"></div>
+                        <span class="trough-value" id="hud-ammo">30</span>
+                    </div>
                 </div>
             </div>
 
-            <div class="hud-group">
-                <div class="hud-stat tables">
-                    <span class="label">Tables</span>
-                    <span class="value" id="hud-tables">0/0</span>
-                </div>
-                <div class="hud-stat">
-                    <span class="label">Enemies</span>
-                    <span class="value" id="hud-enemies" style="color:#cc99ff">0</span>
+            <div class="hud-right">
+                <div class="rack" id="weapon-rack"></div>
+                <div class="counters">
+                    <div class="counter-row">
+                        <span class="counter-label">Tables</span>
+                        <span id="hud-tables-icons"></span>
+                        <span class="counter-value" id="hud-tables">0/0</span>
+                    </div>
+                    <div class="counter-row">
+                        <span class="counter-label">Staff</span>
+                        <span class="counter-value" id="hud-enemies" style="color:#d8a8ff">0</span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -754,19 +1130,24 @@
 
         <!-- ============ MAIN MENU ============ -->
         <div id="menu-screen" class="overlay crt hidden">
+            <div class="menu-splats"></div>
+            <div class="menu-dust">
+                <span></span><span></span><span></span><span></span><span></span><span></span>
+            </div>
             <div class="menu-left">
                 <img id="menu-boxart" alt="Sandy's Table Quest box art" draggable="false">
             </div>
             <div class="menu-right">
                 <h1 class="menu-title">Sandy's Table Quest</h1>
                 <div class="menu-sub">3D REMASTERED &nbsp;·&nbsp; THE FURNITURE OPERATIONS</div>
+                <div class="menu-rule"></div>
                 <div id="menu-items">
                     <div class="menu-item selected">New Game</div>
                     <div class="menu-item">Level Select</div>
                     <div class="menu-item">Instructions</div>
                     <div class="menu-item">Toggle Sound</div>
                 </div>
-                <p style="color:#876;margin-top:38px;font-size:13px" id="menu-highscore"></p>
+                <p id="menu-highscore"></p>
             </div>
             <div class="menu-footer-bar"><span>© 199X ARTISAN SOFTWARE · v2.0 3D REMASTER · ↑↓ SELECT · ENTER CONFIRM</span></div>
         </div>
@@ -778,11 +1159,11 @@
                 <p>👔 Cartel staff will try to stop you. Splatter them.</p>
                 <p style="margin-top:14px"><span class="key">W A S D</span> Move &nbsp; <span class="key">MOUSE</span> Look</p>
                 <p><span class="key">←</span><span class="key">→</span> Turn (classic mode)</p>
-                <p><span class="key">SPACE</span> / <span class="key">CLICK</span> Fire weapon</p>
+                <p><span class="key">CLICK</span> / <span class="key">CTRL</span> Fire weapon &nbsp; <span class="key">SPACE</span> Jump</p>
                 <p><span class="key">E</span> Open doors &nbsp; <span class="key">SHIFT</span> Sprint</p>
-                <p><span class="key">1</span><span class="key">2</span><span class="key">3</span> / <span class="key">Q</span> / <span class="key">WHEEL</span> Switch weapon &nbsp; <span class="key">TAB</span> Minimap</p>
+                <p><span class="key">1</span>–<span class="key">5</span> / <span class="key">Q</span> / <span class="key">WHEEL</span> Switch weapon &nbsp; <span class="key">TAB</span> Minimap</p>
                 <p><span class="key">[</span><span class="key">]</span> Mouse sensitivity &nbsp; <span class="key">U</span> Mute &nbsp; <span class="key">ESC</span> Pause</p>
-                <p style="margin-top:14px;color:#fc6">🩹 Wood Polish +25 HP &nbsp; 🎨 Paint Bucket +12 ammo</p>
+                <p style="margin-top:14px;color:#fc6">🌽 FRITOS® Corn Chips +25 HP &nbsp; 🎨 Paint Bucket +14 paint</p>
                 <p style="color:#fc6">💰 Cash & Gold = score. Find secret weapons!</p>
                 <div class="panel-footer">PRESS ENTER OR ESC TO RETURN</div>
             </div>
