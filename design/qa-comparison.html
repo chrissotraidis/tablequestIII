@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Main menu design QA comparison</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; background: #111; color: #eee; font: 14px/1.4 Arial, sans-serif; }
+        main { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; }
+        figure { margin: 0; min-width: 0; background: #000; }
+        figcaption { padding: 8px 10px; background: #222; font-weight: 700; letter-spacing: .08em; }
+        img { display: block; width: 100%; height: auto; }
+    </style>
+</head>
+<body>
+    <main>
+        <figure>
+            <figcaption>SELECTED VISUAL TARGET</figcaption>
+            <img src="./main-menu-workbench-reference.png" alt="Selected master workbench menu design">
+        </figure>
+        <figure>
+            <figcaption>IMPLEMENTATION — FINAL</figcaption>
+            <img src="./menu-implementation-final.png" alt="Rendered main menu implementation">
+        </figure>
+    </main>
+</body>
+</html>
