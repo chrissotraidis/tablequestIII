@@ -12,8 +12,6 @@ import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioD
 import memoryScreenUrl from './assets/memory_screen.png'; // DOS boot/memory screen
 import titleScreenUrl from './assets/title_screen.png';   // pixel-art title card
 import boxArtUrl from './assets/tableboxart2.png';        // box art (remaster edition)
-import menuWorkbenchUrl from './assets/menu_workbench_bg.png';
-import menuBrushUrl from './assets/menu_paintbrush_cursor.png';
 
 const $ = (id) => document.getElementById(id);
 
@@ -45,8 +43,6 @@ let pauseIdx = 0;
 let levelIdx = 0;
 let menuSub = null; // null | 'instructions' | 'levels'
 let introTimer = null;
-let introFrame = null;
-let introStartedAt = 0;
 let levelSnapshot = null;
 let highScore = Number(localStorage.getItem('tq3d-highscore') || 0);
 
@@ -126,7 +122,7 @@ function setState(next) {
             hud.hide();
             exitPointerLock();
             menuSub = null;
-            $('menu-highscore').textContent = String(highScore || 0).padStart(6, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            $('menu-highscore').textContent = highScore ? `HIGH SCORE: ${highScore.toLocaleString()}` : '';
             renderMenu();
             break;
         case 'intro': showOnly('intro-screen'); break;
@@ -160,27 +156,11 @@ function setState(next) {
 // ------------------------------------------------------------------ MENU
 
 const MENU_ITEMS = ['New Game', 'Level Select', 'Instructions', 'Toggle Sound'];
-const MENU_DETAILS = [
-    ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
-    ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
-    ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
-    ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
-];
 
 function renderMenu() {
-    const items = document.querySelectorAll('#menu-items .menu-item');
-    items.forEach((el, i) => {
+    document.querySelectorAll('#menu-items .menu-item').forEach((el, i) => {
         el.classList.toggle('selected', i === menuIdx);
-        el.setAttribute('aria-selected', String(i === menuIdx));
-        el.tabIndex = i === menuIdx ? 0 : -1;
     });
-    $('menu-screen').dataset.menuSelection = String(menuIdx);
-    const [eyebrow, title, copy] = MENU_DETAILS[menuIdx];
-    $('menu-detail-eyebrow').textContent = eyebrow;
-    $('menu-detail-title').textContent = title;
-    $('menu-detail-copy').textContent = copy;
-    $('menu-sound-value').textContent = isMuted() ? 'OFF' : 'ON';
-    items[3].setAttribute('aria-pressed', String(isMuted()));
 }
 
 function renderPause() {
@@ -219,15 +199,12 @@ function menuSelect() {
 
 function updateMute(m) {
     $('mute-indicator').classList.toggle('hidden', !m);
-    $('menu-sound-value').textContent = m ? 'OFF' : 'ON';
-    document.querySelectorAll('#menu-items .menu-item')[3].setAttribute('aria-pressed', String(m));
 }
 
 // menu mouse support
 document.querySelectorAll('#menu-items .menu-item').forEach((el, i) => {
     el.addEventListener('click', () => { menuIdx = i; renderMenu(); menuSelect(); });
     el.addEventListener('mouseenter', () => { menuIdx = i; renderMenu(); });
-    el.addEventListener('focus', () => { menuIdx = i; renderMenu(); });
 });
 document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
     el.addEventListener('click', () => { pauseIdx = i; renderPause(); pauseSelect(); });
@@ -240,41 +217,17 @@ function startIntro() {
     setState('intro');
     startSong('intro');
     const container = document.querySelector('.intro-container');
-    document.querySelectorAll('.intro-beat').forEach((beat) => beat.classList.remove('is-focus'));
     container.style.transition = 'none';
-    container.style.top = '105%';
+    container.style.top = '100%';
     // force reflow then start the crawl
     container.offsetHeight;
-    container.style.transition = 'top 56s linear';
-    container.style.top = '-360%';
-    introStartedAt = performance.now();
-    if (introFrame) cancelAnimationFrame(introFrame);
-    updateIntroPresentation();
-    introTimer = setTimeout(finishIntro, 56500);
-}
-
-function updateIntroPresentation() {
-    if (state !== 'intro') return;
-    const beats = [...document.querySelectorAll('.intro-beat')];
-    const focusLine = window.innerHeight * 0.5;
-    let nearest = null;
-    let nearestDistance = Infinity;
-
-    beats.forEach((beat) => {
-        const rect = beat.getBoundingClientRect();
-        const distance = Math.abs(rect.top + rect.height / 2 - focusLine);
-        if (distance < nearestDistance) { nearest = beat; nearestDistance = distance; }
-    });
-    beats.forEach((beat) => beat.classList.toggle('is-focus', beat === nearest));
-
-    const progress = Math.min(1, (performance.now() - introStartedAt) / 56000);
-    $('intro-screen').style.setProperty('--intro-progress', `${(progress * 100).toFixed(2)}%`);
-    introFrame = requestAnimationFrame(updateIntroPresentation);
+    container.style.transition = 'top 55s linear';
+    container.style.top = '-250%';
+    introTimer = setTimeout(finishIntro, 55500);
 }
 
 function finishIntro() {
     if (introTimer) { clearTimeout(introTimer); introTimer = null; }
-    if (introFrame) { cancelAnimationFrame(introFrame); introFrame = null; }
     startGameAt(0);
 }
 
@@ -407,24 +360,6 @@ window.addEventListener('blur', () => {
 $('boot-memory').style.backgroundImage = `url(${memoryScreenUrl})`;
 $('boot-title').style.backgroundImage = `url(${titleScreenUrl})`;
 $('menu-boxart').src = boxArtUrl;
-$('menu-screen').style.setProperty('--menu-workbench-bg', `url(${menuWorkbenchUrl})`);
-$('menu-screen').style.setProperty('--menu-brush-cursor', `url(${menuBrushUrl})`);
-$('intro-screen').style.setProperty('--intro-backdrop', `url(${menuWorkbenchUrl})`);
-$('intro-screen').style.setProperty('--intro-brush', `url(${menuBrushUrl})`);
-
-const menuScreen = $('menu-screen');
-menuScreen.addEventListener('pointermove', (e) => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const rect = menuScreen.getBoundingClientRect();
-    const x = (e.clientX - rect.left) / rect.width - 0.5;
-    const y = (e.clientY - rect.top) / rect.height - 0.5;
-    menuScreen.style.setProperty('--menu-shift-x', `${(x * 10).toFixed(1)}px`);
-    menuScreen.style.setProperty('--menu-shift-y', `${(y * 8).toFixed(1)}px`);
-});
-menuScreen.addEventListener('pointerleave', () => {
-    menuScreen.style.setProperty('--menu-shift-x', '0px');
-    menuScreen.style.setProperty('--menu-shift-y', '0px');
-});
 
 // ------------------------------------------------------------------ LOOP
 
