@@ -1,211 +1,259 @@
-# 🎮 SANDY'S TABLE QUEST 3D
+<h1 align="center">Sandy's Table Quest 3D</h1>
 
 <p align="center">
-  <img src="src/assets/tableboxart2.png" alt="Sandy's Table Quest box art" width="420" />
+  <img src="src/assets/tableboxart2.png" alt="Sandy's Table Quest 3D box art" width="460" />
 </p>
 
 <p align="center">
-  <strong>A full 3D remaster of the Artisan Software classic — running entirely in your browser</strong>
+  <strong>A furniture-blasting retro FPS about reclaiming six floors of stolen masterpieces from the armed Interior Design Cartel.</strong>
 </p>
 
 <p align="center">
-  <em>"In the year 199X, Sandy's masterpieces were stolen by the Interior Design Cartel..."</em>
+  <a href="#download--play"><strong>Download &amp; Play</strong></a>
+  &nbsp;&bull;&nbsp;
+  <a href="#gameplay"><strong>Gameplay</strong></a>
+  &nbsp;&bull;&nbsp;
+  <a href="#build-from-source"><strong>Build from Source</strong></a>
 </p>
 
----
+<p align="center">
+  <img alt="three.js" src="https://img.shields.io/badge/engine-three.js-111111?style=flat-square&logo=threedotjs&logoColor=white" />
+  <img alt="Single HTML build" src="https://img.shields.io/badge/build-single_HTML-c9a227?style=flat-square" />
+  <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2f855a?style=flat-square" />
+</p>
 
-## 📖 About the Game
+> **They took the tables. She's taking them back.**
 
-**Sandy's Table Quest 3D** is a ground-up remake of the original raycaster *Sandy's Table Quest*, rebuilt on a true WebGL engine. You play as Sandy, an eccentric artisan furniture maker, fighting through **six floors** of the Interior Design Cartel's headquarters to reclaim your stolen masterpiece tables — now with real 3D geometry, dynamic lighting, physics-based movement, animated enemies, and an all-new procedural soundtrack.
+![Sandy confronts the Cartel inside the Showroom](docs/readme/showroom-combat.webp)
 
-The original boot screens, title art, box art, and story are lovingly preserved from the 199X release.
+**Sandy's Table Quest 3D** is a ground-up WebGL remaster of the Artisan Software raycaster *Sandy's Table Quest*. Play as Sandy, an artisan furniture maker with a paint-loaded arsenal and six floors of armed middle-management standing between her and her stolen masterpiece tables.
 
-### ✨ Features
+The original boot screens, title art, box art, story, and gloriously strange premise are preserved. Everything around them has been rebuilt as a true 3D game with dynamic lighting, physical movement, destructible furniture, animated enemies, and a fully procedural soundtrack.
 
-- **True 3D Engine** — WebGL via three.js: real geometry, per-floor fog and lighting palettes, ACES tone mapping, muzzle flashes, screen shake, paint-splat decals, and particles
-- **Six Unique Floors** — from the marble Lobby to the Penthouse boss suite, each with its own textures, lighting, music, and **purpose-built rooms**: reception desks, break rooms, cubicle farms, archive stacks, showroom vignettes, assembly lines
-- **Destructible Furniture** — every prop can be smashed for splinters (and the occasional hidden cash)
-- **Enemies That Hunt** — pack alerts, combat strafing, shot leading by rank, door breaching, and a two-phase final boss
-- **Five Weapons** — the trusty Paintbrush, the Table Leg (melee), the pneumatic Nail Gun, the room-repainting Roller Launcher, and the full-auto Paint Sprayer
-- **The Fritos® Bag** — the original game's legendary health pickup, ported sprite-for-sprite (crunch included)
-- **Procedural Everything** — all textures, models, music, and sound effects are generated in code; the original artwork is the only asset
-- **Single-File Distribution** — the entire game compiles to one HTML file
+| At a glance | |
+|:--|:--|
+| **Mission** | Recover every table, unlock the elevator, and climb the Cartel HQ |
+| **Campaign** | Six distinct floors culminating in a two-phase boss fight |
+| **Arsenal** | Five weapons, from Sandy's paintbrush to an industrial paint sprayer |
+| **Enemies** | Guards, Managers, Executives, and the Head Designer |
+| **Delivery** | One self-contained HTML file; no installation required to play |
 
----
+## Gameplay
 
-## ▶️ Play
+Every floor is a compact combat-and-exploration mission:
 
-### Option 1: Play Immediately (Pre-built)
+1. **Infiltrate the floor.** Explore offices, vaults, showrooms, assembly lines, and suspiciously hostile break rooms.
+2. **Recover Sandy's tables.** Find every stolen masterpiece to release the elevator lock.
+3. **Fight the staff.** Cartel employees alert one another, strafe, lead shots, and open doors while hunting you.
+4. **Smash the furniture.** Destructible props burst into splinters and sometimes conceal cash.
+5. **Ride upward.** Survive all six floors and settle the matter with the Head Designer.
 
-1. **Download the repository** (green "Code" button → "Download ZIP", or clone it)
-2. **Open `dist/index.html`** in any modern browser (Chrome, Firefox, Safari, Edge)
-3. **Play!** — the whole game is in that one file
+Movement is fast and physical: smooth collision sliding, sprinting, jumping, head-bob, strafe banking, weapon sway, recoil, and full mouse look. Combat adds hit markers, muzzle-flash lighting, paint decals, particles, screen shake, and a short mercy window when each floor begins.
 
-### Option 2: Build from Source
+### Why it hits differently
 
-Requires [Node.js](https://nodejs.org/) v18+.
+- **Corporate dungeon crawling** through six purpose-built floors rather than repeated procedural corridors
+- **Furniture destruction** with wood splinters, hidden cash, and deeply personal consequences
+- **Pack-aware enemies** that communicate, reposition, breach doors, and pressure without firing in perfect unison
+- **Five tactile weapons** with distinct roles, viewmodels, recoil, sound, and impact effects
+- **A carved-workbench HUD** with brass plaques, Sandy's portrait, a pegboard arsenal, and a blueprint minimap
+- **Nine procedural songs** synthesized in real time alongside roughly 25 generated sound effects
+
+## Six Floors of Cartel HQ
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme/archives.webp" alt="A recovered table inside the dark Cartel Archives" /></td>
+    <td width="50%"><img src="docs/readme/factory.webp" alt="Sandy faces Cartel staff on the Factory assembly line" /></td>
+  </tr>
+  <tr>
+    <td align="center"><strong>The Archives</strong><br />Where they bury the warranty claims.</td>
+    <td align="center"><strong>The Factory</strong><br />Where masterpieces become particle board.</td>
+  </tr>
+</table>
+
+| Floor | Operation | What waits inside |
+|:--:|:--|:--|
+| **1** | **The Lobby** | Marble halls, reception desks, first contact, and two stolen tables |
+| **2** | **The Office** | Cubicle farms, break rooms, conference spaces, and increasingly organized staff |
+| **3** | **The Archives** | Record vaults, shelf stacks, reading rooms, and a misfiled Nail Gun |
+| **4** | **The Showroom** | Staged living rooms, flat-pack aisles, checkout lanes, and a Roller Launcher |
+| **5** | **The Factory** | Assembly machines, paint stock, lumber yards, and the industrial Paint Sprayer |
+| **6** | **The Penthouse** | Trophy galleries, an executive arena, and one very angry Head Designer |
+
+## Sandy's Arsenal
+
+| Slot | Weapon | Role |
+|:--:|:--|:--|
+| `1` | **Paintbrush** | Reliable starting weapon with unlimited courage and limited paint |
+| `2` | **Table Leg** | Hidden melee weapon; no ammunition and no respect for personal space |
+| `3` | **Nail Gun** | Fast, precise pneumatic fire for stapling blazers shut |
+| `4` | **Roller Launcher** | Heavy splash damage for giving entire rooms a fresh coat |
+| `5` | **Paint Sprayer** | Full-auto industrial paint delivery for the late-game crowd |
+
+Weapons are discovered as you climb, persist between floors, and can be selected directly with `1`-`5` or cycled with `Q` and the mouse wheel.
+
+### Field supplies
+
+- **Tables** are the objective. Collect every one on the floor to unlock the elevator.
+- **Blue paint buckets** restore 14 paint.
+- **Fritos bags** restore 25 health, sprite-for-sprite and crunch-for-crunch from the original.
+- **Cash and gold bars** increase score; destructive interior inspection is encouraged.
+- **Weapon pickups** permanently expand Sandy's arsenal for the current run.
+
+## The Cartel
+
+| Enemy | Threat | Behavior |
+|:--|:--:|:--|
+| **Guard** | Low | Numerous blue-suited staff who rely on volume rather than aim |
+| **Manager** | Medium | Gray suits, glasses, better movement, and some predictive shooting |
+| **Executive** | High | Fast black-suited hunters with strong shot leading |
+| **Head Designer** | Boss | A two-phase fight with rage volleys, supply drops, and a cover-filled arena |
+
+Staff alert nearby allies when they spot Sandy, strafe during firefights, and carry enough authority to open doors while pursuing her. Their shots are deliberately staggered: the result is pressure and crossfire rather than an instant firing squad.
+
+![The Head Designer awaits Sandy in the Penthouse](docs/readme/head-designer.webp)
+
+## Download & Play
+
+The pre-built game is a single self-contained HTML file.
+
+1. [Download the repository as a ZIP](https://github.com/chrissotraidis/tablequestIII/archive/refs/heads/main.zip) and extract it.
+2. Open `dist/index.html` in Chrome, Firefox, Safari, or Edge.
+3. Reclaim the tables.
+
+No server, installer, account, or internet connection is required after download.
+
+### Build from source
+
+Use Node.js `20.19+` on the Node 20 line, or Node.js `22.12+`.
 
 ```bash
 git clone https://github.com/chrissotraidis/tablequestIII.git
 cd tablequestIII
-npm install
-npm run dev      # → http://localhost:5173
-npm run build    # → dist/index.html (single file)
+npm ci
+npm run dev
 ```
 
----
+The development server opens at `http://localhost:5173` by default.
 
-## 🕹️ How to Play
+To produce the distributable single-file build:
 
-### Goal
+```bash
+npm run build
+```
 
-Collect all the **Tables** on each floor to unlock the elevator and ride it up. Reach the Penthouse and defeat the **Head Designer** to win!
+Vite writes the complete game to `dist/index.html`.
 
-### Controls
+## Controls
 
-| Key | Action |
-|:---:|:---|
-| `W A S D` | Move / strafe |
-| Mouse (click to capture) | Look — full yaw + pitch |
-| `←` `→` | Turn (classic mode) |
-| Left click / `Ctrl` | Fire weapon (hold for continuous) |
+| Input | Action |
+|:--|:--|
+| `W` `A` `S` `D` | Move and strafe |
+| Mouse | Look; click the game to capture the pointer |
+| `Left` `Right` | Turn without mouse capture |
+| Left click / `Ctrl` | Fire; hold for automatic weapons |
 | `Space` | Jump |
-| `E` | Open doors (any adjacent door) |
-| `Shift` | Sprint (with FOV kick) |
-| `1`–`5` / `Q` / Wheel | Switch / cycle weapon |
-| `[` `]` | Mouse sensitivity (saved) |
-| `Tab` | Blueprint minimap |
-| `U` | Mute |
-| `Esc` | Pause (also auto-pauses on focus loss) |
+| `Shift` | Sprint |
+| `E` | Open an adjacent door |
+| `1`-`5` | Select weapon |
+| `Q` / Mouse wheel | Cycle weapons |
+| `[` `]` | Adjust saved mouse sensitivity |
+| `Tab` | Toggle the blueprint minimap |
+| `U` | Mute or unmute |
+| `Esc` | Pause; focus loss also pauses automatically |
 
-### Items
-
-| Item | Description |
-|:---|:---|
-| 🪑 **Tables** | Your stolen masterpieces — collect them all! |
-| 🌽 **Fritos® Bag** | The classic — restores +25 HP (max 100). Crunch. |
-| 🎨 **Blue Paint Bucket** | Replenishes +14 paint |
-| 💰 **Cash & Gold Bars** | Pure score — also check inside furniture |
-| 🪵 **Table Leg** | Hidden melee weapon — no ammo required |
-| 🔨 **Nail Gun** | Hidden pneumatic precision — staple their blazers shut |
-| 🖌️ **Roller Launcher** | Hidden heavy launcher — a fresh coat for everyone in the room |
-| 🔫 **Paint Sprayer** | Hidden full-auto industrial paint delivery |
-
-### Enemies
-
-| Enemy | Difficulty | Description |
-|:---|:---:|:---|
-| **Guard** | Easy | Blue suit, numerous, can't lead a target |
-| **Manager** | Medium | Gray suit and glasses, leads shots a little |
-| **Executive** | Hard | Black suit and hat, fast, leads shots well |
-| **Head Designer** | BOSS | Two phases. Bring paint. Use the pillars. |
-
-> 💡 Staff alert each other when they spot you, strafe in combat, and open doors while chasing. The crossfire is staggered so you're pressured, not liquefied — and you get three seconds of grace at each spawn.
-
----
-
-## 🏢 Six Floors of the Cartel HQ
-
-1. **The Lobby** — marble and beige. Smile for the receptionist.
-2. **The Office** — the cubicle farm from the original, remastered.
-3. **The Archives** — a mossy dungeon where warranty claims are buried.
-4. **The Showroom** — fast furniture as far as the eye can see.
-5. **The Factory** — where masterpieces become particle board.
-6. **The Penthouse** — the Head Designer will see you now. **BOSS FIGHT.**
-
----
-
-## ⚙️ What's New vs. the Original
-
-| | Original (1.0) | 3D Remaster (2.x) |
-|:--|:--|:--|
-| Renderer | 320×200 CPU raycaster | WebGL (three.js), real 3D geometry, fog, dynamic lights, ACES tone mapping |
-| Levels | 4 | **6**, each zone-designed into real places — break rooms, cubicle farms, archive stacks, showroom vignettes, assembly lines — full of **destructible furniture** |
-| Enemies | Billboard sprites | Animated 3D models with bouncy walk cycles, startled hops, attack telegraphs, death falls, pack AI, shot leading, door breaching |
-| Weapons | Paintbrush, table leg | **Five**: + pneumatic Nail Gun, splash-damage Roller Launcher, full-auto Paint Sprayer; viewmodels with Sandy's arms, sway, recoil, and muzzle-flash lighting |
-| Movement | Grid shuffle | Circle-vs-grid sliding collision, velocity smoothing, head-bob with strafe banking, **jumping**, mercy windows |
-| Doors | Cells that vanish | Animated sliding doors, sinking elevator gates |
-| Effects | — | Splat decals, particle bursts, wood splinters, screen shake, hit markers, damage vignette, blob shadows |
-| Audio | Procedural synth (4 songs) | Same synth architecture, **9 all-new 16-bar compositions** with stereo staging and swing + expanded SFX |
-| UI | DOM HUD | Carved-workbench HUD with brass plaques and a pegboard weapon rack, pixel-art Sandy portrait, blueprint minimap, boss bar, floor select, persistent high score |
-| Boss | Stat block | Two-phase fight with rage volleys, supply drops, and a cover-built arena |
-
----
-
-## 🧱 Architecture
-
-```
-tablequestIII/
-├── README.md
-├── index.html           # UI shell: screens, HUD, menus
-├── vite.config.js       # single-file build via vite-plugin-singlefile
-├── dist/
-│   └── index.html       # the playable game (one file!)
-├── src/
-│   ├── main.js          # boot sequence, menus, state machine, render loop
-│   ├── game.js          # play session: player, combat, enemy AI, pickups
-│   ├── world.js         # ASCII map → merged 3D geometry, doors, lighting
-│   ├── levels.js        # six floor definitions (ASCII maps + themes)
-│   ├── models.js        # procedural 3D models (enemies, tables, viewmodels)
-│   ├── textures.js      # 16 procedural canvas materials with fake-AO
-│   ├── audio.js         # synth engine, sequencer, 9 songs, ~25 SFX
-│   ├── effects.js       # particles + paint splat decals
-│   ├── hud.js           # HUD, Sandy face, minimap
-│   ├── input.js         # keyboard + pointer lock
-│   ├── config.js        # tuning constants
-│   └── assets/          # original 199X artwork (boot screens, box art)
-└── tools/
-    └── validate_levels.js  # map linter: enclosure + BFS reachability
-```
-
-### Build System
-
-Vite bundles the engine, inlines the original artwork as base64, and emits a single zero-dependency `dist/index.html` — the modern descendant of the original's `build.js` concatenation script.
-
-### Playtest Harness
-
-The browser console exposes `TQ` — godmode, teleport, floor warp, state snapshots, and a full **autopilot** (`TQ.botGoto`, `TQ.botFight`) that runs inside the simulation loop. Every floor of this game was cleared end-to-end by automated walkthroughs, and the boss fight is certified winnable (die-once-learn, win-the-retry difficulty).
-
----
-
-## 📜 Story
-
-Sandy is a legendary furniture artist whose masterpiece tables are known throughout the land. One fateful day, the **Interior Design Cartel** — a shadowy syndicate of rival decorators — stole her creations.
-
-Now Sandy must infiltrate their corporate headquarters: six floors of beige carpet, particle board, and armed middle-management, armed only with a paint-flinging brush and a burning desire for justice.
-
-**They took the tables. She's taking them back.**
-
----
-
-## 🎨 Technical Highlights
-
-### Procedural World
-Levels are authored as ASCII maps and compiled at load time into merged buffer geometry — one draw call per material. Doors slide, gates sink, and elevator pads glow, all from map characters.
-
-### Procedural Audio
-All music and sound is synthesized in real time with the Web Audio API: subtractive synthesis with filter envelopes and LFOs, convolution reverb, feedback delay, and a look-ahead sequencer playing 16-bar arrangements with counter-melodies, horn stabs, drum fills, and halftime breakdowns.
-
-### No External Assets
-Textures, models, music, and SFX are all generated in code. The only files are the original game's boot screens, title card, and box art — preserved as a tribute.
-
----
-
-## 📄 License
-
-MIT — see [LICENSE](LICENSE). Original concept, story, and artwork from *Sandy's Table Quest* by Artisan Software.
-
----
-
-## 🙏 Credits
-
-- **Original Game** — *Sandy's Table Quest*, Artisan Software, 199X
-- **3D Remaster Engine** — WebGL via [three.js](https://threejs.org/)
-- **Music & SFX** — Procedural Web Audio synthesis
-- **Inspiration** — *Wolfenstein 3D*, *DOOM*, and the golden age of 90s shooters
-
----
+## From 199X to WebGL
 
 <p align="center">
-  <strong>Happy furniture hunting! 🪑</strong>
+  <img src="src/assets/title_screen.png" alt="Original Sandy's Table Quest title artwork" width="820" />
+</p>
+
+The remaster keeps the original game's identity while rebuilding its mechanics and presentation around a real-time 3D engine.
+
+| | Original 1.0 | 3D Remaster 2.x |
+|:--|:--|:--|
+| **Renderer** | 320x200 CPU raycaster | three.js, real geometry, fog, dynamic lights, and ACES tone mapping |
+| **Campaign** | Four levels | Six location-designed floors with bespoke rooms and destructible props |
+| **Enemies** | Billboard sprites | Animated 3D models with pack AI, strafing, shot leading, and door breaching |
+| **Weapons** | Paintbrush and table leg | Five weapons with Sandy's arms, sway, recoil, muzzle flashes, and splash damage |
+| **Movement** | Grid shuffle | Smooth circle collision, sprinting, jumping, head-bob, and strafe banking |
+| **Doors** | Cells that disappear | Animated sliding doors and sinking elevator gates |
+| **Effects** | Minimal | Paint splats, particles, wood debris, screen shake, hit markers, and blob shadows |
+| **Audio** | Four synth songs | Nine 16-bar compositions with stereo staging, swing, fills, and expanded SFX |
+| **Finale** | Stat-heavy encounter | A two-phase boss fight with rage volleys, supplies, and arena cover |
+
+## Under the Hood
+
+The game is intentionally small to distribute, not small in scope:
+
+- **three.js renderer** with merged world geometry, per-floor fog and lighting palettes, and one draw call per material
+- **ASCII-authored levels** compiled at runtime into walls, doors, gates, props, encounter spaces, and pickups
+- **Code-generated models and textures** with the original 199X artwork preserved as the only hand-authored runtime visual assets
+- **Web Audio synth engine** with subtractive synthesis, envelopes, LFOs, convolution reverb, feedback delay, and look-ahead sequencing
+- **Single-file Vite build** that inlines the game code and original artwork into one zero-dependency HTML document
+
+<details>
+<summary><strong>Project architecture</strong></summary>
+
+```text
+tablequestIII/
+|-- README.md
+|-- index.html              # UI shell, screens, HUD, and menus
+|-- vite.config.js          # Single-file build configuration
+|-- dist/
+|   `-- index.html          # Complete playable game
+|-- docs/readme/            # Gameplay screenshots used in this README
+|-- src/
+|   |-- main.js             # Boot sequence, menus, state machine, render loop
+|   |-- game.js             # Player, combat, enemies, pickups, progression
+|   |-- world.js            # ASCII map to merged 3D geometry, doors, lighting
+|   |-- levels.js           # Six floor definitions, zones, and themes
+|   |-- models.js           # Procedural enemies, props, and viewmodels
+|   |-- textures.js         # Procedural canvas materials
+|   |-- audio.js            # Synth engine, sequencer, songs, and SFX
+|   |-- effects.js          # Particles and paint decals
+|   |-- hud.js              # HUD, Sandy portrait, and minimap
+|   |-- input.js            # Keyboard, mouse, and pointer lock
+|   `-- config.js           # Gameplay tuning
+`-- tools/
+    `-- validate_levels.js  # Map enclosure and reachability validator
+```
+
+</details>
+
+<details>
+<summary><strong>Playtest harness</strong></summary>
+
+The browser console exposes `TQ`, a focused testing API with floor warps, teleportation, god mode, state snapshots, and simulation-driven autopilot through `TQ.botGoto` and `TQ.botFight`.
+
+Every floor has been cleared end-to-end with automated walkthroughs. The boss fight is certified winnable at the intended die-once, learn, win-the-retry difficulty.
+
+</details>
+
+## The Story
+
+In the year 199X, the Interior Design Cartel declared war on durability. Craftsmanship was replaced by fast furniture: flimsy, soulless, and impossible to repair.
+
+Sandy refused to fold. Her tables were built to survive generations, hostile takeovers, and possibly a nuclear winter. So the Cartel raided her workshop, stole every masterpiece, and made one fatal mistake.
+
+They left her alive.
+
+Tonight, Sandy enters their headquarters armed with a paint-flinging brush and a professional objection to particle board.
+
+**Recover the tables. Splatter the critics. Remind them what solid wood feels like.**
+
+## Credits
+
+- **Original game, concept, story, and artwork:** *Sandy's Table Quest* by Artisan Software, 199X
+- **3D remaster engine:** [three.js](https://threejs.org/)
+- **Music and sound effects:** Generated in real time with the Web Audio API
+- **Inspiration:** *Wolfenstein 3D*, *DOOM*, and the golden age of 1990s shooters
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+<p align="center">
+  <strong>Fight the Cartel. Recover the tables. Defeat the Head Designer.</strong>
 </p>
