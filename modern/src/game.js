@@ -203,6 +203,7 @@ export class Game {
         this.levelIndex = index;
         this.level = LEVELS[index];
         this.world = new World(this.scene, this.level, index);
+        this.world.effects = this.effects; // MODERN M5.5: dressing sparks/steam use the particle pools
 
         const prev = this.player;
         this.player = this.newPlayer();

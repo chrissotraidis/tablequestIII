@@ -12,6 +12,7 @@ import { getRig, makeKeyLight, setShadow } from './lighting.js';
 import { bakeStatic } from './bake.js';
 import { buildTrim } from './trim.js';
 import { buildWindows, buildExterior } from './exterior.js';
+import { dressFloor } from './dressing.js'; // MODERN M5.1–M5.6
 
 const WALL_TYPE = {
     '#': CELL.BRICK, 'W': CELL.WOOD, 'B': CELL.STONE,
@@ -110,6 +111,7 @@ export class World {
         const windowBand = (x, y, ch) => {
             for (const ws of winSpec) {
                 if (ws.cellType) { if (ch === ws.cellType) return ws; continue; }
+                if (ws.rect) { const [rx, ry, rw, rh] = ws.rect; if (x >= rx && x < rx + rw && y >= ry && y < ry + rh && WALL_TYPE[ch] !== undefined) return ws; continue; }
                 const onSide = ws.side === 'top' ? y === 0 : ws.side === 'bottom' ? y === h - 1
                     : ws.side === 'left' ? x === 0 : x === w - 1;
                 const along = (ws.side === 'top' || ws.side === 'bottom') ? x : y;
@@ -228,6 +230,9 @@ export class World {
         this.group.add(buildTrim(this, this.H, DOOR_H, getRig(this.levelIndex).trim || {
             base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28,
         }));
+        // MODERN M5.1–M5.6: per-floor set dressing (non-colliding, batched)
+        this.dressing = dressFloor(this);
+        this.group.add(this.dressing.group);
         // MODERN: glass + what lies beyond it
         const rig = getRig(this.levelIndex);
         if (windowCells.length) {
@@ -889,6 +894,7 @@ export class World {
             }
         }
         if (this.batchDirty) this.rebuildPropBatch();
+        if (this.dressing) this.dressing.update(dt, performance.now() / 1000, this.effects);
         if (this.exterior) this.exterior.update(dt);
         if (this.rage) { // MODERN M4.4: uneasy strobe on the fixtures while he rages
             const a = getRig(this.levelIndex).accents.intensity * 1.4;
@@ -911,6 +917,7 @@ export class World {
     }
 
     dispose() {
+        if (this.dressing) this.dressing.dispose();
         this.propStore.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
         this.scene.remove(this.group);
         this.group.traverse(o => {

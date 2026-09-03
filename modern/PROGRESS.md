@@ -12,7 +12,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | M2 Gunplay and first-person feel | DONE | gate summary logged; running unattended per 5-G |
 | M3 HUD and front-end | DONE | gate summary logged; running unattended per 5-G |
 | M4 Enemies and AI presentation | DONE | gate summary logged; running unattended per 5-G |
-| M5 Environment art per floor | IN PROGRESS | M5.7 taken first (the floor passes depend on it) |
+| M5 Environment art per floor | DONE | gate summary logged; running unattended per 5-G |
 | M6 Audio | TODO | |
 | M7 Polish, certification, release | TODO | |
 
@@ -352,3 +352,39 @@ Owed to the user: hardware look at the reaction animations (subtle in stills); d
 **Preservation:** every prop type, zone recipe, placement seed, hp, height, radius, tall flag, collision circle, and the demolition/cash rules unchanged; collision signatures unaffected (placement code untouched).
 **Open issues:** Showroom and Factory still exceed 400 whole-frame calls because of staff (15 on the Factory at ~17 meshes each); M7.2 will merge enemy limbs further and cull small casters from the shadow pass. Wrecks are visual only and persist for the floor. Software frame time is now ~1.2 s, so the smoke run needs its own 10-minute call.
 **Next:** M5.1 Lobby art pass.
+
+### M5.1 — Lobby art pass   (2026-09-03)
+**Changed:** `modern/src/dressing.js` (`dressLobby`): hanging RECEPTION sign over the counters (two-sided canvas text, cords), a DIRECTORY board by the entrance, brass **stanchion queue lanes** with oxblood rope along the security corridor (posts hug cell edges), SECURITY CHECKPOINT / STAFF ONLY plates on the checkpoint wall, an emissive **floor indicator** (▲ 1) above the elevator doors with a call plate and lit button, brass hand rails along the elevator lobby walls, and a brass chandelier over the lounge. The storefront glass, marble reflections, and planters from M1/M5.7 complete the atrium. Static pieces bake into a few merged meshes; canvas-text signs and animated pieces stay live; nothing collides (all pieces hang, sit on walls, or lie flat).
+**Evidence:** `modern/docs/M5.1/lobby-reception.jpg`, `lobby-directory.jpg`, `lobby-checkpoint.jpg`. Collision signatures match classic on all six floors after the pass. Smoke green; validator, frozen guard OK.
+**Preservation:** ASCII map, zones, prop placement, pickups, and staff unchanged; the floor's classic palette and music unchanged.
+
+### M5.2 — Office art pass   (2026-09-03)
+**Changed:** `modern/src/dressing.js` (`dressOffice`): **conference and management glass**: the M1.5 window mechanism gained `rect` specs so interior `W` walls of the two rooms (rows 5 and 10) carry a 0.6–1.35 glass band with mullions — you look into the conference room and the manager's office; room signs (CONFERENCE, MANAGEMENT, BREAK ROOM, SUPPLY, COPY ROOM →), a whiteboard reading "Q3: MORE PARTICLE BOARD", two wall clocks, six cubicle name plates (GARY, PAM, DWAYNE, LINDA, STERLING, MEL) on the desk-row wall, and a SYNERGY motivational poster. Desk CRTs have emissive screens from the prop rebuild; the fluorescent grid is the M1.2 panel field. Static pieces bake into a few merged meshes; canvas-text signs and animated pieces stay live; nothing collides (all pieces hang, sit on walls, or lie flat).
+**Evidence:** `modern/docs/M5.2/office-conference.jpg`, `office-signs.jpg`. Collision signatures match classic on all six floors after the pass. Smoke green; validator, frozen guard OK.
+**Preservation:** ASCII map, zones, prop placement, pickups, and staff unchanged; the floor's classic palette and music unchanged.
+
+### M5.3 — Archives art pass   (2026-09-03)
+**Changed:** `modern/src/dressing.js` (`dressArchives`): **hanging bulbs** on cords with caged housings every four cells along both corridors, **dust motes** (900 drifting points, animated, wrapping from floor to ceiling), RECORDS VAULT A / B plates beside the vault doors, ARCHIVES · SILENCE and WARRANTY CLAIMS 1987–199X signs, and green **banker lamps** on the reading-room tables. Low key lighting from M1.2 and the rolling shelves from M5.7 carry the rest. Static pieces bake into a few merged meshes; canvas-text signs and animated pieces stay live; nothing collides (all pieces hang, sit on walls, or lie flat).
+**Evidence:** `modern/docs/M5.3/archives-corridor.jpg`, `archives-reading.jpg`. Collision signatures match classic on all six floors after the pass. Smoke green; validator, frozen guard OK.
+**Preservation:** ASCII map, zones, prop placement, pickups, and staff unchanged; the floor's classic palette and music unchanged.
+
+### M5.4 — Showroom art pass   (2026-09-03)
+**Changed:** `modern/src/dressing.js` (`dressShowroom`): **track lighting** rails with angled spot heads over the pods and gallery, **price tags** on sticks beside every prop inside the vignette pods ($19.99, $249, CLEARANCE…), four hanging LANE 1–4 / FLAT-PACK EXPRESS signs over the checkout counters, **flat-pack racking** frames over every pallet (steel posts at the cell corners, a shelf and boxed stock above head height, nothing at walking height), and slogans (FAST FURNITURE · FASTER LIVING; ASSEMBLY REQUIRED*). Glass display pods from M1.5. Static pieces bake into a few merged meshes; canvas-text signs and animated pieces stay live; nothing collides (all pieces hang, sit on walls, or lie flat).
+**Evidence:** `modern/docs/M5.4/showroom-pods.jpg`, `showroom-lanes.jpg`, `showroom-racking.jpg`. Collision signatures match classic on all six floors after the pass. Smoke green; validator, frozen guard OK.
+**Preservation:** ASCII map, zones, prop placement, pickups, and staff unchanged; the floor's classic palette and music unchanged.
+
+### M5.5 — Factory art pass   (2026-09-03)
+**Changed:** `modern/src/dressing.js` (`dressFactory`): an **overhead conveyor** across the assembly band with nine hanging parts (legs, tops, panels on hooks) that travel and sway (animated), **sparks** (additive bursts) and **steam** (slow rising puffs) fired periodically from every machine through the M2.3 particle pools, **hazard striping** floor decals along both edges of the line, four **wall-mounted paint tanks** (BLUE/RED/GREEN/GOLD) with brackets and feed pipes above head height, and signs (ASSEMBLY LINE 3 · 0 DAYS SINCE LAST SPLINTER; LUMBER YARD). Lumber stacks from M5.7; clerestory from M1.5. Static pieces bake into a few merged meshes; canvas-text signs and animated pieces stay live; nothing collides (all pieces hang, sit on walls, or lie flat).
+**Evidence:** `modern/docs/M5.5/factory-line.jpg`, `factory-vats.jpg`. Collision signatures match classic on all six floors after the pass. Smoke green; validator, frozen guard OK.
+**Preservation:** ASCII map, zones, prop placement, pickups, and staff unchanged; the floor's classic palette and music unchanged.
+
+### M5.6 — Penthouse art pass   (2026-09-03)
+**Changed:** `modern/src/dressing.js` (`dressPenthouse`): **trophy spotlights** (housings + faint light cones) over every golden-table statue, four **award frames** on the gallery wall (CARTEL DESIGN AWARD 199X, BEST IN SHOW · PARTICLE BOARD, EMPLOYEE OF THE DECADE, ZERO DURABILITY INITIATIVE — presented to THE HEAD DESIGNER), two brass **chandeliers** over the arena, and a **designer veneer** on the four arena cover blocks: marble caps, gold trim bands, and dark lacquer panels on every exposed face (the `C` cells stay walls). THE HEAD DESIGNER WILL SEE YOU NOW over the arena door; rain and city lights from M1.5. Static pieces bake into a few merged meshes; canvas-text signs and animated pieces stay live; nothing collides (all pieces hang, sit on walls, or lie flat).
+**Evidence:** `modern/docs/M5.6/penthouse-gallery.jpg`, `penthouse-arena.jpg`. Collision signatures match classic on all six floors after the pass. Smoke green; validator, frozen guard OK.
+**Preservation:** ASCII map, zones, prop placement, pickups, and staff unchanged; the floor's classic palette and music unchanged.
+
+### M5 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: the 19-prop library with damaged and wreck states and per-level batching (M5.7, taken first), then a dressing pass on every floor — Lobby reception/security/elevator dressing, Office glass rooms and signage, Archives bulbs and dust, Showroom track lights, price tags, lane signs, racking, Factory overhead conveyor with sparks, steam, striping, tanks, Penthouse trophy lights, awards, chandeliers, and veneered arena blocks (M5.1–M5.6).
+Preserved: every map, zone recipe, prop registry value, placement seed, pickup, staff count; collision signatures identical to classic on all six floors.
+Owed to the user: a hardware pass on the animated pieces (conveyor, dust, sparks/steam) and the Showroom racking density. Whole-frame draw calls remain above 400 on the Showroom and Factory because of staff; M7.2 addresses it. Preview rebuilt at `dist/modern/index.html`.

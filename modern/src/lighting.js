@@ -51,7 +51,9 @@ const RIGS = [
         exposure: 1.0,
         height: 1.7,
         trim: { base: 0x4d3a2a, crown: 0xd9d4c8, frame: 0x6a4c34, beams: false },
-        windows: [{ side: 'left', from: 2, to: 24, y0: 0.85, y1: 1.7 }],
+        windows: [{ side: 'left', from: 2, to: 24, y0: 0.85, y1: 1.7 },
+            { rect: [8, 5, 8, 1], y0: 0.6, y1: 1.35 }, { rect: [8, 10, 8, 1], y0: 0.6, y1: 1.35 },   // conference room glass
+            { rect: [24, 5, 8, 1], y0: 0.6, y1: 1.35 }, { rect: [24, 10, 8, 1], y0: 0.6, y1: 1.35 }], // manager office glass
         exterior: { kind: 'city', seed: 0x202 },
         grade: { tint: [1.02, 1.0, 0.96], saturation: 0.85, contrast: 1.05, vignette: 0.38, grain: 0.045, bloom: { strength: 0.28, threshold: 0.93 } },
     },
