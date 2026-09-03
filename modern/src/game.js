@@ -24,7 +24,7 @@ import {
 import { buildViewmodels } from './viewmodels.js';
 import { MuzzleFlash } from './gunfx.js';
 import { getRig } from './lighting.js';
-import { Effects } from './effects.js';
+import { Effects, getSplatTextures } from './effects.js';
 import { setShadow } from './lighting.js';
 
 const ENEMY_CHAR = { g: 0, m: 1, x: 2, D: -1, G: 'boss' };
@@ -487,6 +487,41 @@ export class Game {
         this.cb.onHUD();
     }
 
+    /**
+     * MODERN M4.5: a paint splat stuck to the struck body part. The decal is
+     * a small quad in the part's local space (so it rides the animation),
+     * capped per enemy; the colour is remembered for death drips and pool.
+     */
+    paintEnemy(e, hx, hz, hy, color, size = 0.18) {
+        const m = e.model;
+        if (!m) return;
+        e.lastPaint = color.clone ? color.clone() : new THREE.Color(color);
+        e.paintCount = (e.paintCount || 0) + 1;
+        if (e.paintCount > 10) return; // suit is saturated
+        const scale = e.variant === 'boss' ? 1.65 : 1;
+        const localZ = hz / scale;                       // height on the un-scaled rig
+        const part = localZ < 0.42 ? (Math.random() < 0.5 ? m.legL : m.legR) : localZ > 0.78 ? m.headG : m.torso;
+        // outward direction from the enemy axis to the hit, in model space (undo the group yaw)
+        const dx = hx - e.x, dy = hy - e.y;
+        const yaw = m.group.rotation.y;
+        const lx = Math.cos(-yaw) * dx - Math.sin(-yaw) * dy;
+        const lz = Math.sin(-yaw) * dx + Math.cos(-yaw) * dy;
+        const len = Math.hypot(lx, lz) || 1;
+        const nx = lx / len, nz = lz / len;
+        const radius = part === m.headG ? 0.085 : part === m.torso ? 0.1 : 0.06;
+        const texs = getSplatTextures();
+        const mat = new THREE.MeshBasicMaterial({ map: texs[Math.floor(Math.random() * texs.length)], color: e.lastPaint, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
+        const quad = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
+        // part-local placement: parts pivot at hip/shoulder/neck; convert the world height to part space
+        part.updateWorldMatrix(true, false);
+        const local = part.worldToLocal(new THREE.Vector3(e.x, hz, e.y));
+        quad.position.set(local.x + nx * radius, local.y, local.z + nz * radius);
+        quad.lookAt(quad.position.clone().add(new THREE.Vector3(nx, 0, nz)));
+        quad.rotateZ(Math.random() * Math.PI * 2);
+        quad.renderOrder = 3;
+        part.add(quad);
+    }
+
     /** the table leg's hit resolution (classic numbers: 50 dmg, 1.8 range, 90° arc, wrecks props) */
     meleeStrike(w) {
         const p = this.player;
@@ -777,6 +812,7 @@ export class Game {
                         const rad = e.variant === 'boss' ? 0.55 : 0.34;
                         if (Math.hypot(e.x - nx, e.y - ny) < rad) {
                             dead = true;
+                            this.paintEnemy(e, nx, pr.z, ny, pr.color); // MODERN M4.5: paint on the suit
                             this.damageEnemy(e, pr.damage);
                             this.effects.burst(new THREE.Vector3(nx, pr.z, ny), pr.color, 12, 1.8, 0.45);
                             playSound('hit');
@@ -813,6 +849,7 @@ export class Game {
             if (!e.alive) continue;
             const d = Math.hypot(e.x - pr.x, e.y - pr.y);
             if (d < pr.splash) {
+                this.paintEnemy(e, pr.x + (e.x - pr.x) * 0.7, 0.5, pr.y + (e.y - pr.y) * 0.7, pr.color, 0.28); // MODERN M4.5
                 this.damageEnemy(e, pr.splashDamage * (1 - 0.6 * d / pr.splash));
                 hitAny = true;
             }
@@ -947,6 +984,19 @@ export class Game {
             // death animation: fall over then stay
             if (!e.alive) {
                 poseDeath(e, m, dt); // MODERN M4.2: buckle → fall → settle
+                e.deadFor = (e.deadFor || 0) + dt;
+                if (e.lastPaint && e.deadFor < 2.4) { // MODERN M4.5: drips as he goes down, a pool where he lands
+                    e.dripAcc = (e.dripAcc || 0) + dt;
+                    if (e.dripAcc > 0.12) {
+                        e.dripAcc = 0;
+                        const h = Math.max(0.08, 0.7 * (1 - Math.min(1, e.deathT / 0.85)));
+                        this.effects.burst(new THREE.Vector3(e.x + (Math.random() - 0.5) * 0.3, h, e.y + (Math.random() - 0.5) * 0.3), e.lastPaint, 2, 0.4, 0.7, { size: 0.035, gravity: 5 });
+                    }
+                    if (!e.pooled && e.deathT > 0.85) {
+                        e.pooled = true;
+                        this.effects.splat(new THREE.Vector3(e.x, 0.02, e.y), new THREE.Vector3(0, 1, 0), e.lastPaint, (e.variant === 'boss' ? 1.4 : 0.75) + Math.random() * 0.2);
+                    }
+                }
                 continue;
             }
 

@@ -11,7 +11,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
 | M2 Gunplay and first-person feel | DONE | gate summary logged; running unattended per 5-G |
 | M3 HUD and front-end | DONE | gate summary logged; running unattended per 5-G |
-| M4 Enemies and AI presentation | IN PROGRESS | |
+| M4 Enemies and AI presentation | DONE | gate summary logged; running unattended per 5-G |
 | M5 Environment art per floor | TODO | |
 | M6 Audio | TODO | |
 | M7 Polish, certification, release | TODO | |
@@ -330,3 +330,18 @@ Owed to the user: a hardware pass on the HUD fade timing and CSS transitions (th
 **Preservation:** boss stats, phase-2 threshold, 1.35× speed, paired volleys, supply coordinates and kinds unchanged; the drop is purely visual (items are collectable from the frame they spawn, as before).
 **Open issues:** the rage grade persists until the next level load (intended). The lock hint was overlapping the boss bar — moved down. The certification runs one fight; M7.1 repeats it as part of the full campaign.
 **Next:** M4.5 paint on suits and drips on death.
+
+### M4.5 — Paint on suits, drips, pools   (2026-09-03)
+**Changed:** `Game.paintEnemy()` sticks a paint splat (one of the three splat shapes, in the projectile's colour) to the struck body part — legs below 0.42, head above 0.78, torso between — as a small quad in that part's local space so it rides the animation; placed along the outward normal from the enemy's axis at the hit height; capped at 10 per enemy ("suit saturated"). Direct projectile hits and roller splash both paint. The last colour is remembered: while a painted enemy goes down, **drips** fall from the body every 0.12 s for 2.4 s (height following the fall), and a **pool** splat lands on the floor at 0.85 s (0.75 wide, 1.4 for the boss). `getSplatTextures` exported from `effects.js`.
+**Evidence:** `modern/docs/M4.5/painted-manager.jpg` (seven brush hits: 7 decals on the jacket, `paintCount 7`), `death-drips.jpg` (falling, drips in the last colour), `death-pool.jpg` (resting on a yellow pool). Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** damage and hit detection untouched; the classic random-hue death spray still fires alongside.
+**Open issues:** each suit decal is an un-batched quad (≤ 10 per enemy, only on hit enemies); M7.2's draw-call pass can pool them like the wall decals if needed. Decals inherit the part's baked yaw only at hit time (a head turn moves a head decal with the head — correct).
+**Next:** **M4 gate** (below), then M5.1 Lobby art pass.
+
+---
+
+## M4 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: a new procedural character builder with proportional rigs, faces, rank kit, and office paint weapons under the §5-D default (M4.1); additive animation layers — idle/walk/run, aim with head tracking, fire kick, flinch, stagger, hop, buckle-fall-settle death — on the untouched classic AI (M4.2); rank-flavoured barks plus cover-peek and advance poses, config byte-identical, comparative bot fights within variance (M4.3); Head Designer rage escalation with lit eyes, red arena, hot grade, ceiling supply drops, boss certified won with zero deaths (M4.4); paint on suits, death drips, pools (M4.5).
+Preserved: every enemy stat, detection/attack/lead value, pack alert, door breaching, phase-2 rule and supply spots; suit colours; death timing.
+Owed to the user: hardware look at the reaction animations (subtle in stills); draw calls per enemy sit at 15–19 meshes plus suit decals, tracked for M7.2. Preview rebuilt at `dist/modern/index.html`.

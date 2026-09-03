@@ -32,7 +32,7 @@ function mulberry32(seed) {
 }
 
 let splatTextures = null;
-function getSplatTextures() {
+export function getSplatTextures() {
     if (splatTextures) return splatTextures;
     splatTextures = [0x51, 0x3A7, 0xC0DE].map((seed) => {
         const rng = mulberry32(seed);
