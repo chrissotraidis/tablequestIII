@@ -94,6 +94,7 @@ const game = new Game(scene, camera, {
         $('transition-bonus').textContent = `FLOOR BONUS +${stats.bonus}`;
         setTimeout(() => {
             const next = game.levelIndex + 1;
+            noteFloorReached(next + 1);
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
                 game.loadLevel(next);
@@ -259,23 +260,60 @@ function renderPause() {
     });
 }
 
+// MODERN M3.4: floor facts read straight from the canonical maps
+const WEAPON_CHAR = { L: 'TABLE LEG', N: 'NAIL GUN', R: 'ROLLER LAUNCHER', P: 'PAINT SPRAYER' };
+function floorFacts(lvl) {
+    const count = {};
+    for (const row of lvl.map) for (const ch of row) count[ch] = (count[ch] || 0) + 1;
+    const tables = count.T || 0;
+    const staff = (count.g || 0) + (count.m || 0) + (count.x || 0) + (count.D || 0) + (count.G || 0);
+    const menace = (count.g || 0) * 1 + (count.m || 0) * 2 + (count.x || 0) * 3.5 + (count.D || 0) * 2;
+    const threat = lvl.boss ? ['BOSS', 't-boss'] : menace < 9 ? ['LOW', 't-low'] : menace < 16 ? ['MEDIUM', 't-med'] : ['HIGH', 't-high'];
+    const finds = Object.keys(WEAPON_CHAR).filter(c => count[c]).map(c => WEAPON_CHAR[c]);
+    return { tables, staff, threat, finds };
+}
+const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+const bestFloor = () => Number(localStorage.getItem('tq3d-best') || 1);
+function noteFloorReached(n) { if (n > bestFloor()) localStorage.setItem('tq3d-best', String(n)); }
+
 function buildLevelList() {
     const list = $('level-list');
     list.innerHTML = '';
-    LEVELS.forEach((lvl, i) => {
+    const best = bestFloor();
+    // the elevation stacks top floor first; DOM order is still floor 1..6 for the key handler
+    [...LEVELS].forEach((lvl, i) => {
         const el = document.createElement('div');
-        el.className = 'level-item' + (i === levelIdx ? ' selected' : '');
-        el.textContent = `Floor ${i + 1}: ${lvl.name}`;
+        el.className = 'level-item' + (i === levelIdx ? ' selected' : '') + (i + 1 > best ? ' uncharted' : '') + (lvl.boss ? ' boss' : '');
+        el.style.order = String(LEVELS.length - i); // flex order draws floor 6 at the top
+        el.innerHTML = `<span class="fs-num">FLOOR ${i + 1}</span><span class="fs-name">${lvl.name}</span>${i + 1 > best ? '<span class="fs-tag">UNCHARTED</span>' : ''}<span class="fs-windows"></span>`;
         el.addEventListener('click', () => { levelIdx = i; startGameAt(i); });
         el.addEventListener('mouseenter', () => { levelIdx = i; renderLevelList(); });
         list.appendChild(el);
     });
+    const shaft = $('fs-shaft');
+    shaft.innerHTML = LEVELS.map((_, i) => `<span>${LEVELS.length - i}</span>`).join('');
+    renderLevelList();
 }
 
 function renderLevelList() {
-    document.querySelectorAll('#level-list .level-item').forEach((el, i) => {
-        el.classList.toggle('selected', i === levelIdx);
-    });
+    document.querySelectorAll('#level-list .level-item').forEach((el, i) => el.classList.toggle('selected', i === levelIdx));
+    document.querySelectorAll('#fs-shaft span').forEach((el, i) => el.classList.toggle('lit', LEVELS.length - i === levelIdx + 1));
+    const lvl = LEVELS[levelIdx];
+    const f = floorFacts(lvl);
+    const uncharted = levelIdx + 1 > bestFloor();
+    $('fs-detail').innerHTML = `
+        <div class="fd-eyebrow">OPERATION ${String(levelIdx + 1).padStart(2, '0')} · ${uncharted ? 'UNCHARTED' : 'CLEARED FOR ENTRY'}</div>
+        <div class="fd-name">${lvl.name}</div>
+        <div class="fd-sub">${lvl.subtitle}</div>
+        <div class="fd-stats">
+            <div class="fd-stat"><span>TABLES</span><b>${lvl.boss ? '—' : f.tables}</b></div>
+            <div class="fd-stat"><span>STAFF</span><b>${f.staff}</b></div>
+            <div class="fd-stat"><span>THREAT</span><b class="${f.threat[1]}">${f.threat[0]}</b></div>
+        </div>
+        <div class="fd-row">FIELD FIND <b>${f.finds.length ? f.finds.join(' · ') : (lvl.boss ? 'THE HEAD DESIGNER' : 'NONE')}</b></div>
+        <div class="fd-row">PALETTE <span class="fd-palette"><i style="background:${hex(lvl.fogColor)}"></i><i style="background:${hex(lvl.ambient)}"></i><i style="background:${hex(lvl.accent)}"></i><i style="background:${hex(lvl.decor?.rugColor ?? 0x333333)}"></i></span></div>
+        <div class="fd-row">SCORE <b>${lvl.music.toUpperCase()}</b></div>
+        <div class="fd-note">FLOOR SELECT GRANTS THE ARSENAL A RUN WOULD HAVE FOUND BY NOW. HIGH SCORES COUNT.</div>`;
 }
 
 function menuSelect() {

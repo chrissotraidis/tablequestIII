@@ -869,6 +869,48 @@
         .opt-arrow { font-style: normal; color: rgba(242,240,232,.45); cursor: pointer; padding: 0 4px; }
         .opt-row.selected .opt-arrow { color: #fff; }
         @media (prefers-reduced-motion: reduce) { .mmenu .menu-item, .mm-boxart img { transition: none; } }
+
+        /* ======================= FLOOR SELECT (M3.4) ======================= */
+        .mm-floors { min-width: 820px; max-width: 900px; }
+        .mm-floors h2 small { display: block; font-size: 10px; letter-spacing: 4px; color: rgba(242,240,232,.5); margin-top: 4px; font-weight: 400; }
+        .fs-wrap { display: grid; grid-template-columns: 370px 1fr; gap: 26px; align-items: stretch; }
+        .fs-building { position: relative; display: flex; flex-direction: column; padding: 0 0 0 44px; }
+        .fs-roof { height: 10px; margin: 0 6px 0 0; background: linear-gradient(90deg, #3a3f48, #1c1f26); border: 1px solid rgba(255,255,255,.18); border-bottom: none; }
+        .fs-ground { height: 8px; background: linear-gradient(90deg, #6a5230, #2a2018); border-top: 2px solid #c9a227; margin-right: 6px; }
+        .fs-floors { display: flex; flex-direction: column; gap: 3px; }
+        .fs-floors .level-item { display: flex; align-items: center; justify-content: space-between; height: 44px; padding: 0 12px; margin-right: 6px; cursor: pointer;
+            background: linear-gradient(90deg, rgba(40,44,54,.95), rgba(24,26,32,.95)); border: 1px solid rgba(255,255,255,.14); color: rgba(242,240,232,.55); font-size: 13px; letter-spacing: 1.5px; text-transform: uppercase; position: relative; transition: transform .12s, background .12s; }
+        .fs-floors .level-item::before { content: none; }
+        .fs-floors .level-item .fs-num { font-size: 10px; color: rgba(242,240,232,.35); letter-spacing: 2px; }
+        .fs-floors .level-item { font-family: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif; gap: 10px; overflow: hidden; }
+        .fs-floors .level-item .fs-num { white-space: nowrap; flex: none; }
+        .fs-floors .level-item .fs-name { flex: 1; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .fs-floors .level-item .fs-tag { position: absolute; top: 3px; right: 8px; font-size: 7px; letter-spacing: 2px; color: rgba(255,120,100,.75); }
+        .fs-floors .level-item .fs-windows { flex: none; width: 42px; height: 22px; background: repeating-linear-gradient(90deg, rgba(255,220,150,.28) 0 6px, transparent 6px 12px); opacity: .45; }
+        .fs-floors .level-item:hover { color: #fff; }
+        .fs-floors .level-item.selected { color: #fff; background: linear-gradient(90deg, rgba(255,211,90,.28), rgba(255,211,90,.06)); border-color: #ffd35a; transform: translateX(6px); box-shadow: 0 0 18px rgba(255,211,90,.25); }
+        .fs-floors .level-item.selected .fs-num { color: #ffd35a; }
+        .fs-floors .level-item.selected .fs-windows { opacity: .9; }
+        .fs-floors .level-item.uncharted { color: rgba(242,240,232,.35); }
+        .fs-floors .level-item.uncharted .fs-windows { opacity: .12; }
+        .fs-floors .level-item.boss .fs-windows { background: repeating-linear-gradient(90deg, rgba(255,90,70,.45) 0 6px, transparent 6px 12px); }
+        .fs-shaft { position: absolute; left: 6px; top: 10px; bottom: 8px; width: 28px; background: rgba(0,0,0,.55); border: 1px solid rgba(201,162,39,.5); display: flex; flex-direction: column; justify-content: space-around; align-items: center; padding: 4px 0; }
+        .fs-shaft span { width: 16px; height: 16px; border: 1px solid rgba(201,162,39,.45); color: rgba(201,162,39,.35); font-size: 9px; display: flex; align-items: center; justify-content: center; }
+        .fs-shaft span.lit { background: #ffd35a; color: #1a1408; box-shadow: 0 0 10px #ffd35a; border-color: #ffd35a; }
+        .fs-detail { border-left: 1px solid rgba(255,255,255,.14); padding-left: 24px; display: flex; flex-direction: column; gap: 10px; }
+        .fs-detail .fd-eyebrow { font-size: 10px; letter-spacing: 5px; color: #3a8ae6; }
+        .fs-detail .fd-name { font-size: 34px; font-weight: 700; letter-spacing: 4px; text-transform: uppercase; line-height: 1; }
+        .fs-detail .fd-sub { font-family: Georgia, serif; font-style: italic; font-size: 15px; color: rgba(242,240,232,.75); }
+        .fs-detail .fd-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 6px; }
+        .fs-detail .fd-stat { border: 1px solid rgba(255,255,255,.14); padding: 8px 10px; background: rgba(0,0,0,.35); }
+        .fs-detail .fd-stat span { display: block; font-size: 9px; letter-spacing: 3px; color: rgba(242,240,232,.5); }
+        .fs-detail .fd-stat b { display: block; font-size: 20px; margin-top: 2px; color: #ffd35a; letter-spacing: 1px; }
+        .fs-detail .fd-stat b.t-low { color: #7dff9a; } .fs-detail .fd-stat b.t-med { color: #ffd35a; } .fs-detail .fd-stat b.t-high { color: #ff9a5a; } .fs-detail .fd-stat b.t-boss { color: #ff5a4a; }
+        .fs-detail .fd-row { font-size: 11px; letter-spacing: 3px; color: rgba(242,240,232,.55); display: flex; align-items: center; gap: 10px; }
+        .fs-detail .fd-row b { color: #fff; letter-spacing: 2px; }
+        .fs-detail .fd-palette { display: flex; gap: 4px; }
+        .fs-detail .fd-palette i { width: 26px; height: 14px; border: 1px solid rgba(255,255,255,.25); }
+        .fs-detail .fd-note { margin-top: auto; font-size: 10px; letter-spacing: 2px; color: rgba(242,240,232,.4); }
     </style>
 </head>
 
@@ -1013,11 +1055,20 @@
             </div>
         </div>
 
+        <!-- MODERN M3.4: mission select as the Cartel HQ elevation -->
         <div id="menu-levels" class="overlay hidden mm-sub-overlay">
-            <div class="panel">
-                <h2>Floor Select</h2>
-                <div id="level-list"></div>
-                <div class="panel-footer">ENTER TO SELECT · ESC TO RETURN</div>
+            <div class="mm-panel mm-floors">
+                <h2>FLOOR SELECT <small>CARTEL HQ · OPERATIONS BOARD</small></h2>
+                <div class="fs-wrap">
+                    <div class="fs-building">
+                        <div class="fs-roof"></div>
+                        <div class="fs-shaft" id="fs-shaft"></div>
+                        <div id="level-list" class="fs-floors"></div>
+                        <div class="fs-ground"></div>
+                    </div>
+                    <div class="fs-detail" id="fs-detail"></div>
+                </div>
+                <div class="mm-panel-footer">↑↓ SELECT FLOOR · ENTER BEGIN OPERATION · ESC BACK</div>
             </div>
         </div>
 
