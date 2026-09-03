@@ -9,7 +9,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 |:--|:--|:--|
 | M0 Fork and baseline | DONE | gate auto-advanced by the goal harness on 2026-09-03; review still requested |
 | M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
-| M2 Gunplay and first-person feel | TODO | |
+| M2 Gunplay and first-person feel | IN PROGRESS | |
 | M3 HUD and front-end | TODO | |
 | M4 Enemies and AI presentation | TODO | |
 | M5 Environment art per floor | TODO | |
@@ -18,7 +18,9 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 
 ## Open decisions applied (§5)
 
-None yet. Defaults will be recorded here when a goal first depends on one.
+| Decision | Applied | When |
+|:--|:--|:--|
+| 5-G review cadence | **User: run unattended, do not pause at milestone gates** ("assign it and keep going"). Gate summaries are still logged and evidence still captured per milestone. | 2026-09-03, after the M1 gate |
 
 ## Verification recipe (run before every commit)
 
@@ -161,3 +163,10 @@ The composer's own cost is inside run-to-run noise on the software rasteriser (t
 **Preservation:** projectile, splash, and prop-damage rules unchanged; paint colours per weapon unchanged; classic point bursts retained.
 **Open issues:** decals on enemies (paint on suits) belong to M4.5. Debris ignores walls (pieces can slide into a wall footprint), acceptable at this scale; revisit if noticed.
 **Next:** **M1 gate — stop for user review** (renderer, lighting, materials, post, geometry, windows, decals all DONE).
+
+### M2.1 — Two-handed viewmodels and arm animation   (2026-09-03)
+**Changed:** new `modern/src/viewmodels.js` rebuilds all five weapons procedurally at higher fidelity and puts **both of Sandy's hands** on each: `buildHand()` makes a forearm (khaki sleeve, rolled cuff, bare wrist, watch on the off hand), a palm, a fingerless work glove with strap, four two-segment fingers curled to the handle radius, and a thumb. Weapons: brush (turned handle, tape band, crimped ferrule, paint-loaded bristles, off hand holding a labelled paint can), table leg (turned rings, taped grip, brass ferrule, two-handed bat grip), nail gun (chamfered body, side plates, safety nose, slanted nail strip with visible nails, air hose, trigger, off hand under the nose), roller launcher (ringed tube, brass collar, loaded roller, strapped tank with gauge, hose), sprayer (strapped tank, fill cap, heat shroud with vents, guard, hose). Each group is baked with `bakeStatic` (emissive parts kept) and carries `userData.muzzle` for M2.3. `game.js`: a `vmRoot` under the camera carries whole-arm motion — walk sway/bob, breathing, mouse-look lag, **sprint lowering** (drops/tilts away while running), **raise/lower on swap** (0.2 s down, swap, 0.2 s up), **inspect on hold-F** (turns the weapon toward the camera) — while each weapon group carries only recoil; base offsets per weapon honoured. `input.js`: `F` held → `input.inspect`. Root moved slightly up/back (0.19, −0.13, −0.47) so hands stay above the classic HUD bar.
+**Evidence:** `modern/docs/M2.1/vm-brush,leg,nailgun,roller,sprayer.jpg` (idle), `vm-sprint.jpg` (nail gun lowered), `vm-inspect.jpg` (roller turned), `vm-swap.jpg` (mid-swap frame). Smoke green; validator, frozen guard OK; build 14.4 MB. Viewmodel meshes: 63 total across five weapons (baked), one weapon visible at a time.
+**Preservation:** weapon damage/cooldown/cost untouched; switch keys, cycling, and viewmodel visibility rules unchanged; classic recoil amounts kept.
+**Open issues:** poses are tuned against the classic HUD bar; M3.1 will free the bottom 15 % of the screen and poses may want a small drop. The brush's off-hand paint can is partly hidden by the bar today. Inspect has no per-weapon detail animation (stretch goal, left as a simple turn).
+**Next:** M2.2 aim-down-sights.

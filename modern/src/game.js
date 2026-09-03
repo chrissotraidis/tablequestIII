@@ -17,9 +17,8 @@ import {
     buildEnemy, buildTable, buildAmmo, buildHealth, buildMoney,
     buildGoldBar, buildTableLegPickup, buildSprayerPickup,
     buildNailgunPickup, buildRollerPickup,
-    buildBrushViewmodel, buildLegViewmodel, buildSprayerViewmodel,
-    buildNailgunViewmodel, buildRollerViewmodel,
 } from './models.js';
+import { buildViewmodels } from './viewmodels.js';
 import { Effects } from './effects.js';
 import { setShadow } from './lighting.js';
 
@@ -93,19 +92,18 @@ export class Game {
         this.projGeos = new Map(); // radius -> shared geometry
         this.projMeshPool = [];
 
-        // weapon viewmodels
-        this.viewmodels = {
-            paintbrush: buildBrushViewmodel(),
-            tableLeg: buildLegViewmodel(),
-            sprayer: buildSprayerViewmodel(),
-            nailgun: buildNailgunViewmodel(),
-            roller: buildRollerViewmodel(),
-        };
+        // weapon viewmodels (MODERN: two-handed, baked; see viewmodels.js)
+        // vmRoot carries the whole-arm motion (bob, sway, sprint lower, swap,
+        // inspect); each weapon group carries only its own recoil.
+        this.vmRoot = new THREE.Group();
+        this.vmRoot.position.set(0.19, -0.13, -0.47); // MODERN: a touch higher/further than classic so both hands stay in frame
+        camera.add(this.vmRoot);
+        this.viewmodels = buildViewmodels();
         for (const vm of Object.values(this.viewmodels)) {
             vm.visible = false;
-            vm.position.set(0.2, -0.18, -0.42);
-            camera.add(vm);
+            this.vmRoot.add(vm);
         }
+        this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0 };
         this.recoil = 0;
         this.bobPhase = 0;
         this.lastStepTime = 0;
@@ -199,7 +197,8 @@ export class Game {
         this.enemiesAlive = this.enemies.filter(e => e.alive).length;
         this.levelStartTime = this.time;
 
-        this.updateViewmodel();
+        this.updateViewmodel(true);
+        this.vmAnim.swapPhase = 'idle'; this.vmAnim.pending = null;
         this.spawnGrace = 3; // seconds before staff start noticing the intruder
         startSong(this.level.music);
         hud.toast(`FLOOR ${index + 1} — ${this.level.name.toUpperCase()}`, 3000);
@@ -460,9 +459,42 @@ export class Game {
         }
     }
 
-    updateViewmodel() {
+    updateViewmodel(instant = false) {
         const key = this.player.weapons[this.player.currentWeapon];
-        for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === key;
+        const shown = Object.keys(this.viewmodels).find(k => this.viewmodels[k].visible);
+        if (instant || !shown || shown === key) {
+            for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === key;
+            return;
+        }
+        // MODERN: lower the old weapon, then raise the new one
+        const a = this.vmAnim;
+        a.pending = key;
+        if (a.swapPhase === 'idle' || a.swapPhase === 'raise') { a.swapPhase = 'lower'; a.swapT = a.swapPhase === 'raise' ? 1 - a.swapT : 0; }
+    }
+
+    /** whole-arm animation: swap, sprint lowering, inspect, breathing */
+    updateViewmodelAnim(dt) {
+        const a = this.vmAnim;
+        const SWAP = 0.2;
+        if (a.swapPhase === 'lower') {
+            a.swapT = Math.min(1, a.swapT + dt / SWAP);
+            if (a.swapT >= 1) {
+                for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === a.pending;
+                a.pending = null; a.swapPhase = 'raise'; a.swapT = 0;
+            }
+        } else if (a.swapPhase === 'raise') {
+            a.swapT = Math.min(1, a.swapT + dt / SWAP);
+            if (a.swapT >= 1) a.swapPhase = 'idle';
+        }
+        const swapDrop = a.swapPhase === 'lower' ? a.swapT : a.swapPhase === 'raise' ? 1 - a.swapT : 0;
+        // sprint: weapon drops and tilts away while running
+        const sprinting = input.sprint && this.moving && this.vel.length() > PLAYER_SPEED * 0.9;
+        a.lower += ((sprinting ? 1 : 0) - a.lower) * Math.min(1, dt * 9);
+        // inspect: hold F to turn the weapon toward the camera
+        const wantInspect = input.inspect && !fireHeld() && this.player.cooldown <= 0.01;
+        a.inspect += ((wantInspect ? 1 : 0) - a.inspect) * Math.min(1, dt * 5);
+        a.breathe = this.time;
+        return { swapDrop: swapDrop * swapDrop, lower: a.lower, inspect: a.inspect };
     }
 
     acquireLight(color) {
@@ -1051,21 +1083,39 @@ export class Game {
             this.muzzleLight.intensity = 5;
         }
 
-        // viewmodel sway + recoil
+        // viewmodel: whole-arm motion on vmRoot, recoil on the weapon
         this.recoil = Math.max(0, this.recoil - dt * 6);
+        const anim = this.updateViewmodelAnim(dt);
+        const root = this.vmRoot;
+        {
+            const walkSway = this.moving ? Math.sin(this.bobPhase * 0.5) * 0.014 : 0;
+            const walkBob = this.moving ? Math.abs(Math.cos(this.bobPhase * 0.5)) * 0.014 : 0;
+            const breatheX = Math.sin(time * 1.1) * 0.003, breatheY = Math.sin(time * 1.7) * 0.002;
+            // mouse look lag: the arms trail the view a touch
+            const lagX = -THREE.MathUtils.clamp(this.smDX * this.sens * 0.35, -0.03, 0.03);
+            const lagY = THREE.MathUtils.clamp(this.smDY * this.sens * 0.25, -0.02, 0.02);
+            root.position.set(
+                0.19 + walkSway + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05,
+                -0.13 + walkBob + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY,
+                -0.47 + anim.lower * 0.03 + anim.inspect * 0.06);
+            root.rotation.set(
+                anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2,
+                -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5,
+                anim.lower * 0.12 - anim.inspect * 0.18);
+        }
         const vm = this.viewmodels[p.weapons[p.currentWeapon]];
         if (vm) {
-            const sway = this.moving ? Math.sin(this.bobPhase * 0.5) * 0.012 : Math.sin(time * 1.2) * 0.004;
-            vm.position.x = 0.2 + sway;
-            vm.position.y = -0.18 + (this.moving ? Math.abs(Math.cos(this.bobPhase * 0.5)) * 0.012 : 0);
             const w = WEAPONS[p.weapons[p.currentWeapon]];
             const base = vm.userData.baseRotX || 0;
+            const bp = vm.userData.basePos || (vm.userData.basePos = vm.position.clone());
+            vm.position.copy(bp);
             if (w.type === 'melee') {
                 vm.rotation.x = base - this.recoil * 1.6;
                 vm.rotation.z = this.recoil * 0.8;
             } else {
-                vm.position.z = -0.42 + this.recoil * 0.07;
+                vm.position.z = bp.z + this.recoil * 0.07;
                 vm.rotation.x = base + this.recoil * 0.35;
+                vm.rotation.z = 0;
             }
         }
     }

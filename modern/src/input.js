@@ -8,6 +8,7 @@ export const input = {
     jump: false,            // one-shot, consumed each frame
     fireKeyHeld: false, mouseHeld: false,
     interact: false, sprint: false,
+    inspect: false,         // MODERN: hold F to look the weapon over
     cycleWeapon: 0,         // +1 / -1 per frame (wheel or Q)
     mouseDX: 0, mouseDY: 0,
     pointerLocked: false,
@@ -60,6 +61,7 @@ export function initInput(canvasEl) {
 
 export function releaseAllKeys() {
     input.forward = input.back = input.strafeL = input.strafeR = false;
+    input.inspect = false;
     input.turnL = input.turnR = input.sprint = false;
     input.fireKeyHeld = input.mouseHeld = false;
 }
@@ -87,6 +89,7 @@ function setKey(code, down) {
             input.fireKeyHeld = down;
             break;
         case 'KeyE': if (down) input.interact = true; break;
+        case 'KeyF': input.inspect = down; break;
         case 'KeyQ': if (down) input.cycleWeapon += 1; break;
         case 'ShiftLeft': case 'ShiftRight': input.sprint = down; break;
     }
