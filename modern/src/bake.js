@@ -46,8 +46,11 @@ function mergeable(mesh) {
  * the same position/rotation/scale as the input (the input is disposed of
  * where its geometry was consumed).
  */
-export function bakeStatic(group) {
+export function bakeStatic(group, { fresh = false, quantize = 0 } = {}) {
     group.updateMatrixWorld(true);
+    // quantize: snap roughness/metalness to a grid so near-identical finishes
+    // share one bucket (characters: 0.25 → ~3 buckets per limb instead of ~10)
+    const q = (v) => quantize ? Math.round(v / quantize) * quantize : v;
     const inv = new THREE.Matrix4().copy(group.matrixWorld).invert();
     const buckets = new Map(); // roughness|metal -> geometries
     const keep = [];
@@ -68,7 +71,7 @@ export function bakeStatic(group) {
         // drop attributes that differ between geometries and would block the merge
         for (const name of Object.keys(g.attributes))
             if (!['position', 'normal', 'uv', 'color'].includes(name)) g.deleteAttribute(name);
-        const k = `${o.material.roughness.toFixed(2)}|${o.material.metalness.toFixed(2)}`;
+        const k = `${q(o.material.roughness).toFixed(2)}|${q(o.material.metalness).toFixed(2)}`;
         (buckets.get(k) || buckets.set(k, []).get(k)).push(g);
     });
 
@@ -83,7 +86,9 @@ export function bakeStatic(group) {
         geos.forEach(g => g.dispose());
         if (!merged) continue;
         const [r, m] = k.split('|').map(Number);
-        const mesh = new THREE.Mesh(merged, matFor(r, m));
+        // fresh: an uncached material owned by this object (characters flash their own)
+        const material = fresh ? Object.assign(bakedMat.clone(), { roughness: r, metalness: m }) : matFor(r, m);
+        const mesh = new THREE.Mesh(merged, material);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         out.add(mesh);

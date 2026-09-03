@@ -13,8 +13,9 @@ import { World } from './world.js';
 import { input, fireHeld } from './input.js';
 import { playSound, startSong } from './audio.js';
 import { hud } from './hud.js';
+import { buildEnemy } from './characters.js'; // MODERN M4.1
 import {
-    buildEnemy, buildTable, buildAmmo, buildHealth, buildMoney,
+    buildTable, buildAmmo, buildHealth, buildMoney,
     buildGoldBar, buildTableLegPickup, buildSprayerPickup,
     buildNailgunPickup, buildRollerPickup,
 } from './models.js';

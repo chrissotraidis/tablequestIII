@@ -11,7 +11,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
 | M2 Gunplay and first-person feel | DONE | gate summary logged; running unattended per 5-G |
 | M3 HUD and front-end | DONE | gate summary logged; running unattended per 5-G |
-| M4 Enemies and AI presentation | TODO | |
+| M4 Enemies and AI presentation | IN PROGRESS | |
 | M5 Environment art per floor | TODO | |
 | M6 Audio | TODO | |
 | M7 Polish, certification, release | TODO | |
@@ -21,6 +21,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | Decision | Applied | When |
 |:--|:--|:--|
 | 5-G review cadence | **User: run unattended, do not pause at milestone gates** ("assign it and keep going"). Gate summaries are still logged and evidence still captured per milestone. | 2026-09-03, after the M1 gate |
+| 5-D enemy weapon fiction | **Default applied:** office weapons that fire paint — stapler (guard), tape gun (manager), paint pistol (executive), golden shears (Head Designer) — held in the right hand (M4.1). | 2026-09-03, M4.1 |
 | 5-E legacy boot screens | **Default applied:** shown once per session at load (as classic), auto-advancing 4.5 s / 5 s, any key or click skips (M3.7). | 2026-09-03, M3.7 |
 | 5-C paint as ammo | **Default applied:** single 99-cap paint pool, no magazines, no reload window; a cosmetic top-up flourish only (M2.5). Marked `BLOCKED(§5-C)` per the goal prompt until the user confirms or changes it. | 2026-09-03, M2.5 |
 
@@ -301,3 +302,10 @@ Preview rebuilt at `dist/modern/index.html`.
 Delivered: the fading minimal HUD with compass tape, objective + feed, projected objective marker, health/paint corners, floor card (M3.1); full-screen blueprint tactical map on Tab (M3.2); main menu over the live Lobby with a five-item list, case file, high score, heritage box art, and an Options panel — post FX, FOV, sensitivity, invert, sound — persisted, keyboard/pointer parity, reduced-motion aware (M3.3); Cartel HQ operations board for Floor Select with facts computed from the canonical maps (M3.4); typewriter field briefing with SAT-LINK floor scans, text of record equal to the classic crawl 852/852 (M3.5); per-floor deploy card plus restyled transition, game over, pause, victory, and instructions (M3.6); CRT legacy boot, PNGs hash-identical (M3.7).
 Every classic screen and readout is present; New Game / Floor Select / How to Play / Sound, high score, story text, controls, boot order all preserved.
 Owed to the user: a hardware pass on the HUD fade timing and CSS transitions (the software renderer paints CSS opacity transitions unreliably, so several captures were forced). Preview rebuilt at `dist/modern/index.html`.
+
+### M4.1 — Character builder   (2026-09-03)
+**Changed:** new `modern/src/characters.js` replaces the 12-box employee with a proportional rig that keeps the **exact classic animation interface** (`group, legL, legR, armL, armR, torso, headG, flashMats, height`; limbs pivot at hip/shoulder, so the AI's walk swing, breathing, head glance, wind-up, and death fall run unchanged). Body: thighs, shins, knees, shoes with heels; jacket with shoulders, lapels, shirt front, tie and knot, collar, belt and buckle; upper arm, forearm, cuff, and a hand (relaxed left, gripping right). Head: skull, jaw, neck, ears, hair (rank-specific: guard fringe, manager comb-over in gray, executive black, boss dark), eye whites with pupils, brows (angry on the boss), nose, mouth. **Rank kit** in the classic colours: guard blue with a brass badge; manager gray with glasses and a name badge; executive black with hat, band, and shades; Head Designer oxblood at 1.65× with hat, gold band, gold tie, cape, and the emissive gold scissors emblem. **Weapons (§5-D default)** in the right hand: stapler with a glowing paint reservoir, tape gun with a yellow roll, paint pistol with a paint can, golden shears (emissive gold). Every limb, the torso, and the head are baked with `bakeStatic(..., { fresh: true, quantize: 0.5 })` — new options: `fresh` gives each character its own materials so the pain flash stays per-enemy; `quantize` snaps roughness/metalness so a limb's parts share buckets. Result: 15–19 meshes per character (classic 13; the extras are the weapon's emissive parts and glasses).
+**Evidence:** `modern/docs/M4.1/lineup.jpg` (four ranks facing the camera in the Lobby), `lineup-flash.jpg`. Smoke green (staff counts unchanged on all floors); validator, frozen guard OK; build 14.4 MB.
+**Preservation:** stats, detection, attack, hit radii, pain flash, death fall, startled hop untouched; suit colours classic; model height 0.87 / boss ×1.65 unchanged (hit-box math in `game.js` uses fixed radii).
+**Open issues:** meshes per enemy slightly above classic → M7.2 draw-call plan still applies (shadow pass). Hands are simple; fingers are a block. The pain flash could not be captured (0.22 s game time ≈ one software frame).
+**Next:** M4.2 animation layers (idle / walk / run / aim / fire / flinch / stagger / collapse).
