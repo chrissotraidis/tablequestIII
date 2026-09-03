@@ -118,6 +118,8 @@ Staff alert nearby allies when they spot Sandy, strafe during firefights, and ca
 
 The pre-built game is a single self-contained HTML file.
 
+> **Preview build: Sandy's Table Quest MODERN.** A work-in-progress fork that re-presents the same game in a mid-2000s shooter style (lit and shadowed rooms, modern HUD, cinematic front-end, re-orchestrated score) while keeping every floor, weapon, enemy, and line of story identical. It lives in [`modern/`](modern/) and builds to `dist/modern/index.html`. The plan and progress log are in [`docs/modern/GOAL_LOOP.md`](docs/modern/GOAL_LOOP.md) and [`modern/PROGRESS.md`](modern/PROGRESS.md). The classic build below is unchanged.
+
 1. [Download the repository as a ZIP](https://github.com/chrissotraidis/tablequestIII/archive/refs/heads/main.zip) and extract it.
 2. Open `dist/index.html` in Chrome, Firefox, Safari, or Edge.
 3. Reclaim the tables.
@@ -144,6 +146,18 @@ npm run build
 ```
 
 Vite writes the complete game to `dist/index.html`.
+
+To run or build the modern preview instead:
+
+```bash
+npm run dev:modern
+```
+
+```bash
+npm run build:modern
+```
+
+`npm run build:all` builds both; the modern preview lands in `dist/modern/index.html`.
 
 ## Controls
 
