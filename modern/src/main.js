@@ -481,10 +481,11 @@ function step(now, render = true) {
         if (testMode) botStep(dt);
         game.update(dt, elapsed);
         hud.update(game.player, game);
-        hud.drawFace(game.player, elapsed);
+        hud.drawFace(game.player, elapsed); // portrait lives on the pause panel now; cheap when hidden
         hud.drawMinimap(game, game.player);
         hud.setLockHint(!input.pointerLocked);
     }
+    if (state === 'pause') hud.drawFace(game.player, elapsed);
     if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover')) {
         postfx.render(elapsed, state === 'play' ? (game.yawRate || 0) : 0);
     }

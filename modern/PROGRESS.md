@@ -10,7 +10,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | M0 Fork and baseline | DONE | gate auto-advanced by the goal harness on 2026-09-03; review still requested |
 | M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
 | M2 Gunplay and first-person feel | DONE | gate summary logged; running unattended per 5-G |
-| M3 HUD and front-end | TODO | |
+| M3 HUD and front-end | IN PROGRESS | |
 | M4 Enemies and AI presentation | TODO | |
 | M5 Environment art per floor | TODO | |
 | M6 Audio | TODO | |
@@ -243,3 +243,10 @@ Delivered: two-handed baked viewmodels with swap/sprint/inspect/look-lag arm ani
 Balance untouched: damage, cooldowns, paint costs, hip spread, projectile speeds, hit radii, mercy window all classic. New bindings: RMB aim, F inspect, V quick melee (added to the classic control set; nothing remapped).
 Owed to the user: hardware feel review of kick strengths, flash timing, and ADS poses (all tuned from stills on a software renderer).
 Preview rebuilt at `dist/modern/index.html`.
+
+### M3.1 — Modern HUD   (2026-09-03)
+**Changed:** the carved-workbench status bar is retired (its 278 lines of CSS removed) and replaced by a minimal, fading 2005–2007 HUD (`modern/index.html` `.mhud` markup + CSS; `modern/src/hud.js` rewritten with the same API). **Top centre:** a compass tape (canvas, 120° span, N/E/S/W and 15° ticks) with objective bearings — gold diamonds for uncollected tables, green for the elevator once unlocked, red for the boss — and the boss bar as a thin strip beneath it. **Top left:** OBJECTIVE eyebrow with the floor name, the objective line (COLLECT n TABLES → TABLES SECURED — REACH THE ELEVATOR → DEFEAT THE HEAD DESIGNER), TABLES / STAFF / SCORE chips (table icons still light up as they're reclaimed), and a **notification feed** that replaces the centre toast (gold for tables/weapons, green for elevator/Fritos, red for the boss rage; five deep, 2–3 s each). **Bottom left:** HEALTH bar + number (turns amber under 50, red under 25), FLOOR. **Bottom right:** weapon name, large PAINT count + bar (red when ≤ 8, dimmed on melee), five slot pips with the active one lit. **World:** one projected marker on the nearest objective with a distance readout (1 cell ≈ 2.5 m), hidden when off-screen or when standing on it. **Floor intro card** (FLOOR n / NAME / subtitle, 3.2 s) replaces the classic floor toast. The whole HUD fades to 42 % after 4 s of game time without an event (damage, fire, pickup, swap, objective change, aim) and snaps back. Sandy's pixel portrait moves to the pause panel (drawn only while visible). Classic overlays kept: low-HP red edge, damage flash, pickup flash, hit marker, damage wedge, lock hint, Tab minimap (restyled in M3.2).
+**Evidence:** `modern/docs/M3.1/hud-spawn.jpg`, `hud-combat.jpg` (hit marker, damage wedge, feed), `hud-objective-done.jpg` (green elevator marker "16m", compass bearing, feed), `hud-lowhp.jpg` (red edge, red 14), `floor-card.jpg`, `pause-portrait.jpg`. Smoke green; validator, frozen guard OK; build 14.4 MB (smaller than M2 after the CSS removal).
+**Preservation:** every classic readout survives — floor, score, health, paint, tables (count + icons), staff, weapon rack, boss bar, objective text, toasts (as feed), minimap, mute indicator, lock hint, Sandy's portrait (pause). All HUD element IDs the game code writes to are kept.
+**Open issues:** the idle fade could not be captured (it counts game time, which advances ~0.05 s per software frame). Feed items and the card use CSS opacity, which the headless renderer paints unreliably; fine on hardware. `#hud-tables-icons` sits inline in the chip — small; M3.2/M3.6 can revisit sizing. The lock hint keeps its classic styling for now.
+**Next:** M3.2 compass strip + full-screen tactical map on Tab.

@@ -221,7 +221,7 @@ export class Game {
         this.vmAnim.swapPhase = 'idle'; this.vmAnim.pending = null;
         this.spawnGrace = 3; // seconds before staff start noticing the intruder
         startSong(this.level.music);
-        hud.toast(`FLOOR ${index + 1} — ${this.level.name.toUpperCase()}`, 3000);
+        hud.floorCard(index + 1, this.level.name, this.level.subtitle);
     }
 
     findSpawnFacing() {
@@ -891,7 +891,7 @@ export class Game {
         if (e.variant === 'boss' && e.alive && !e.phase2 && e.health < e.maxHealth / 2) {
             e.phase2 = true;
             playSound('boss_roar');
-            hud.toast('THE HEAD DESIGNER IS FURIOUS!', 2600);
+            hud.toast('THE HEAD DESIGNER IS FURIOUS', 2600, 'red');
             // his rampage knocks supply crates open — comeback resources
             for (const [ch, x, y] of [['H', 12.5, 14.5], ['H', 18.5, 14.5], ['A', 14.5, 12.5], ['A', 16.5, 16.5]]) {
                 if (!this.world.isSolidCell(Math.floor(x), Math.floor(y)))
@@ -1150,10 +1150,10 @@ export class Game {
                 const tpos = new THREE.Vector3(item.x, 0.65, item.y);
                 this.effects.burst(tpos, new THREE.Color(0xffd700), 24, 3.2, 0.85);
                 this.effects.burst(tpos, new THREE.Color().setHSL(Math.random(), 1, 0.6), 16, 2.6, 0.7);
-                hud.toast(`TABLE RECLAIMED! (${p.tables}/${this.requiredTables})`, 1800);
+                hud.toast(`TABLE RECLAIMED  ${p.tables}/${this.requiredTables}`, 1800, 'gold');
                 if (p.tables >= this.requiredTables && this.world.unlockGates()) {
                     playSound('gate');
-                    setTimeout(() => hud.toast('⚡ ELEVATOR UNLOCKED — HEAD DOWN! ⚡', 3000), 900);
+                    setTimeout(() => hud.toast('ELEVATOR UNLOCKED — HEAD DOWN', 3000, 'green'), 900);
                 }
             } else if (item.kind === 'ammo') {
                 if (p.ammo >= 99) { collected = false; this.fullHint('PAINT'); }
@@ -1163,7 +1163,7 @@ export class Game {
                 else {
                     p.health = Math.min(MAX_HEALTH, p.health + 25);
                     playSound('munch');
-                    hud.toast('FRITOS! +25 HP', 1100);
+                    hud.toast('FRITOS  +25 HP', 1100, 'green');
                 }
             } else if (item.kind === 'money') {
                 p.score += SCORE_VALUES.money;
@@ -1182,7 +1182,7 @@ export class Game {
                     p.currentWeapon = p.weapons.length - 1;
                     this.updateViewmodel();
                     playSound('fanfare');
-                    hud.toast(`NEW WEAPON: ${WEAPONS[wkey].name}! (press ${p.weapons.length})`, 3200);
+                    hud.toast(`NEW WEAPON: ${WEAPONS[wkey].name}  [${p.weapons.length}]`, 3200, 'gold');
                 } else collected = false;
             }
 
