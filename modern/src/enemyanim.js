@@ -26,7 +26,7 @@ const easeIn = (t) => t * t;
  * Returns the vertical bounce to apply to the group (game.js sets position).
  */
 export function poseEnemy(e, m, ctx) {
-    const { dt, time, isMoving, speedFrac, aiming, playerRel, windUp } = ctx;
+    const { dt, time, isMoving, speedFrac, aiming, playerRel, windUp, peekSide = 0, advancing = false } = ctx;
     // ---- timers
     e.fireT = Math.max(0, (e.fireT || 0) - dt);
     e.flinchT = Math.max(0, (e.flinchT || 0) - dt);
@@ -94,6 +94,23 @@ export function poseEnemy(e, m, ctx) {
         torsoZ += 0.22 * k * (e.staggerSide || 1);
         torsoX += 0.12 * k;
         armL -= 0.7 * k; armR -= 0.4 * k * (1 - a);
+    }
+
+    // ---- cover-peek: lean out from behind a tall prop while the cooldown runs
+    e.peekBlend = (e.peekBlend || 0) + ((peekSide ? 1 : 0) - (e.peekBlend || 0)) * Math.min(1, dt * 5);
+    if (e.peekBlend > 0.001) {
+        const side = peekSide || e.peekLast || 1; e.peekLast = side;
+        const k = e.peekBlend;
+        torsoZ += 0.3 * k * side;
+        groupDrop -= 0.05 * k;
+        headY += 0.15 * k * side;
+        legL += 0.12 * k; legR -= 0.12 * k;
+    }
+    // ---- suppress-and-advance: a hunched, weapon-forward run right after firing
+    if (advancing) {
+        torsoX += 0.14;
+        groupDrop -= 0.03;
+        armR = Math.min(armR, -1.1);
     }
 
     // ---- startled hop (classic)

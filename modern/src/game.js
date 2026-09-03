@@ -15,6 +15,7 @@ import { playSound, startSong } from './audio.js';
 import { hud } from './hud.js';
 import { buildEnemy } from './characters.js'; // MODERN M4.1
 import { poseEnemy, poseDeath } from './enemyanim.js'; // MODERN M4.2
+import { Barks, rankName } from './barks.js'; // MODERN M4.3
 import {
     buildTable, buildAmmo, buildHealth, buildMoney,
     buildGoldBar, buildTableLegPickup, buildSprayerPickup,
@@ -125,6 +126,7 @@ export class Game {
         this.kick = { pitch: 0, yaw: 0, roll: 0, vPitch: 0, vYaw: 0, vRoll: 0, climb: 0 };
         this.aim = 0;               // MODERN: 0 hip … 1 down the sights
         this.quick = { t: 0, struck: false, cd: 0 }; // MODERN M2.6: quick melee state
+        this.barks = new Barks(); // MODERN M4.3: staff callouts
         this.ADS_FOV_DROP = 15;      // degrees
         this.ADS_SPREAD = 0.45;      // spread multiplier while aimed (hip-fire spread unchanged)
         this.recoil = 0;
@@ -181,6 +183,7 @@ export class Game {
         for (const p of this.pickups) { this.scene.remove(p.mesh); disposeTree(p.mesh); }
         for (const pr of this.projectiles) this.removeProjectileMesh(pr);
         this.effects.clear();
+        this.barks?.clear();
         this.enemies = [];
         this.pickups = [];
         this.projectiles = [];
@@ -316,6 +319,7 @@ export class Game {
         this.updateProjectiles(dt);
         this.effects.update(dt);
         this.updateCameraAndViewmodel(dt, time);
+        this.barks.update(time, this.camera); // MODERN M4.3
         this.checkElevator();
     }
 
@@ -890,6 +894,10 @@ export class Game {
             this.enemiesAlive = this.enemies.filter(en => en.alive).length;
             playSound('enemy_death');
             playSound('killmark');
+            { // MODERN M4.3: a colleague within earshot calls it
+                const mate = this.enemies.find(o => o !== e && o.alive && o.state !== 'idle' && Math.hypot(o.x - e.x, o.y - e.y) < 7);
+                if (mate) this.barks.bark(mate, 'mandown', { name: rankName(e) }, this.time);
+            }
             hud.hitMarker(true); // MODERN: red kill marker
             const stats = ENEMY_STATS[e.variant];
             this.player.score += stats.score;
@@ -900,6 +908,7 @@ export class Game {
         if (e.variant === 'boss' && e.alive && !e.phase2 && e.health < e.maxHealth / 2) {
             e.phase2 = true;
             playSound('boss_roar');
+            this.barks.bark(e, 'rage', {}, this.time); // MODERN M4.3
             hud.toast('THE HEAD DESIGNER IS FURIOUS', 2600, 'red');
             // his rampage knocks supply crates open — comeback resources
             for (const [ch, x, y] of [['H', 12.5, 14.5], ['H', 18.5, 14.5], ['A', 14.5, 12.5], ['A', 16.5, 16.5]]) {
@@ -968,6 +977,7 @@ export class Game {
                     e.hopT = 0.3; // startled jump
                     playSound(e.variant === 'boss' ? 'boss_roar' : 'alert');
                     this.packAlert(e);
+                    this.barks.bark(e, 'alert', { floor: `floor ${this.levelIndex + 1}` }, this.time); // MODERN M4.3
                 }
             } else if (e.state === 'alert') {
                 e.stateTimer -= dt;
@@ -1000,6 +1010,7 @@ export class Game {
                     if (e.lostSightTimer > 4.5) {
                         e.state = 'idle';
                         e.lostSightTimer = 0;
+                        this.barks.bark(e, 'lost', { zone: this.level.name.toLowerCase() }, this.time); // MODERN M4.3
                     }
                 } else e.lostSightTimer = 0;
 
@@ -1062,12 +1073,27 @@ export class Game {
             let playerRel = Math.atan2(p.x - e.x, p.y - e.y) - m.group.rotation.y;
             while (playerRel > Math.PI) playerRel -= Math.PI * 2;
             while (playerRel < -Math.PI) playerRel += Math.PI * 2;
+            // MODERN M4.3: cover-peek — waiting out the cooldown beside a tall prop
+            let peekSide = 0;
+            if (e.state === 'chase' && e.attackTimer > 0.5 && !isMoving) {
+                const cx = Math.floor(e.x), cy = Math.floor(e.y);
+                for (const [ox, oy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                    if (this.world.tallProps.has(this.world.key(cx + ox, cy + oy))) {
+                        const rel = Math.atan2(ox, oy) - m.group.rotation.y;
+                        peekSide = Math.sin(rel) > 0 ? -1 : 1; // lean toward the open side
+                        break;
+                    }
+                }
+            }
+            e.advanceT = Math.max(0, (e.advanceT || 0) - dt);
             const bounceY = poseEnemy(e, m, {
                 dt, time: this.time, isMoving,
                 speedFrac: Math.hypot(moveX, moveY) / (stats.moveSpeed * speedMul || 1),
                 aiming: e.state === 'chase' && los && dist < stats.attackRange,
                 playerRel,
                 windUp: e.state === 'chase' && e.attackTimer < 0.35,
+                peekSide,
+                advancing: e.advanceT > 0 && isMoving,
             });
             m.group.position.set(e.x, bounceY, e.y);
             e.shadow.position.set(e.x, 0.012, e.y);
@@ -1084,6 +1110,11 @@ export class Game {
         }
         playSound('shoot');
         e.fireT = 0.18; // MODERN M4.2: arm kick
+        { // MODERN M4.3: suppress-and-advance read — after a shot while still outside preferred range
+            const preferred = stats.attackRange * 0.55;
+            const d = Math.hypot(this.player.x - e.x, this.player.y - e.y);
+            if (d > preferred + 1) { e.advanceT = 1.0; if (Math.random() < 0.25) this.barks.bark(e, 'advance', {}, this.time); }
+        }
         const p = this.player;
         // lead the target: aim where the player will be (skill varies by rank)
         const flight = Math.hypot(p.x - e.x, p.y - e.y) / ENEMY_PROJECTILE_SPEED;

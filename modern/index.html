@@ -1009,6 +1009,13 @@
         .mcrt .crt-caption { display: flex; justify-content: space-between; width: min(92vw, 133vh); font-size: 10px; letter-spacing: 4px; color: rgba(242,240,232,.45); }
         .mcrt .crt-caption span:last-child { color: #ffd35a; animation: blink 1.6s steps(1) infinite; }
         @media (prefers-reduced-motion: reduce) { .mcrt .crt-tube { animation: none; } .mcrt .crt-caption span:last-child { animation: none; } }
+
+        /* ======================= BARKS (M4.3) ======================= */
+        #barks .bark { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; white-space: nowrap; }
+        #barks .bark-rank { font-size: 8px; letter-spacing: 3px; color: rgba(242,240,232,.5); }
+        #barks .bark-text { font-size: 13px; letter-spacing: 1px; color: #fff; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); padding: 3px 8px; font-style: italic; }
+        #barks .bark.boss .bark-text { color: #ffd35a; border-color: rgba(255,211,90,.5); font-size: 15px; }
+        #barks .bark.boss .bark-rank { color: #ff5a4a; }
     </style>
 </head>
 
@@ -1083,6 +1090,7 @@
                 <div class="rack" id="weapon-rack"></div>
             </div>
             <div id="obj-marker" class="hidden"><span class="om-icon"></span><span class="om-dist">12m</span></div>
+            <div id="barks"></div>
         </div>
 
         <!-- ============ BOOT SEQUENCE ============ -->
