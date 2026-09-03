@@ -349,37 +349,121 @@ document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
 function startIntro() {
     setState('intro');
     startSong('intro');
-    const container = document.querySelector('.intro-container');
-    document.querySelectorAll('.intro-beat').forEach((beat) => beat.classList.remove('is-focus'));
-    container.style.transition = 'none';
-    container.style.top = '105%';
-    // force reflow then start the crawl
-    container.offsetHeight;
-    container.style.transition = 'top 56s linear';
-    container.style.top = '-360%';
+    // MODERN M3.5: typewriter briefing over the live Lobby. The lines come
+    // straight out of the classic crawl markup, so the text can never drift.
+    brief.lines = [];
+    document.querySelectorAll('.intro-beat').forEach((beat, bi) => {
+        for (const el of beat.children) {
+            const text = el.innerHTML.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').replace(/[ \t]+\n/g, '\n').replace(/\s*\n\s*/g, '\n').replace(/[ \t]{2,}/g, ' ').trim();
+            const cls = el.tagName === 'H1' ? 'h1' : el.tagName === 'H2' ? 'h2'
+                : el.classList.contains('intro-overline') ? 'overline'
+                : el.classList.contains('dramatic') ? 'dramatic'
+                : el.classList.contains('intro-final-title') ? 'final-title'
+                : el.classList.contains('emphasis') ? 'emphasis' : 'p';
+            brief.lines.push({ text, cls, beat: bi });
+        }
+    });
+    brief.total = brief.lines.reduce((n, l) => n + l.text.length, 0);
+    // wall-clock timeline: each line starts after the previous one plus a breath
+    // (longer between beats), so the briefing lasts the same on any frame rate
+    let t = 0.6;
+    brief.lines.forEach((l, i) => {
+        l.start = t;
+        t += l.text.length / CPS;
+        l.end = t;
+        const beatEnds = i + 1 < brief.lines.length && brief.lines[i + 1].beat !== l.beat;
+        t += beatEnds ? 0.9 : 0.26;
+    });
+    brief.endAt = t;
+    brief.i = 0; brief.c = 0; brief.doneAt = 0; brief.pauseUntil = 0;
+    const box = $('briefing-text');
+    box.innerHTML = '';
+    brief.els = brief.lines.map((l) => { const d = document.createElement('div'); d.className = 'bl ' + l.cls; box.appendChild(d); return d; });
     introStartedAt = performance.now();
+    brief.last = introStartedAt;
     if (introFrame) cancelAnimationFrame(introFrame);
     updateIntroPresentation();
-    introTimer = setTimeout(finishIntro, 56500);
+    if (introTimer) clearTimeout(introTimer);
+    introTimer = setTimeout(finishIntro, (brief.endAt + 3.5 + 6) * 1000); // safety cap; the briefing ends itself sooner
 }
+
+const brief = { lines: [], els: [], i: 0, c: 0, total: 0, last: 0, doneAt: 0, pauseUntil: 0, satFloor: -1 };
+const CPS = 42; // characters per second
 
 function updateIntroPresentation() {
     if (state !== 'intro') return;
-    const beats = [...document.querySelectorAll('.intro-beat')];
-    const focusLine = window.innerHeight * 0.5;
-    let nearest = null;
-    let nearestDistance = Infinity;
+    const now = performance.now();
+    const dt = Math.min(0.1, (now - brief.last) / 1000);
+    brief.last = now;
 
-    beats.forEach((beat) => {
-        const rect = beat.getBoundingClientRect();
-        const distance = Math.abs(rect.top + rect.height / 2 - focusLine);
-        if (distance < nearestDistance) { nearest = beat; nearestDistance = distance; }
+    // ---- typewriter (timeline-driven)
+    const T = (now - introStartedAt) / 1000;
+    let typed = 0, current = brief.lines.length;
+    brief.lines.forEach((l, i) => {
+        const el = brief.els[i];
+        let n;
+        if (T >= l.end) n = l.text.length;
+        else if (T <= l.start) n = 0;
+        else n = Math.floor((T - l.start) * CPS);
+        typed += n;
+        if (n < l.text.length && current === brief.lines.length) current = i;
+        const shown = l.text.slice(0, n);
+        if (el.textContent !== shown) el.textContent = shown;
+        el.classList.toggle('typing', n > 0 && n < l.text.length);
     });
-    beats.forEach((beat) => beat.classList.toggle('is-focus', beat === nearest));
+    brief.i = current; // beat index for the sat plan
+    const box = $('briefing-text');
+    box.scrollTop = box.scrollHeight;
+    if (T > brief.endAt + 3.5) { finishIntro(); return; }
 
-    const progress = Math.min(1, (performance.now() - introStartedAt) / 56000);
+    // ---- progress bar (typed characters)
+    const progress = brief.total ? typed / brief.total : 0;
     $('intro-screen').style.setProperty('--intro-progress', `${(progress * 100).toFixed(2)}%`);
+
+    // ---- satellite plan: one floor per beat, scanning
+    const beat = Math.min(LEVELS.length - 1, brief.i < brief.lines.length ? brief.lines[brief.i].beat : LEVELS.length - 1);
+    drawSatPlan(beat, (now - introStartedAt) / 1000);
     introFrame = requestAnimationFrame(updateIntroPresentation);
+}
+
+const SAT_WALLS = new Set(['#', 'W', 'B', 'M', 'O', 'C']);
+function drawSatPlan(floor, t) {
+    const c = $('briefing-sat');
+    const ctx = c.getContext('2d');
+    const lvl = LEVELS[floor];
+    const rows = lvl.map, w = Math.max(...rows.map(r => r.length)), h = rows.length;
+    if (brief.satFloor !== floor) { brief.satFloor = floor; brief.satT0 = t; $('mb-sat-floor').textContent = `FLOOR ${floor + 1} · ${lvl.name.toUpperCase()}`; }
+    const k = Math.min((c.width - 20) / w, (c.height - 20) / h);
+    const ox = (c.width - w * k) / 2, oy = (c.height - h * k) / 2;
+    ctx.fillStyle = '#0a1a30'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = 'rgba(120,160,210,0.10)'; ctx.lineWidth = 1;
+    for (let gx = 0; gx < c.width; gx += 18) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, c.height); ctx.stroke(); }
+    for (let gy = 0; gy < c.height; gy += 18) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(c.width, gy); ctx.stroke(); }
+    const reveal = Math.min(1, (t - brief.satT0) / 2.2); // the scan draws the floor in from the top
+    $('mb-sat-scan').textContent = `${Math.round(reveal * 100).toString().padStart(2, '0')}%`;
+    for (let y = 0; y < h; y++) {
+        if (y / h > reveal) break;
+        const row = rows[y].padEnd(w, lvl.wallChar);
+        for (let x = 0; x < w; x++) {
+            const ch = row[x];
+            if (SAT_WALLS.has(ch)) ctx.fillStyle = '#a8c8e8';
+            else if (ch === '+') ctx.fillStyle = '#c9a227';
+            else if (ch === 'X') ctx.fillStyle = '#cc4433';
+            else if (ch === 'E') ctx.fillStyle = '#3ae07a';
+            else if (ch === 'T') ctx.fillStyle = '#ffd35a';
+            else if (ch === 'G') ctx.fillStyle = '#ff3322';
+            else continue;
+            ctx.fillRect(ox + x * k, oy + y * k, Math.ceil(k), Math.ceil(k));
+        }
+    }
+    // scan line + reticle
+    const sy = oy + Math.min(1, reveal) * h * k;
+    ctx.fillStyle = 'rgba(125,255,154,0.35)'; ctx.fillRect(0, sy - 1, c.width, 2);
+    ctx.strokeStyle = 'rgba(255,211,90,0.8)'; ctx.lineWidth = 1;
+    ctx.strokeRect(ox - 4, oy - 4, w * k + 8, h * k + 8);
+    for (const [cx, cy] of [[ox - 4, oy - 4], [ox + w * k + 4, oy - 4], [ox - 4, oy + h * k + 4], [ox + w * k + 4, oy + h * k + 4]]) {
+        ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
+    }
 }
 
 function finishIntro() {
@@ -533,8 +617,7 @@ $('boot-title').style.backgroundImage = `url(${titleScreenUrl})`;
 $('menu-boxart').src = boxArtUrl;
 $('menu-screen').style.setProperty('--menu-workbench-bg', `url(${menuWorkbenchUrl})`);
 $('menu-screen').style.setProperty('--menu-brush-cursor', `url(${menuBrushUrl})`);
-$('intro-screen').style.setProperty('--intro-backdrop', `url(${menuWorkbenchUrl})`);
-$('intro-screen').style.setProperty('--intro-brush', `url(${menuBrushUrl})`);
+// (MODERN: the briefing renders over the live Lobby; the workbench backdrop is no longer used here)
 
 const menuScreen = $('menu-screen');
 menuScreen.addEventListener('pointermove', (e) => {
@@ -565,7 +648,7 @@ function step(now, render = true) {
         bot.sleep -= dt;
         if (bot.sleep <= 0 && bot.sleepResolve) { bot.sleepResolve(); bot.sleepResolve = null; }
     }
-    if (state === 'menu' && menuBackdrop) {
+    if ((state === 'menu' || state === 'intro') && menuBackdrop) {
         // slow dolly along the Lobby entry hall toward the reception, gentle yaw sway
         if (!reducedMotion()) menuCamT += dt;
         const t = menuCamT;
@@ -585,8 +668,8 @@ function step(now, render = true) {
         hud.setLockHint(!input.pointerLocked);
     }
     if (state === 'pause') hud.drawFace(game.player, elapsed);
-    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || (state === 'menu' && menuBackdrop))) {
-        postfx.render(state === 'menu' ? menuCamT : elapsed, state === 'play' ? (game.yawRate || 0) : 0);
+    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || ((state === 'menu' || state === 'intro') && menuBackdrop))) {
+        postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
     }
     clearFrameInput();
 }
