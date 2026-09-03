@@ -9,7 +9,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 |:--|:--|:--|
 | M0 Fork and baseline | DONE | gate auto-advanced by the goal harness on 2026-09-03; review still requested |
 | M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
-| M2 Gunplay and first-person feel | IN PROGRESS | |
+| M2 Gunplay and first-person feel | DONE | gate summary logged; running unattended per 5-G |
 | M3 HUD and front-end | TODO | |
 | M4 Enemies and AI presentation | TODO | |
 | M5 Environment art per floor | TODO | |
@@ -227,3 +227,19 @@ Deviation 0 % (goal allowed 5 %). Smoke green; validator, frozen guard OK; build
 **Preservation:** ammo costs, cap, pickup value (+14), "PAINT ALREADY FULL" hint all unchanged.
 **Open issues:** if the user later chooses magazines (§5-C alternative), this goal reopens: it would need a reserve/magazine split in the HUD (M3.1) and a reload window, which changes time-to-kill — flagged in GOAL_LOOP §5.
 **Next:** M2.6 quick melee on V.
+
+### M2.6 — Quick melee on V   (2026-09-03)
+**Changed:** `input.js`: `V` → one-shot `input.melee`. `game.js`: the table-leg hit resolution is extracted into `meleeStrike(w)` (shared by slot-2 firing and quick melee — one copy of the classic numbers: 50 damage, 1.8 range, 90° arc, props wrecked at reach 0.7/1.3). `startQuickMelee()` requires the leg in the arsenal, shows the leg viewmodel for a 0.5 s swing with the classic melee recoil and a small camera kick, lands the strike 0.14 s in, then restores the current weapon's viewmodel; 0.65 s cooldown; the current slot, paint, and HUD selection never change. Firing is suppressed during the swing; already holding the leg just swings it. No sprint tackle (kept simple, per §4).
+**Evidence:** `modern/docs/M2.6/quick-melee-swing.jpg` (brush selected on the rack, leg mid-swing, guard toppling). Harness: guard 30 HP → −20 after one V press with the brush held; current slot stayed 0; paint 99 → 99. Dry-paint bot fight (classic autopilot, paint 0): switched to the leg, outcome `clear`, 1 kill. Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** slot-2 behaviour unchanged; the shared strike routine is byte-for-byte the classic logic.
+**Open issues:** quick melee is only available once the leg is found on Floor 2 (matches the arsenal rule; a bare-hand shove was considered and rejected as new balance).
+**Next:** **M2 gate** (below), then M3.1 HUD.
+
+---
+
+## M2 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: two-handed baked viewmodels with swap/sprint/inspect/look-lag arm animation (M2.1); right-mouse ADS with per-weapon sight poses, −15° FOV, 0.45× spread, crosshair fade (M2.2); muzzle flash sprites + light spikes, tracers and paint trails, per-weapon ejection, surface-aware impacts, soft particles (M2.3); recoil patterns with a recovering camera-kick spring, four-tick hit/kill markers with SFX, directional damage wedge (M2.4); cosmetic paint top-up under §5-C default with 0 % economy deviation (M2.5); quick melee on V (M2.6).
+Balance untouched: damage, cooldowns, paint costs, hip spread, projectile speeds, hit radii, mercy window all classic. New bindings: RMB aim, F inspect, V quick melee (added to the classic control set; nothing remapped).
+Owed to the user: hardware feel review of kick strengths, flash timing, and ADS poses (all tuned from stills on a software renderer).
+Preview rebuilt at `dist/modern/index.html`.

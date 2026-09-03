@@ -120,6 +120,7 @@ export class Game {
         };
         this.kick = { pitch: 0, yaw: 0, roll: 0, vPitch: 0, vYaw: 0, vRoll: 0, climb: 0 };
         this.aim = 0;               // MODERN: 0 hip … 1 down the sights
+        this.quick = { t: 0, struck: false, cd: 0 }; // MODERN M2.6: quick melee state
         this.ADS_FOV_DROP = 15;      // degrees
         this.ADS_SPREAD = 0.45;      // spread multiplier while aimed (hip-fire spread unchanged)
         this.recoil = 0;
@@ -215,6 +216,7 @@ export class Game {
         this.enemiesAlive = this.enemies.filter(e => e.alive).length;
         this.levelStartTime = this.time;
 
+        this.quick.t = 0; this.quick.cd = 0;
         this.updateViewmodel(true);
         this.vmAnim.swapPhase = 'idle'; this.vmAnim.pending = null;
         this.spawnGrace = 3; // seconds before staff start noticing the intruder
@@ -392,9 +394,11 @@ export class Game {
             this.cb.onHUD();
         }
         p.cooldown = Math.max(0, p.cooldown - dt);
+        if (input.melee) this.startQuickMelee();
+        this.updateQuickMelee(dt);
         const w = WEAPONS[p.weapons[p.currentWeapon]];
         const wantFire = input.fire || (w.auto && fireHeld());
-        if (wantFire && p.cooldown <= 0) this.fireWeapon(w);
+        if (wantFire && p.cooldown <= 0 && this.quick.t <= 0) this.fireWeapon(w);
     }
 
     fireWeapon(w) {
@@ -420,37 +424,7 @@ export class Game {
 
         if (w.type === 'melee') {
             playSound('swing');
-            let hit = false;
-            for (const e of this.enemies) {
-                if (!e.alive) continue;
-                const dx = e.x - p.x, dy = e.y - p.y;
-                const dist = Math.hypot(dx, dy);
-                if (dist > w.range) continue;
-                let ang = Math.atan2(dy, dx) - p.rot;
-                while (ang > Math.PI) ang -= Math.PI * 2;
-                while (ang < -Math.PI) ang += Math.PI * 2;
-                if (Math.abs(ang) < w.arc / 2) {
-                    this.damageEnemy(e, w.damage);
-                    hit = true;
-                }
-            }
-            // the table leg also wrecks furniture
-            for (const reach of [0.7, 1.3]) {
-                const fx = Math.floor(p.x + Math.cos(p.rot) * reach);
-                const fy = Math.floor(p.y + Math.sin(p.rot) * reach);
-                const res = this.world.damageProp(fx, fy, w.damage);
-                if (res) {
-                    this.onPropHit(res, fx + 0.5, 0.45, fy + 0.5);
-                    hit = true;
-                    break;
-                }
-            }
-            if (hit) {
-                playSound('hit');
-                playSound('hitmark');
-                hud.hitMarker();
-                this.shake = Math.max(this.shake, 0.12);
-            }
+            this.meleeStrike(w);
         } else {
             playSound(w.sound || (w === WEAPONS.sprayer ? 'spray' : 'shoot'));
             const spreadMul = 1 - (1 - this.ADS_SPREAD) * this.aim; // ADS tightens the cone
@@ -501,6 +475,80 @@ export class Game {
         this.cb.onHUD();
     }
 
+    /** the table leg's hit resolution (classic numbers: 50 dmg, 1.8 range, 90° arc, wrecks props) */
+    meleeStrike(w) {
+        const p = this.player;
+        let hit = false;
+        for (const e of this.enemies) {
+            if (!e.alive) continue;
+            const dx = e.x - p.x, dy = e.y - p.y;
+            const dist = Math.hypot(dx, dy);
+            if (dist > w.range) continue;
+            let ang = Math.atan2(dy, dx) - p.rot;
+            while (ang > Math.PI) ang -= Math.PI * 2;
+            while (ang < -Math.PI) ang += Math.PI * 2;
+            if (Math.abs(ang) < w.arc / 2) {
+                this.damageEnemy(e, w.damage);
+                hit = true;
+            }
+        }
+        // the table leg also wrecks furniture
+        for (const reach of [0.7, 1.3]) {
+            const fx = Math.floor(p.x + Math.cos(p.rot) * reach);
+            const fy = Math.floor(p.y + Math.sin(p.rot) * reach);
+            const res = this.world.damageProp(fx, fy, w.damage);
+            if (res) {
+                this.onPropHit(res, fx + 0.5, 0.45, fy + 0.5);
+                hit = true;
+                break;
+            }
+        }
+        if (hit) {
+            playSound('hit');
+            playSound('hitmark');
+            hud.hitMarker();
+            this.shake = Math.max(this.shake, 0.12);
+        }
+        return hit;
+    }
+
+    /**
+     * MODERN M2.6: quick melee on V. Needs the table leg in the arsenal. The
+     * leg is shown for one swing (0.5 s) and the current weapon comes back;
+     * the strike lands 0.14 s in. Same damage/range/arc as slot 2, no paint.
+     */
+    startQuickMelee() {
+        const p = this.player;
+        if (!p.weapons.includes('tableLeg') || this.quick.t > 0 || this.quick.cd > 0) return false;
+        if (p.weapons[p.currentWeapon] === 'tableLeg') { // already holding it: just swing
+            if (p.cooldown <= 0) this.fireWeapon(WEAPONS.tableLeg);
+            return true;
+        }
+        if (this.vmAnim.swapPhase !== 'idle') return false;
+        this.quick.t = 0.5; this.quick.struck = false; this.quick.cd = 0.65;
+        for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === 'tableLeg';
+        this.aim = 0;
+        playSound('swing');
+        this.recoil = 1;
+        const rc = this.RECOIL.tableLeg, k = this.kick;
+        k.vPitch += rc.pitch * 60; k.vRoll += rc.roll * 60;
+        return true;
+    }
+
+    updateQuickMelee(dt) {
+        const q = this.quick;
+        q.cd = Math.max(0, q.cd - dt);
+        if (q.t <= 0) return;
+        q.t -= dt;
+        if (q.t < 1e-4) q.t = 0; // no float residue keeping the leg on screen
+        if (!q.struck && q.t <= 0.36) { q.struck = true; this.meleeStrike(WEAPONS.tableLeg); }
+        if (q.t <= 0) {
+            q.t = 0;
+            const key = this.player.weapons[this.player.currentWeapon];
+            for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === key;
+        }
+    }
+
     /** world-space muzzle of the visible viewmodel (for ejection particles) */
     muzzleWorld(vm) {
         if (!vm?.userData.muzzle) return null;
@@ -531,6 +579,7 @@ export class Game {
     }
 
     updateViewmodel(instant = false) {
+        if (this.quick.t > 0 && !instant) return; // the leg is mid-swing; visibility restores after
         const key = this.player.weapons[this.player.currentWeapon];
         const shown = Object.keys(this.viewmodels).find(k => this.viewmodels[k].visible);
         if (instant || !shown || shown === key) {
@@ -1265,13 +1314,14 @@ export class Game {
                 root.rotation.z = THREE.MathUtils.lerp(root.rotation.z, 0, k);
             }
         }
-        const vm = this.viewmodels[p.weapons[p.currentWeapon]];
+        const shownKey = this.quick.t > 0 ? 'tableLeg' : p.weapons[p.currentWeapon];
+        const vm = this.viewmodels[shownKey];
         if (vm) {
-            const w = WEAPONS[p.weapons[p.currentWeapon]];
+            const w = WEAPONS[shownKey];
             const base = vm.userData.baseRotX || 0;
             const bp = vm.userData.basePos || (vm.userData.basePos = vm.position.clone());
             vm.position.copy(bp);
-            const rvm = (this.RECOIL[p.weapons[p.currentWeapon]] || this.RECOIL.paintbrush).vm;
+            const rvm = (this.RECOIL[shownKey] || this.RECOIL.paintbrush).vm;
             if (w.type === 'melee') {
                 vm.rotation.x = base - this.recoil * 1.6 * rvm;
                 vm.rotation.z = this.recoil * 0.8 * rvm;
