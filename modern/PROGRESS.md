@@ -8,7 +8,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | Milestone | Status | Gate |
 |:--|:--|:--|
 | M0 Fork and baseline | DONE | gate auto-advanced by the goal harness on 2026-09-03; review still requested |
-| M1 Renderer, lighting, materials | IN PROGRESS | |
+| M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
 | M2 Gunplay and first-person feel | TODO | |
 | M3 HUD and front-end | TODO | |
 | M4 Enemies and AI presentation | TODO | |
@@ -154,3 +154,10 @@ The composer's own cost is inside run-to-run noise on the software rasteriser (t
 **Preservation:** maps, collision, LOS, AI unchanged (glass cells still block movement and shots — display pods are see-through but not shoot-through, matching classic behaviour).
 **Open issues:** the rain material is a clone per Penthouse load (small, disposed with the world). Showroom pod glass is nearly invisible head-on; a faint sheen may be wanted in M5.4. Exterior buildings are boxes; M5 can dress the Lobby street if desired.
 **Next:** M1.6 decals and debris.
+
+### M1.6 — Pooled decals and physical debris   (2026-09-03)
+**Changed:** `modern/src/effects.js` rewritten with the same API (`burst`, `splat`, `update`, `clear`) plus `debris()` and a `stats` getter. **Decals:** three `InstancedMesh` quad pools (one per procedurally drawn splat shape, 160 each = 480 decals) with per-instance colour and a ring buffer; a splat lives **90 s** (classic: 14 s, cap 50) and scales out over its last 4 s. Cost is fixed at three draw calls regardless of count. Placement is a surface-aligned quad with polygon offset (the 2005 approach), so splats land on walls, floors, and now glass. **Debris:** one `InstancedMesh` of 320 slabs with gravity, floor bounce (restitution 0.32, friction), settle after three bounces or low vertical speed, lie-flat, and a 24 s life with scale-out; resting pieces skip matrix rewrites. `game.js` `onPropHit` spawns 18 splinters on destruction and 4 on a hit, in the prop's wood tone. New `modern/tools/stress.mjs`.
+**Evidence:** `modern/docs/M1.6/stress-decals.jpg` (200 real brush shots + 300 direct decals + 200 splinters), `debris-live.jpg` (desk + cabinet smashed on the Office floor, splinters in flight), `debris-settled.jpg` (same scene 2.5 s later, pieces resting on the carpet). Stress numbers: 200 shots fired, pools at 480 / 480 decals and 200 debris, still 480 after a further 6 s wait (persistence), zero errors; SwiftShader frame time 853 → 1017 ms with every pool full (+19 %, dominated by 200 live splinter integrations, which drops as they settle). Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** projectile, splash, and prop-damage rules unchanged; paint colours per weapon unchanged; classic point bursts retained.
+**Open issues:** decals on enemies (paint on suits) belong to M4.5. Debris ignores walls (pieces can slide into a wall footprint), acceptable at this scale; revisit if noticed.
+**Next:** **M1 gate — stop for user review** (renderer, lighting, materials, post, geometry, windows, decals all DONE).

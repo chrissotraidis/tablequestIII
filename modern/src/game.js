@@ -615,6 +615,7 @@ export class Game {
             playSound('wood_break');
             this.effects.burst(new THREE.Vector3(res.x, 0.45, res.y), wood, 22, 3.0, 0.6);
             this.effects.burst(new THREE.Vector3(res.x, 0.2, res.y), new THREE.Color(0x6e5436), 12, 2.0, 0.5);
+            this.effects.debris(new THREE.Vector3(res.x, 0.35, res.y), wood, 18, 2.8); // MODERN: physical splinters
             this.player.score += 5; // demolition bonus
             // the cartel hides cash in the furniture
             if (Math.random() < 0.12) this.spawnEntity({ char: '$', x: res.x, y: res.y });
@@ -622,6 +623,7 @@ export class Game {
         } else {
             playSound('wood_hit');
             this.effects.burst(new THREE.Vector3(x, z, y), wood, 6, 1.4, 0.3);
+            this.effects.debris(new THREE.Vector3(x, z, y), wood, 4, 1.6);
         }
     }
 
