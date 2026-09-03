@@ -192,3 +192,20 @@ Table leg: aim stays 0 with the button held. Smoke green; validator, frozen guar
 **Preservation:** projectile speed, damage, hit radii, splash, and the classic enemy-shot look are unchanged; classic bursts still fire in the same places with the same counts (now round).
 **Open issues:** flashes last 1–3 frames, so the software captures show them small; judge on hardware. Enemy shots still use the classic orange spheres (M4 will restyle). Shell-style brass is intentionally absent (paint fiction).
 **Next:** M2.4 recoil patterns, camera kick, hit-marker sound, directional damage indicators.
+
+### M2.4 — Recoil patterns, camera kick, hit markers, damage direction   (2026-09-03)
+**Changed:** `game.js` gains a per-weapon `RECOIL` table (peak camera pitch/yaw/roll kick, viewmodel recoil multiplier, auto-fire climb) and a critically damped **camera kick spring** that always returns to zero, so recoil is felt but aim is never displaced (§2.2 balance). The spring integrates in fixed 4 ms substeps after explicit Euler blew up at the software rasteriser's 50 ms frames. ADS steadies the kick by 35 %. Viewmodel recoil scales per weapon (roller 1.6×, sprayer 0.5×). **Hit marker** rebuilt as a four-tick CoD-style mark (`#hit-marker` pseudo-elements); a kill turns it red and 1.35× larger and holds longer; new `hitmark` (two clicks) and `killmark` (lower confirm) SFX in `audio.js`, played on non-lethal and lethal hits respectively from both projectile and melee paths. **Directional damage**: `hurtPlayer(dmg, fromX, fromY)` computes the source bearing relative to facing and `hud.damageDir()` rotates a red conic wedge around the crosshair (instant in, 0.5 s fade); enemy projectiles pass their origin, melee passes the enemy position. `TQ.hud` exposed for the harness.
+
+| Weapon | camera pitch | yaw ± | roll | vm × | climb/shot |
+|:--|:-:|:-:|:-:|:-:|:-:|
+| paintbrush | 0.010 | 0.006 | 0.012 | 0.8 | 0 |
+| table leg | 0.018 | 0.010 | 0.030 | 1.0 | 0 |
+| nail gun | 0.012 | 0.005 | 0.004 | 0.7 | 0.004 |
+| roller | 0.055 | 0.014 | 0.020 | 1.6 | 0 |
+| sprayer | 0.007 | 0.006 | 0.003 | 0.5 | 0.006 |
+
+Measured roller kick: camera pitch 0 → +0.0585 rad (3.4°) the frame after firing, recovering to 0.
+**Evidence:** `modern/docs/M2.4/hitmarker.jpg`, `killmarker.jpg`, `damage-dir.jpg` (wedge lower-left for a hit from behind-right), `recoil-roller.jpg`. Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** damage values, mercy window, pity rule, hit radii unchanged; classic `hit`/`pain`/`enemy_death` sounds still play alongside the new ticks; classic red damage flash retained.
+**Open issues:** the headless software renderer shows CSS opacity transitions unreliably (stale compositor state), which made these captures flaky — the toast has the same issue; on hardware they are fine. Manual feel review of kick strengths owed (§4 M2.4 verify line).
+**Next:** M2.5 paint top-up presentation (§5-C default: cosmetic, no magazines).

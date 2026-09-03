@@ -107,6 +107,18 @@ export class Game {
         }
         this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0 };
         this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
+        // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
+        // spring that fully recovers, so aim is never displaced (balance §2.2).
+        //   pitch/yaw: peak camera kick (rad); roll: camera roll; vm: viewmodel
+        //   recoil multiplier; climb: extra pitch that builds while auto-firing
+        this.RECOIL = {
+            paintbrush: { pitch: 0.010, yaw: 0.006, roll: 0.012, vm: 0.8, climb: 0 },
+            tableLeg:   { pitch: 0.018, yaw: 0.010, roll: 0.03,  vm: 1.0, climb: 0 },
+            nailgun:    { pitch: 0.012, yaw: 0.005, roll: 0.004, vm: 0.7, climb: 0.004 },
+            roller:     { pitch: 0.055, yaw: 0.014, roll: 0.02,  vm: 1.6, climb: 0 },
+            sprayer:    { pitch: 0.007, yaw: 0.006, roll: 0.003, vm: 0.5, climb: 0.006 },
+        };
+        this.kick = { pitch: 0, yaw: 0, roll: 0, vPitch: 0, vYaw: 0, vRoll: 0, climb: 0 };
         this.aim = 0;               // MODERN: 0 hip … 1 down the sights
         this.ADS_FOV_DROP = 15;      // degrees
         this.ADS_SPREAD = 0.45;      // spread multiplier while aimed (hip-fire spread unchanged)
@@ -395,6 +407,16 @@ export class Game {
         p.cooldown = w.cooldown;
         p.ammo -= w.ammoCost;
         this.recoil = 1;
+        // MODERN M2.4: camera kick impulse (recovers via spring in updateCameraAndViewmodel)
+        {
+            const rc = this.RECOIL[p.weapons[p.currentWeapon]] || this.RECOIL.paintbrush;
+            const k = this.kick;
+            const aimMul = 1 - 0.35 * this.aim; // sights steady the kick a little
+            k.climb = Math.min(rc.climb * 6, k.climb + rc.climb);
+            k.vPitch += (rc.pitch + k.climb) * aimMul * 60;
+            k.vYaw += (Math.random() - 0.5) * 2 * rc.yaw * aimMul * 60;
+            k.vRoll += (Math.random() < 0.5 ? -1 : 1) * rc.roll * 60;
+        }
 
         if (w.type === 'melee') {
             playSound('swing');
@@ -425,6 +447,7 @@ export class Game {
             }
             if (hit) {
                 playSound('hit');
+                playSound('hitmark');
                 hud.hitMarker();
                 this.shake = Math.max(this.shake, 0.12);
             }
@@ -658,7 +681,7 @@ export class Game {
                     const d = Math.hypot(p.x - nx, p.y - ny);
                     if (d < 0.32) {
                         dead = true;
-                        this.hurtPlayer(pr.damage);
+                        this.hurtPlayer(pr.damage, nx - pr.vx, ny - pr.vy);
                         this.effects.burst(new THREE.Vector3(nx, pr.z, ny), pr.color, 10, 1.6, 0.4);
                     }
                 } else {
@@ -670,7 +693,7 @@ export class Game {
                             this.damageEnemy(e, pr.damage);
                             this.effects.burst(new THREE.Vector3(nx, pr.z, ny), pr.color, 12, 1.8, 0.45);
                             playSound('hit');
-                            hud.hitMarker();
+                            if (e.alive) { playSound('hitmark'); hud.hitMarker(); }
                             break;
                         }
                     }
@@ -737,7 +760,7 @@ export class Game {
         }
     }
 
-    hurtPlayer(dmg) {
+    hurtPlayer(dmg, fromX, fromY) {
         const p = this.player;
         if (this.godmode || !p.alive) return;
         // brief mercy window, slightly longer when nearly dead (pity rule)
@@ -746,6 +769,13 @@ export class Game {
         p.lastHurtTime = this.time;
         playSound('pain');
         hud.damageFlash(0.55);
+        // MODERN M2.4: wedge toward the source, relative to facing (0 = ahead, +cw)
+        if (fromX !== undefined) {
+            let rel = Math.atan2(fromY - p.y, fromX - p.x) - p.rot;
+            while (rel > Math.PI) rel -= Math.PI * 2;
+            while (rel < -Math.PI) rel += Math.PI * 2;
+            hud.damageDir(rel);
+        }
         this.shake = Math.max(this.shake, 0.32);
         this.cb.onHUD();
         if (p.health <= 0) {
@@ -775,6 +805,8 @@ export class Game {
             this.killsThisLevel++;
             this.enemiesAlive = this.enemies.filter(en => en.alive).length;
             playSound('enemy_death');
+            playSound('killmark');
+            hud.hitMarker(true); // MODERN: red kill marker
             const stats = ENEMY_STATS[e.variant];
             this.player.score += stats.score;
             this.cb.onHUD();
@@ -901,7 +933,7 @@ export class Game {
                 e.meleeTimer -= dt;
                 if (dist < 0.9 && e.meleeTimer <= 0) {
                     e.meleeTimer = 1.1;
-                    this.hurtPlayer(stats.damage * 0.6);
+                    this.hurtPlayer(stats.damage * 0.6, e.x, e.y);
                 }
             }
 
@@ -1131,9 +1163,21 @@ export class Game {
             p.x + shx + rightX * sway,
             EYE_HEIGHT + bob + shy + this.jumpZ,
             p.y + rightY * sway);
+        // MODERN M2.4: recoil kick spring (critically damped, returns to zero)
+        {
+            // fixed 4 ms substeps: stable at any frame time (explicit Euler blew up at dt = 50 ms)
+            const k = this.kick, stiff = 380, damp = 2 * Math.sqrt(stiff) * 0.9;
+            const n = Math.min(40, Math.ceil(dt / 0.004)), h = dt / n;
+            for (let i = 0; i < n; i++) {
+                k.vPitch += (-stiff * k.pitch - damp * k.vPitch) * h; k.pitch += k.vPitch * h;
+                k.vYaw += (-stiff * k.yaw - damp * k.vYaw) * h; k.yaw += k.vYaw * h;
+                k.vRoll += (-stiff * k.roll - damp * k.vRoll) * h; k.roll += k.vRoll * h;
+            }
+            k.climb = Math.max(0, k.climb - dt * 0.012);
+        }
         this.camera.rotation.order = 'YXZ';
-        this.camera.rotation.y = -(p.rot + Math.PI / 2);
-        this.camera.rotation.x = this.pitch + (Math.random() - 0.5) * this.shake * 0.03;
+        this.camera.rotation.y = -(p.rot + Math.PI / 2) + this.kick.yaw;
+        this.camera.rotation.x = this.pitch + this.kick.pitch + (Math.random() - 0.5) * this.shake * 0.03;
 
         // dynamic roll: bank into strafes and quick turns
         const lateral = this.vel.x * rightX + this.vel.y * rightY; // + when strafing right
@@ -1141,7 +1185,7 @@ export class Game {
         const leanTarget = THREE.MathUtils.clamp(
             lateral * 0.012 + turnRoll * 0.004, -0.05, 0.05);
         this.lean += (leanTarget - this.lean) * Math.min(1, dt * 7);
-        this.camera.rotation.z = -this.lean; // bank into the move
+        this.camera.rotation.z = -this.lean + this.kick.roll; // bank into the move (+ recoil roll)
 
         // sprint FOV kick
         const targetFov = this.baseFov + (input.sprint && this.moving ? 7 : 0) - this.aim * this.ADS_FOV_DROP;
@@ -1201,12 +1245,13 @@ export class Game {
             const base = vm.userData.baseRotX || 0;
             const bp = vm.userData.basePos || (vm.userData.basePos = vm.position.clone());
             vm.position.copy(bp);
+            const rvm = (this.RECOIL[p.weapons[p.currentWeapon]] || this.RECOIL.paintbrush).vm;
             if (w.type === 'melee') {
-                vm.rotation.x = base - this.recoil * 1.6;
-                vm.rotation.z = this.recoil * 0.8;
+                vm.rotation.x = base - this.recoil * 1.6 * rvm;
+                vm.rotation.z = this.recoil * 0.8 * rvm;
             } else {
-                vm.position.z = bp.z + this.recoil * 0.07;
-                vm.rotation.x = base + this.recoil * 0.35;
+                vm.position.z = bp.z + this.recoil * 0.07 * rvm;
+                vm.rotation.x = base + this.recoil * 0.35 * rvm;
                 vm.rotation.z = 0;
             }
         }

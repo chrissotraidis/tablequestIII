@@ -1543,19 +1543,52 @@
         }
 
         /* hit marker — flashes at crosshair on confirmed hits */
+        /* MODERN M2.4: four-tick hit marker; .kill turns it red and pops */
         #hit-marker {
             position: absolute;
             left: 50%;
             top: 50%;
-            transform: translate(-50%, -50%) rotate(45deg);
+            width: 34px;
+            height: 34px;
+            transform: translate(-50%, -50%) scale(1);
             z-index: 141;
             pointer-events: none;
-            color: #ffdd66;
-            font-size: 34px;
-            font-weight: bold;
-            text-shadow: 0 0 6px rgba(255, 200, 80, 0.8);
             opacity: 0;
-            transition: opacity 0.18s;
+            transition: opacity 0.16s; /* no transform transition: keeps the ticks off the compositor path */
+            font-size: 0;
+            --hm: #ffe9a8;
+        }
+        #hit-marker::before, #hit-marker::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background:
+                linear-gradient(var(--hm), var(--hm)) top left / 10px 2.5px no-repeat,
+                linear-gradient(var(--hm), var(--hm)) top right / 10px 2.5px no-repeat,
+                linear-gradient(var(--hm), var(--hm)) bottom left / 10px 2.5px no-repeat,
+                linear-gradient(var(--hm), var(--hm)) bottom right / 10px 2.5px no-repeat;
+        }
+        #hit-marker::before { transform: rotate(45deg); }
+        #hit-marker::after { transform: rotate(-45deg); }
+        #hit-marker.kill { --hm: #ff4a3a; transform: translate(-50%, -50%) scale(1.35); }
+        /* MODERN M2.4: directional damage wedge around the crosshair */
+        #damage-dir {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 260px;
+            height: 260px;
+            margin: -130px 0 0 -130px;
+            z-index: 139;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s;
+            background: conic-gradient(from -28deg at 50% 50%, rgba(255, 40, 30, 0.85) 0deg, rgba(255, 40, 30, 0.85) 56deg, transparent 56deg);
+            -webkit-mask: radial-gradient(circle, transparent 92px, #000 96px, #000 114px, transparent 120px);
+            mask: radial-gradient(circle, transparent 92px, #000 96px, #000 114px, transparent 120px);
+        }
+        #damage-dir.on { opacity: 1; transition: none; } /* instant in, 0.5 s fade out */
+        .hit-marker-legacy {
         }
 
         /* persistent red pulse when nearly dead */
@@ -1612,7 +1645,8 @@
 
         <!-- ============ HUD ============ -->
         <div id="crosshair" class="hidden">+</div>
-        <div id="hit-marker">✕</div>
+        <div id="hit-marker"></div>
+        <div id="damage-dir"></div>
         <div id="lowhp-overlay" class="hidden"></div>
         <div id="lock-hint" class="hidden">CLICK TO CAPTURE MOUSE&nbsp;&nbsp;·&nbsp;&nbsp;← → KEYS ALSO TURN</div>
         <div id="damage-overlay"></div>

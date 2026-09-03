@@ -774,6 +774,15 @@ export function playSound(type, opts = {}) {
             osc('sawtooth', 110, 25, 0, 0.16, 0.25, 'linear');
             noise('lowpass', 800, 0, 0.1, 0.12);
             break;
+        case 'hitmark': // MODERN: the CoD tick — two short clicks
+            osc('square', 1800, 1400, 0, 0.025, 0.09);
+            osc('square', 2400, 1900, 0.03, 0.025, 0.07);
+            break;
+        case 'killmark': // MODERN: lower, longer confirm
+            osc('square', 1200, 700, 0, 0.05, 0.12);
+            osc('triangle', 500, 240, 0.04, 0.12, 0.14);
+            noise('bandpass', 2600, 0, 0.05, 0.05, 3);
+            break;
         case 'splat': {
             noise('lowpass', 900, 0, 0.12, 0.2);
             osc('sine', 200, 60, 0, 0.1, 0.15);

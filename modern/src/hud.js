@@ -7,6 +7,7 @@ const $ = (id) => document.getElementById(id);
 
 let toastTimer = null;
 let hitTimer = null;
+let dirTimer = null;
 
 // dirty-check cache: only touch the DOM when a value actually changes
 const lastVals = {};
@@ -31,13 +32,28 @@ export const hud = {
         $('boss-bar-wrap').classList.add('hidden');
         $('lowhp-overlay').classList.add('hidden');
         $('lock-hint').classList.add('hidden');
+        $('damage-dir').classList.remove('on');
     },
 
-    hitMarker() {
+    /** MODERN M2.4: four-tick marker; kill = red + pop, held a little longer */
+    hitMarker(kill = false, holdMs = kill ? 220 : 110) {
         const el = $('hit-marker');
+        el.classList.toggle('kill', !!kill);
+        // instant in (no transition), then let the CSS fade handle the out
+        el.style.transition = 'none';
         el.style.opacity = 1;
+        requestAnimationFrame(() => { el.style.transition = ''; });
         if (hitTimer) clearTimeout(hitTimer);
-        hitTimer = setTimeout(() => { el.style.opacity = 0; }, 90);
+        hitTimer = setTimeout(() => { el.style.opacity = 0; el.classList.remove('kill'); }, holdMs);
+    },
+
+    /** MODERN M2.4: show where a hit came from. angleRel = radians, 0 = ahead, +right */
+    damageDir(angleRel, holdMs = 420) {
+        const el = $('damage-dir');
+        el.style.transform = `rotate(${(angleRel * 180 / Math.PI).toFixed(1)}deg)`;
+        el.classList.add('on');
+        if (dirTimer) clearTimeout(dirTimer);
+        dirTimer = setTimeout(() => el.classList.remove('on'), holdMs);
     },
 
     /** MODERN: crosshair fades out as the sights come up */

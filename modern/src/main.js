@@ -613,6 +613,7 @@ window.TQ = {
     get game() { return game; },
     get renderer() { return renderer; },
     get postfx() { return postfx; },
+    get hud() { return hud; },
     setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
     get scene() { return scene; },
     get player() { return game.player; },
