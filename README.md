@@ -120,6 +120,13 @@ The pre-built game is a single self-contained HTML file.
 
 > **Preview build: Sandy's Table Quest MODERN.** A work-in-progress fork that re-presents the same game in a mid-2000s shooter style (lit and shadowed rooms, modern HUD, cinematic front-end, re-orchestrated score) while keeping every floor, weapon, enemy, and line of story identical. It lives in [`modern/`](modern/) and builds to `dist/modern/index.html`. The plan and progress log are in [`docs/modern/GOAL_LOOP.md`](docs/modern/GOAL_LOOP.md) and [`modern/PROGRESS.md`](modern/PROGRESS.md). The classic build below is unchanged.
 
+| Lobby | Office | Factory | Penthouse |
+|:-:|:-:|:-:|:-:|
+| ![Modern Lobby](modern/docs/M5.1/lobby-reception.jpg) | ![Modern Office](modern/docs/M5.2/office-conference.jpg) | ![Modern Factory](modern/docs/M5.5/factory-line.jpg) | ![Modern Penthouse](modern/docs/M5.6/penthouse-arena.jpg) |
+
+Every screen and floor side by side with the classic: [`modern/docs/comparison.md`](modern/docs/comparison.md). Design notes: [`docs/modern/design.md`](docs/modern/design.md). Score previews: [`modern/docs/M6/`](modern/docs/M6/).
+
+
 1. [Download the repository as a ZIP](https://github.com/chrissotraidis/tablequestIII/archive/refs/heads/main.zip) and extract it.
 2. Open `dist/index.html` in Chrome, Firefox, Safari, or Edge.
 3. Reclaim the tables.

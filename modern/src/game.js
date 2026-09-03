@@ -12,6 +12,7 @@ import { LEVELS } from './levels.js';
 import { World } from './world.js';
 import { input, fireHeld } from './input.js';
 import { playSound, startSong, setMix, musicSwell, resetMix } from './audio.js';
+import { bakeStatic } from './bake.js';
 import { hud } from './hud.js';
 import { buildEnemy } from './characters.js'; // MODERN M4.1
 import { poseEnemy, poseDeath } from './enemyanim.js'; // MODERN M4.2
@@ -296,7 +297,8 @@ export class Game {
         if (!b) return;
         const [kind, build] = b;
         // objectives and weapons cast; small consumables hover and don't need to
-        const mesh = setShadow(build(), { receive: false, cast: kind === 'table' || kind.startsWith('weapon:') });
+        // M7.2: pickups bake to one or two meshes each (the Fritos sprite stays a sprite)
+        const mesh = setShadow(bakeStatic(build(), { quantize: 0.25 }), { receive: false, cast: kind === 'table' || kind.startsWith('weapon:') });
         mesh.position.set(x, 0, y);
         this.scene.add(mesh);
         if (kind === 'table') this.requiredTables++;
@@ -1150,6 +1152,9 @@ export class Game {
                 }
             }
             e.advanceT = Math.max(0, (e.advanceT || 0) - dt);
+            // MODERN M7.2: only staff within 14 m cast shadows (the shadow pass is a second draw of every caster)
+            const farCaster = dist > 14;
+            if (m.farCaster !== farCaster) { m.farCaster = farCaster; m.group.traverse(o => { if (o.isMesh) o.castShadow = !farCaster; }); }
             const bounceY = poseEnemy(e, m, {
                 dt, time: this.time, isMoving,
                 speedFrac: Math.hypot(moveX, moveY) / (stats.moveSpeed * speedMul || 1),

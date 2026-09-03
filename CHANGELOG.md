@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-03 — Modern preview build (fork)
+
+### Added
+
+- `modern/`: a preview build that re-presents the same game in a mid-2000s shooter style. Same six floors, weapons, enemies, pickups, story, nine pieces of music, and original artwork; new lighting and shadows, materials with normal and roughness maps, trim, windows, and exteriors, a modern HUD and front-end, two-handed weapons with aim-down-sights and recoil, particles and decals, layered character animation with staff callouts, per-floor set dressing, a re-orchestrated score with ambience beds and a dynamic mix, and post-processing. Builds to `dist/modern/index.html` (`npm run build:modern`).
+- `docs/modern/GOAL_LOOP.md` (the plan), `modern/PROGRESS.md` (the log), `modern/docs/comparison.md` (classic vs modern, every screen and floor), `docs/modern/design.md` (design chapter).
+- Scripts: `dev:modern`, `build:modern`, `preview:modern`, `build:all`, `validate:levels:modern`, `check:classic`, `smoke:modern`, `smoke:classic`; `playwright-core` as a dev dependency for the headless harness.
+
+### Unchanged
+
+- The classic build (`index.html`, `src/`, `dist/index.html`, `tools/`) is frozen and byte-identical; `npm run check:classic` guards it.
+
 ## 2026-07-10 — Presentation overhaul
 
 ### Added

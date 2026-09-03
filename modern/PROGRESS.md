@@ -14,7 +14,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | M4 Enemies and AI presentation | DONE | gate summary logged; running unattended per 5-G |
 | M5 Environment art per floor | DONE | gate summary logged; running unattended per 5-G |
 | M6 Audio | DONE | |
-| M7 Polish, certification, release | TODO | |
+| M7 Polish, certification, release | DONE | |
 
 ## Open decisions applied (§5)
 
@@ -412,3 +412,71 @@ Owed to the user: a hardware pass on the animated pieces (conveyor, dust, sparks
 
 Delivered: eight instrument families on the extended synth, all nine pieces re-orchestrated with the classic note data intact, layered SFX with per-floor rooms and ambience beds, and a dynamic mix with a boss phase-2 layer. Preserved: song builders and classic instruments byte-identical; SFX list unchanged; no audio assets.
 Owed to the user: the listening review on hardware (the WAV previews in `modern/docs/M6/` are the offline reference), and a balance pass on bed levels against the score. Preview rebuilt at `dist/modern/index.html`.
+
+### M7.2 — Performance pass   (2026-09-03)
+**Changed:** `bake.js` gains a `single` mode (one bucket per emissive state, ignoring finish) used by `characters.js` so each limb is one mesh plus an emissive bucket for the eyes (was ~13 draw calls per staff member, now ~7); pickups bake through `bakeStatic` in `game.js` (`spawnEntity`) with userData references (the table halo) remapped to the kept clone; staff farther than 14 m from Sandy stop casting shadows (`updateEnemies`), since the shadow pass redraws every caster. Draw-call probe (`scratch callprobe`) on the Factory before: enemies 203, pickups 100, props 9, dressing 7, viewmodel 15.
+**Evidence:** `node modern/tools/perf.mjs` (1280×800, software GL, so `avgMs` is not a hardware number):
+
+| Floor | Main pass calls | Whole frame (with shadow pass) | Before (whole frame) | Triangles |
+|:-:|:-:|:-:|:-:|:-:|
+| 1 Lobby | 131 | 193 | 325 | 40 k |
+| 2 Office | 104 | 164 | 364 | 73 k |
+| 3 Archives | 122 | 171 | 375 | 61 k |
+| 4 Showroom | 174 | 220 | 502 | 57 k |
+| 5 Factory | 230 | 284 | 661 | 65 k |
+| 6 Penthouse | 65 | 80 | 96 | 30 k |
+
+All floors under the §3.2-4 budget of 400 calls per frame, whole frame. Screens `modern/docs/M7.2/factory-staff-baked.jpg`, `lobby-pickups-baked.jpg` show staff and pickups unchanged in look after the bake. Build 14.4 MB (< 40 MB).
+**Owed to the user:** the 60 fps check on hardware (§3.2-4); no GPU is available in this environment.
+
+### M7.3 — Comparison sheet   (2026-09-03)
+**Changed:** `modern/docs/comparison.md` — every screen (boot memory, boot title, menu, floor select, how to play, story, spawn, walking, tactical map, pause) and every floor, classic beside modern, from the two smoke sets captured by the same path; plus modern-only views (loading card, prop sheet, dressing, audio meter) and the score previews.
+**Evidence:** all 32 referenced smoke images present (checked by the writer script); file renders as a two-column gallery.
+
+### M7.5 — Docs   (2026-09-03)
+**Changed:** `README.md` preview section gains a four-shot gallery and links to the comparison sheet, design chapter, and score previews; `CHANGELOG.md` gets the "Modern preview build (fork)" entry; the design chapter is written to `docs/modern/design.md` rather than the root `design.md`, because the goal prompt lists only `README.md`, `package.json`, and `CHANGELOG.md` as editable outside `modern/` and `docs/modern/` — the root file stays untouched and the README links the chapter.
+**Preservation:** classic docs untouched; `check:classic` OK.
+
+### M7.4 — Preservation audit against §1.3   (2026-09-03)
+
+Walked line by line; each item ticked with its proof (scripted checks run today from `modern/tools` and a scratch audit script; earlier gate evidence cited by goal).
+
+| §1.3 item | Status | Evidence |
+|:--|:-:|:--|
+| Original artwork: memory_screen, title_screen, tableboxart ×2, fritos, menu_workbench_bg, menu_paintbrush_cursor | ✅ | sha256 of all seven PNGs identical between `src/assets` and `modern/src/assets` |
+| Screens / flow, 10 states (boot-memory → boot-title → menu → story → play → pause → transition card → game over w/ mercy retry → victory + credits), high score `tq3d-highscore`, sensitivity `tq3d-sens` | ✅ | `npm run smoke:modern` walks boot → title → menu → floor select → instructions → briefing → loading card → play → pause → all six floors; storage keys present (`tq3d-highscore`, `tq3d-sens`, plus modern `tq3d-best/-fov/-invert/-postfx`); retry restores the floor-start snapshot with the 75 HP / 20 paint mercy floor (`retryFloor`) and is exercised by the campaign bot (M7.1) |
+| Story text verbatim | ✅ | 1328-character crawl string identical classic vs modern (today's audit script; typewriter equality 852/852 rendered characters at M3.5) |
+| Six floors, canonical ASCII maps, names, subtitles, tables, staff, wall/floor/ceiling, music, zones | ✅ | `diff src/levels.js modern/src/levels.js` identical; `validate:levels:modern` 6/6 (tables 2/3/3/4/4/0, staff 6/9/8/11/15/1); collision signatures identical on all floors (M5 gate); smoke asserts the counts per floor |
+| Nine pieces of music, same BPM | ✅ | eight song builders byte-identical (section diff, M6.2) + the fanfare cue; BPM 88/60/112/135/96/122/152/168 unchanged (`song_notes.json`) |
+| Map legend `# W B M O C + X E S T g m x D G A H $ Z L N R P` | ✅ | `config.js` and `levels.js` identical; the validator parses every glyph |
+| Weapons (5): damage, cooldown, paint cost, roles, unlock floors; Floor Select grants | ✅ | `diff src/config.js modern/src/config.js` identical (WEAPONS table); Floor Select grant logic unchanged in `main.js` (`startGameAt`) |
+| Enemies (4) stats and boss phase 2 (1.35× speed, paired volleys, two Fritos + two buckets at fixed coords) | ✅ | ENEMY_STATS identical (config diff); phase-2 branch unchanged in `game.js` (drops are the classic coordinates, now with the M4.4 drop animation); boss certification "die once, retry, win" at M4.4 |
+| AI behaviours: wander, LOS detect after 3 s grace, startled hop, pack alert 5.5, orbit-strafe 55 %, shot leading, crossfire cap 4, door breaching, lose-sight 4.5 s, melee scratch, pain flash, fall-over death | ✅ | `updateEnemies` decision code unchanged (M4 gate diff); animation layers only pose the rig (`enemyanim.js`) |
+| Pickups / economy: +500 table, +14 paint (cap 99), +25 HP (cap 100), +100 cash, +250 gold, +5 demolition, 12 % hidden cash, +1000 floor, +5000 boss, "ALREADY FULL" | ✅ | SCORE_VALUES and pickup code identical (config diff, `updatePickups`); paint economy 0 % deviation over a bot run (M2 gate) |
+| Props (19 destructible), tall/short blocking, paintings ×3 and rugs, zone patterns with flood-fill protection | ✅ | `PROP_BUILDERS` has the 19 classic keys (plant … copier) with classic values; zone recipes and placement unchanged (M5.7); collision signatures identical |
+| Player feel: speeds, accel, look smoothing, pitch clamp, keyboard turn, jump, head-bob, banking, sprint FOV, shake, recoil, flash, lights, hit markers, damage/pickup flash, low-HP vignette + heartbeat, footsteps | ✅ | PLAYER_* constants identical (config diff); `updatePlayer` movement unchanged; the modern additions (ADS, recoil spring, hit markers) sit on top |
+| Controls: WASD, mouse, ←→, click/Ctrl, Space, Shift, E, 1–5, Q/wheel, [ ], Tab, U, Esc, blur pauses | ✅ | all 16 bindings found in `input.js` / `main.js` (today's audit script) |
+| SFX (32 named cues) | ✅ | all 32 classic case labels present in `modern/src/audio.js` (plus modern `hitmark`, `killmark`); all render non-silent (`sfx.json`) |
+| Tooling: `TQ` harness (13 methods), MessageChannel pump, `tools/validate_levels.js` | ✅ | all 13 methods present in `modern/src/main.js`; pump present; classic `tools/` frozen and `validate:levels:modern` mirrors it |
+
+Not in §1.3 but checked: the classic build is byte-identical to `main` (`check:classic` at every goal); the single-file build is 14.4 MB (< 40 MB); no external assets are fetched (all textures, models, and audio are procedural; the only files loaded are the seven original PNGs bundled inline).
+
+### M7.1 — Full autopilot campaign   (2026-09-03)
+**Changed:** `modern/tools/campaign.mjs` — the harness bot plays the whole game: a BFS pathfinder over the live grid (walls, furniture, doors it opens by bumping, gates once unlocked) feeds `botGoto` waypoints; it fights whatever shows up (`botFight`), tops up health and paint when low, collects weapon pickups it does not own, every table, then rides the elevator; on the Penthouse it hunts the Head Designer; deaths go through the classic retry (floor-start snapshot, 75 HP / 20 paint mercy). `main.js` gains a harness-only `TQ.setTurbo(n)` (n fixed-dt simulation steps per rendered frame in test mode; each step is a normal game step) and `TQ.retry()`.
+**Evidence:** `modern/docs/M7.1/campaign.json` (+ `campaign-factory.json` from the Floors 5–6 diagnostic). Result: **victory**, 6/6 floors, boss defeated; game time 756.7 s; score 32,455; 8 deaths, all on the Factory (15 staff), 0 on the other five floors; no page errors; 5.3 wall-minutes at turbo 8 on the software renderer.
+
+| Floor | Game time | Deaths | Staff | Tables |
+|:-:|:-:|:-:|:-:|:-:|
+| 1 Lobby | 45.0 s | 0 | 6 | 2 |
+| 2 Office | 187.6 s | 0 | 9 | 3 |
+| 3 Archives | 86.0 s | 0 | 8 | 3 |
+| 4 Showroom | 116.9 s | 0 | 11 | 4 |
+| 5 Factory | 259.7 s | 8 | 15 | 4 |
+| 6 Penthouse | 61.6 s | 0 | 1 | boss |
+
+**Preservation:** the bot uses only the classic harness verbs; the game code is unchanged by the tool. The Factory's difficulty for a straight-line kiting bot matches the classic (same staff count, stats, and AI).
+
+### M7 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: full campaign clear in the modern build (M7.1); whole-frame draw calls under 400 on every floor (M7.2); the classic-vs-modern comparison sheet (M7.3); the §1.3 audit with every line ticked and proven (M7.4); README gallery, CHANGELOG entry, and the design chapter under `docs/modern/` (M7.5). Smoke green, validator 6/6, frozen guard OK, build 14.5 MB, no external assets.
+Owed to the user (the M7 gate is the final review): hardware checks for 60 fps, recoil/ADS feel, animation subtlety, and the listening review of the score; the pending §5 decisions carry their defaults (5-C, 5-D, 5-E). No merge or release has been made: the preview lives on `modern-preview` and builds to `dist/modern/index.html`.

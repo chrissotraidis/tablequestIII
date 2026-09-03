@@ -77,6 +77,7 @@ let introStartedAt = 0;
 let levelSnapshot = null;
 let menuBackdrop = false; // MODERN: Floor 1 loaded as the menu's live scene
 let audioMeterOn = false;  // MODERN M6.3: on-screen audio debug meter (harness)
+let turbo = 1;             // MODERN M7.1: simulation steps per frame in test mode (harness only)
 let menuCamT = 0;
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let highScore = Number(localStorage.getItem('tq3d-highscore') || 0);
@@ -707,7 +708,7 @@ function step(now, render = true) {
 
     // game-time sleep for test scripts (DOM timers throttle in hidden tabs)
     if (bot.sleep > 0) {
-        bot.sleep -= dt;
+        bot.sleep -= dt * (testMode && turbo > 1 && state === 'play' ? turbo : 1);
         if (bot.sleep <= 0 && bot.sleepResolve) { bot.sleepResolve(); bot.sleepResolve = null; }
     }
     if ((state === 'menu' || state === 'intro') && menuBackdrop) {
@@ -721,9 +722,14 @@ function step(now, render = true) {
         game.vmRoot.visible = false;
     } else game.vmRoot.visible = true;
     if (state === 'play') {
-        elapsed += dt;
-        if (testMode) botStep(dt);
-        game.update(dt, elapsed);
+        // harness turbo (M7.1): several fixed-dt simulation steps per rendered frame so the
+        // software-rendered autopilot campaign runs in minutes; each step is a normal game step
+        const steps = testMode && turbo > 1 ? turbo : 1;
+        for (let i = 0; i < steps && state === 'play'; i++) {
+            elapsed += dt;
+            if (testMode) botStep(dt);
+            game.update(dt, elapsed);
+        }
         hud.update(game.player, game);
         hud.drawFace(game.player, elapsed); // portrait lives on the pause panel now; cheap when hidden
         hud.drawMinimap(game, game.player);
@@ -917,6 +923,8 @@ window.TQ = {
     renderDemo, renderSong, renderSfx, songData, setMix, // MODERN M6: offline evidence renders + mix control
     showAudioMeter(on = true) { audioMeterOn = on; $('audio-meter').classList.toggle('hidden', !on); return on; },
     setTestMode(on = true) { testMode = on; return 'testMode ' + on; },
+    setTurbo(n = 1) { turbo = Math.max(1, Math.min(16, n | 0)); return 'turbo ' + turbo; },
+    retry() { retryFloor(); return state; },
     botGoto(x, y, timeout = 25) {
         if (state !== 'play') return Promise.resolve(state);
         return new Promise(res => {

@@ -223,7 +223,7 @@ export function buildEnemy(variant) {
 
 /** bake a limb group in place: same pivot transform, merged children, fresh (per-character) materials */
 function bakePart(part) {
-    const baked = bakeStatic(part, { fresh: true, quantize: 0.5 });
+    const baked = bakeStatic(part, { fresh: true, single: true }); // M7.2: one mesh per limb (plus an emissive bucket for the eyes)
     baked.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
     return baked;
 }

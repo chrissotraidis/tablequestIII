@@ -46,7 +46,7 @@ const emissiveKey = (m) => (m.emissive && m.emissive.getHex() !== 0 && m.emissiv
  * the same position/rotation/scale as the input (the input is disposed of
  * where its geometry was consumed).
  */
-export function bakeStatic(group, { fresh = false, quantize = 0 } = {}) {
+export function bakeStatic(group, { fresh = false, quantize = 0, single = false } = {}) {
     group.updateMatrixWorld(true);
     // quantize: snap roughness/metalness to a grid so near-identical finishes
     // share one bucket (characters: 0.25 → ~3 buckets per limb instead of ~10)
@@ -71,7 +71,8 @@ export function bakeStatic(group, { fresh = false, quantize = 0 } = {}) {
         // drop attributes that differ between geometries and would block the merge
         for (const name of Object.keys(g.attributes))
             if (!['position', 'normal', 'uv', 'color'].includes(name)) g.deleteAttribute(name);
-        const k = `${q(o.material.roughness).toFixed(2)}|${q(o.material.metalness).toFixed(2)}${emissiveKey(o.material)}`;
+        // single: one bucket per emissive state regardless of finish (characters: one mesh per limb, M7.2)
+        const k = single ? `0.55|0.10${emissiveKey(o.material)}` : `${q(o.material.roughness).toFixed(2)}|${q(o.material.metalness).toFixed(2)}${emissiveKey(o.material)}`;
         (buckets.get(k) || buckets.set(k, []).get(k)).push(g);
     });
 
@@ -106,6 +107,8 @@ export function bakeStatic(group, { fresh = false, quantize = 0 } = {}) {
         const c = o.clone();
         rel.decompose(c.position, c.quaternion, c.scale);
         c.userData.cloneOf = o;
+        // userData references to a kept mesh (e.g. a pickup's animated halo) follow the clone
+        for (const [k, v] of Object.entries(out.userData)) if (v === o) out.userData[k] = c;
         out.add(c);
     }
     return out;

@@ -1,0 +1,159 @@
+{
+ "won": true,
+ "state": "victory",
+ "deaths": 8,
+ "guard": 172,
+ "gameTime": 756.7,
+ "score": 32455,
+ "floors": [
+  {
+   "floor": 1,
+   "name": "The Lobby",
+   "staff": 6,
+   "tablesNeeded": 2,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 45,
+   "deaths": 0
+  },
+  {
+   "floor": 2,
+   "name": "The Office",
+   "staff": 9,
+   "tablesNeeded": 3,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 187.6,
+   "deaths": 0
+  },
+  {
+   "floor": 3,
+   "name": "The Archives",
+   "staff": 8,
+   "tablesNeeded": 3,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 86,
+   "deaths": 0
+  },
+  {
+   "floor": 4,
+   "name": "The Showroom",
+   "staff": 11,
+   "tablesNeeded": 4,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 116.9,
+   "deaths": 0
+  },
+  {
+   "floor": 5,
+   "name": "The Factory",
+   "staff": 15,
+   "tablesNeeded": 4,
+   "legs": [
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 259.7,
+   "deaths": 8
+  },
+  {
+   "floor": 6,
+   "name": "The Penthouse",
+   "staff": 1,
+   "tablesNeeded": 0,
+   "legs": [
+    "clear",
+    "arrived",
+    "clear",
+    "clear",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 61.6,
+   "deaths": 0
+  }
+ ],
+ "end": {
+  "floor": 6,
+  "pos": [
+   14.5,
+   12.7
+  ],
+  "hp": 37.29999999999999,
+  "ammo": 16,
+  "tables": "0/0",
+  "activeTables": [],
+  "staffAlive": 0,
+  "dead": []
+ },
+ "wallMinutes": 5.3,
+ "errors": []
+}
