@@ -10,7 +10,7 @@ import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
 import { hud } from './hud.js';
 import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
-import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug } from './audio.js';
+import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug, stopAmbience, getMeter, renderDemo, renderSong, renderSfx, songData, setMix } from './audio.js';
 
 // original artwork, preserved from the 199X release
 import memoryScreenUrl from './assets/memory_screen.png'; // DOS boot/memory screen
@@ -76,6 +76,7 @@ let introFrame = null;
 let introStartedAt = 0;
 let levelSnapshot = null;
 let menuBackdrop = false; // MODERN: Floor 1 loaded as the menu's live scene
+let audioMeterOn = false;  // MODERN M6.3: on-screen audio debug meter (harness)
 let menuCamT = 0;
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let highScore = Number(localStorage.getItem('tq3d-highscore') || 0);
@@ -112,6 +113,7 @@ const game = new Game(scene, camera, {
     onBossDefeated: () => {
         playSound('fanfare');
         stopMusic();
+        stopAmbience(1.5);
         setTimeout(() => {
             game.player.score += 5000; // masterpiece bonus
             saveHighScore();
@@ -188,6 +190,7 @@ function setState(next) {
             showOnly('screen-gameover');
             exitPointerLock();
             stopMusic();
+            stopAmbience(1.0);
             break;
         case 'victory':
             showOnly('screen-victory');
@@ -726,6 +729,7 @@ function step(now, render = true) {
         hud.drawMinimap(game, game.player);
         hud.setLockHint(!input.pointerLocked);
     }
+    if (audioMeterOn) hud.audioMeter(audioDebug(), getMeter());
     if (state === 'pause') hud.drawFace(game.player, elapsed);
     if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || ((state === 'menu' || state === 'intro') && menuBackdrop))) {
         postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
@@ -910,6 +914,8 @@ window.TQ = {
         return [x, y];
     },
     audioDebug,
+    renderDemo, renderSong, renderSfx, songData, setMix, // MODERN M6: offline evidence renders + mix control
+    showAudioMeter(on = true) { audioMeterOn = on; $('audio-meter').classList.toggle('hidden', !on); return on; },
     setTestMode(on = true) { testMode = on; return 'testMode ' + on; },
     botGoto(x, y, timeout = 25) {
         if (state !== 'play') return Promise.resolve(state);

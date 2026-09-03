@@ -1012,7 +1012,12 @@
         @media (prefers-reduced-motion: reduce) { .mcrt .crt-tube { animation: none; } .mcrt .crt-caption span:last-child { animation: none; } }
 
         /* ======================= BARKS (M4.3) ======================= */
-        #barks .bark { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; white-space: nowrap; }
+        #audio-meter { position: absolute; right: 16px; top: 96px; width: 300px; padding: 8px 10px; background: rgba(6, 8, 12, 0.72); border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; font: 11px/1.5 'Courier New', monospace; letter-spacing: 0.04em; color: #d8dce4; pointer-events: none; z-index: 12; }
+#audio-meter .am-row { display: grid; grid-template-columns: 58px 1fr auto; gap: 8px; align-items: center; }
+#audio-meter .am-row > span:first-child { color: #9aa3b2; font-size: 10px; letter-spacing: 0.12em; }
+#audio-meter .am-bar { display: inline-block; height: 7px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+#audio-meter .am-bar i { display: block; height: 100%; background: linear-gradient(90deg, #4caf50, #ffd54f 70%, #ff5252); }
+#barks .bark { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; gap: 2px; pointer-events: none; white-space: nowrap; }
         #barks .bark-rank { font-size: 8px; letter-spacing: 3px; color: rgba(242,240,232,.5); }
         #barks .bark-text { font-size: 13px; letter-spacing: 1px; color: #fff; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); padding: 3px 8px; font-style: italic; }
         #barks .bark.boss .bark-text { color: #ffd35a; border-color: rgba(255,211,90,.5); font-size: 15px; }
@@ -1092,6 +1097,7 @@
             </div>
             <div id="obj-marker" class="hidden"><span class="om-icon"></span><span class="om-dist">12m</span></div>
             <div id="barks"></div>
+            <div id="audio-meter" class="hidden"></div>
         </div>
 
         <!-- ============ BOOT SEQUENCE ============ -->

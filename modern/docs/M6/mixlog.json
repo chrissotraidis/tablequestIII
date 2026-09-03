@@ -1,0 +1,110 @@
+{
+ "ctx": "running",
+ "floor1": {
+  "song": "lobby",
+  "room": "lobby",
+  "ambience": "lobby",
+  "log": [
+   {
+    "t": 0,
+    "reason": "reset",
+    "combat": false,
+    "lowHealth": false,
+    "bossPhase2": false,
+    "duck": 1
+   },
+   {
+    "t": 5.74,
+    "reason": "swell",
+    "duck": 1.3
+   },
+   {
+    "t": 5.76,
+    "reason": "swell",
+    "duck": 1.36
+   }
+  ],
+  "events": [
+   {
+    "floor": 1,
+    "tablesBefore": 0,
+    "collected": 2
+   }
+  ]
+ },
+ "floor6": {
+  "song": "boss",
+  "room": "boss",
+  "ambience": "boss",
+  "phase2": true,
+  "bossAlive": true,
+  "bossHp": 208,
+  "rounds": 4,
+  "mix": {
+   "combat": true,
+   "lowHealth": false,
+   "bossPhase2": true,
+   "objective": 0
+  },
+  "log": [
+   {
+    "t": 0,
+    "reason": "reset",
+    "combat": false,
+    "lowHealth": false,
+    "bossPhase2": false,
+    "duck": 1
+   },
+   {
+    "t": 5.74,
+    "reason": "swell",
+    "duck": 1.3
+   },
+   {
+    "t": 5.76,
+    "reason": "swell",
+    "duck": 1.36
+   },
+   {
+    "t": 0,
+    "reason": "reset",
+    "combat": false,
+    "lowHealth": false,
+    "bossPhase2": false,
+    "duck": 1
+   },
+   {
+    "t": 5.97,
+    "reason": "combat",
+    "combat": true,
+    "lowHealth": false,
+    "bossPhase2": false,
+    "duck": 0.7
+   },
+   {
+    "t": 17.44,
+    "reason": "bossPhase2",
+    "combat": true,
+    "lowHealth": false,
+    "bossPhase2": true,
+    "duck": 0.76
+   },
+   {
+    "t": 19.98,
+    "reason": "lowHealth",
+    "combat": true,
+    "lowHealth": true,
+    "bossPhase2": true,
+    "duck": 0.6
+   },
+   {
+    "t": 20.31,
+    "reason": "lowHealth",
+    "combat": true,
+    "lowHealth": false,
+    "bossPhase2": true,
+    "duck": 0.76
+   }
+  ]
+ }
+}

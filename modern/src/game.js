@@ -11,7 +11,7 @@ import {
 import { LEVELS } from './levels.js';
 import { World } from './world.js';
 import { input, fireHeld } from './input.js';
-import { playSound, startSong } from './audio.js';
+import { playSound, startSong, setMix, musicSwell, resetMix } from './audio.js';
 import { hud } from './hud.js';
 import { buildEnemy } from './characters.js'; // MODERN M4.1
 import { poseEnemy, poseDeath } from './enemyanim.js'; // MODERN M4.2
@@ -228,6 +228,7 @@ export class Game {
         this.updateViewmodel(true);
         this.vmAnim.swapPhase = 'idle'; this.vmAnim.pending = null;
         this.spawnGrace = 3; // seconds before staff start noticing the intruder
+        resetMix(); // MODERN M6.4: fresh mix state per floor
         if (!silent) { // MODERN: the menu loads Floor 1 as a live backdrop without music/card
             startSong(this.level.music);
             hud.floorCard(index + 1, this.level.name, this.level.subtitle);
@@ -319,6 +320,8 @@ export class Game {
         this.world.update(dt, p.x, p.y);
         this.updatePickups(dt, time);
         this.updateEnemies(dt);
+        // MODERN M6.4: the score ducks while staff are actively hunting Sandy and muffles when she is nearly out
+        setMix({ combat: this.enemies.some(e => e.alive && e.state === 'chase'), lowHealth: p.health <= 25 });
         this.updateProjectiles(dt);
         this.effects.update(dt);
         this.updateCameraAndViewmodel(dt, time);
@@ -948,6 +951,7 @@ export class Game {
         if (e.variant === 'boss' && e.alive && !e.phase2 && e.health < e.maxHealth / 2) {
             e.phase2 = true;
             playSound('boss_roar');
+            setMix({ bossPhase2: true }); // MODERN M6.4: phase-2 orchestration layer + stinger
             this.barks.bark(e, 'rage', {}, this.time); // MODERN M4.3
             hud.toast('THE HEAD DESIGNER IS FURIOUS', 2600, 'red');
             // MODERN M4.4: visual escalation — eyes ignite, arena goes hot, cape flares
@@ -1234,6 +1238,7 @@ export class Game {
                 p.tables++;
                 p.score += SCORE_VALUES.table;
                 playSound('table');
+                musicSwell(); // MODERN M6.4: the score lifts under the objective
                 // golden confetti for the guest of honor
                 const tpos = new THREE.Vector3(item.x, 0.65, item.y);
                 this.effects.burst(tpos, new THREE.Color(0xffd700), 24, 3.2, 0.85);

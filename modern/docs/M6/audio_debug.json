@@ -1,0 +1,366 @@
+{
+ "ctxState": "running",
+ "playing": false,
+ "song": null,
+ "step": 0,
+ "songBpm": null,
+ "muted": false,
+ "room": "lobby",
+ "roomLabel": "marble atrium",
+ "ambience": null,
+ "mix": {
+  "combat": false,
+  "lowHealth": false,
+  "bossPhase2": false,
+  "objective": 0
+ },
+ "instruments": [
+  "PAD_WARM",
+  "PAD_DARK",
+  "LEAD",
+  "LEAD_HARD",
+  "BASS",
+  "BASS_SUB",
+  "ARP",
+  "EP",
+  "CLAV",
+  "BELL",
+  "HORN",
+  "KICK",
+  "SNARE",
+  "HIHAT",
+  "RIDE",
+  "TOM",
+  "STRINGS",
+  "STRINGS_LOW",
+  "STRINGS_STACC",
+  "BRASS",
+  "BRASS_LOW",
+  "CHOIR",
+  "CHOIR_DARK",
+  "PIANO",
+  "PIANO_SOFT",
+  "EP_RHODES",
+  "CELESTA",
+  "HARP",
+  "GUITAR_DIST",
+  "GUITAR_PALM",
+  "GUITAR_CLEAN",
+  "GUITAR_FUNK",
+  "BASS_ELEC",
+  "BASS_SLAP",
+  "ORCH_HIT",
+  "STAB",
+  "RISER",
+  "RISER_TONAL",
+  "KICK_BIG",
+  "SNARE_BIG",
+  "TAIKO",
+  "TIMPANI",
+  "CRASH",
+  "SHAKER"
+ ],
+ "families": {
+  "strings": [
+   "STRINGS",
+   "STRINGS_LOW",
+   "STRINGS_STACC"
+  ],
+  "brass": [
+   "BRASS",
+   "BRASS_LOW"
+  ],
+  "choir": [
+   "CHOIR",
+   "CHOIR_DARK"
+  ],
+  "piano": [
+   "PIANO",
+   "PIANO_SOFT",
+   "EP_RHODES",
+   "CELESTA",
+   "HARP"
+  ],
+  "guitar": [
+   "GUITAR_DIST",
+   "GUITAR_PALM",
+   "GUITAR_CLEAN",
+   "GUITAR_FUNK",
+   "BASS_ELEC",
+   "BASS_SLAP"
+  ],
+  "taiko": [
+   "TAIKO",
+   "TIMPANI",
+   "CRASH",
+   "KICK_BIG",
+   "SNARE_BIG",
+   "SHAKER"
+  ],
+  "hits": [
+   "ORCH_HIT",
+   "STAB"
+  ],
+  "risers": [
+   "RISER",
+   "RISER_TONAL"
+  ]
+ },
+ "sfx": [
+  "shoot",
+  "spray",
+  "nail",
+  "roller_fire",
+  "roller_boom",
+  "swing",
+  "hit",
+  "hitmark",
+  "killmark",
+  "splat",
+  "pain",
+  "enemy_pain",
+  "door_close",
+  "wood_hit",
+  "wood_break",
+  "heartbeat",
+  "munch",
+  "collect",
+  "money",
+  "table",
+  "step",
+  "jump",
+  "land",
+  "alert",
+  "door_open",
+  "gate",
+  "enemy_death",
+  "elevator",
+  "boss_roar",
+  "fanfare",
+  "weapon_switch",
+  "empty",
+  "menu_move",
+  "menu_select"
+ ],
+ "songs": [
+  "menu",
+  "intro",
+  "lobby",
+  "office",
+  "archives",
+  "showroom",
+  "factory",
+  "boss"
+ ],
+ "orchestration": {
+  "menu": {
+   "PAD_WARM": [
+    "STRINGS",
+    "CHOIR"
+   ],
+   "BASS_SUB": [
+    "BASS_SUB",
+    "STRINGS_LOW"
+   ],
+   "ARP": [
+    "HARP",
+    "PIANO_SOFT"
+   ],
+   "BELL": [
+    "CELESTA"
+   ],
+   "LEAD": [
+    "PIANO",
+    "STRINGS"
+   ],
+   "EP": [
+    "PIANO_SOFT"
+   ]
+  },
+  "intro": {
+   "PAD_DARK": [
+    "STRINGS_LOW",
+    "CHOIR_DARK"
+   ],
+   "BASS_SUB": [
+    "BASS_SUB",
+    "STRINGS_LOW*"
+   ],
+   "ARP": [
+    "HARP"
+   ],
+   "LEAD": [
+    "PIANO",
+    "STRINGS"
+   ]
+  },
+  "lobby": {
+   "BASS_SUB": [
+    "BASS_ELEC"
+   ],
+   "EP": [
+    "EP_RHODES"
+   ],
+   "LEAD": [
+    "GUITAR_CLEAN",
+    "EP_RHODES"
+   ],
+   "BELL": [
+    "CELESTA"
+   ],
+   "KICK": [
+    "KICK"
+   ],
+   "SNARE": [
+    "SNARE"
+   ],
+   "HIHAT": [
+    "HIHAT"
+   ],
+   "RIDE": [
+    "RIDE"
+   ]
+  },
+  "office": {
+   "BASS": [
+    "BASS_ELEC",
+    "GUITAR_PALM"
+   ],
+   "ARP": [
+    "GUITAR_PALM"
+   ],
+   "LEAD": [
+    "GUITAR_DIST",
+    "BRASS"
+   ],
+   "LEAD_HARD": [
+    "GUITAR_DIST"
+   ],
+   "KICK": [
+    "KICK_BIG"
+   ],
+   "SNARE": [
+    "SNARE_BIG"
+   ]
+  },
+  "archives": {
+   "PAD_DARK": [
+    "CHOIR_DARK",
+    "STRINGS_LOW"
+   ],
+   "BASS": [
+    "BASS_ELEC",
+    "STRINGS_LOW"
+   ],
+   "ARP": [
+    "HARP",
+    "PIANO_SOFT"
+   ],
+   "BELL": [
+    "CELESTA"
+   ],
+   "LEAD": [
+    "STRINGS",
+    "PIANO_SOFT"
+   ],
+   "KICK": [
+    "KICK",
+    "TAIKO"
+   ],
+   "SNARE": [
+    "SNARE_BIG"
+   ],
+   "TOM": [
+    "TIMPANI"
+   ]
+  },
+  "showroom": {
+   "BASS": [
+    "BASS_SLAP"
+   ],
+   "CLAV": [
+    "CLAV",
+    "GUITAR_FUNK"
+   ],
+   "HORN": [
+    "BRASS"
+   ],
+   "LEAD": [
+    "BRASS",
+    "GUITAR_FUNK"
+   ],
+   "KICK": [
+    "KICK_BIG"
+   ],
+   "SNARE": [
+    "SNARE"
+   ],
+   "HIHAT": [
+    "HIHAT",
+    "SHAKER"
+   ]
+  },
+  "factory": {
+   "BASS": [
+    "GUITAR_PALM",
+    "BASS_ELEC"
+   ],
+   "ARP": [
+    "GUITAR_DIST",
+    "BRASS"
+   ],
+   "LEAD_HARD": [
+    "GUITAR_DIST",
+    "BRASS"
+   ],
+   "KICK": [
+    "KICK_BIG",
+    "TAIKO"
+   ],
+   "SNARE": [
+    "SNARE_BIG"
+   ],
+   "TOM": [
+    "TAIKO"
+   ]
+  },
+  "boss": {
+   "BASS": [
+    "GUITAR_PALM",
+    "BASS_ELEC",
+    "STRINGS_LOW*"
+   ],
+   "PAD_DARK": [
+    "CHOIR_DARK",
+    "STRINGS_LOW",
+    "BRASS_LOW*"
+   ],
+   "PAD_WARM": [
+    "CHOIR",
+    "STRINGS"
+   ],
+   "LEAD_HARD": [
+    "GUITAR_DIST",
+    "BRASS",
+    "STRINGS",
+    "ORCH_HIT*"
+   ],
+   "LEAD": [
+    "STRINGS",
+    "BRASS"
+   ],
+   "KICK": [
+    "KICK_BIG",
+    "TAIKO",
+    "TAIKO*"
+   ],
+   "SNARE": [
+    "SNARE_BIG"
+   ],
+   "TOM": [
+    "TAIKO",
+    "TIMPANI"
+   ]
+  }
+ }
+}

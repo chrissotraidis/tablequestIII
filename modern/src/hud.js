@@ -424,6 +424,20 @@ export const hud = {
         poke();
     },
 
+    /** MODERN M6.3: audio debug meter — room, bed, mix flags, master level, last cue */
+    audioMeter(dbg, m) {
+        const el = $('audio-meter');
+        if (!el || el.classList.contains('hidden')) return;
+        const bars = Math.max(0, Math.min(24, Math.round((m.db + 48) / 2)));
+        const flags = [dbg.mix.combat && 'COMBAT', dbg.mix.lowHealth && 'LOW HP', dbg.mix.bossPhase2 && 'PHASE 2'].filter(Boolean).join(' · ') || 'calm';
+        el.innerHTML = `<div class="am-row"><span>MASTER</span><span class="am-bar"><i style="width:${bars / 24 * 100}%"></i></span><span>${m.db > -90 ? m.db.toFixed(0) + ' dB' : '—'}</span></div>`
+            + `<div class="am-row"><span>SONG</span><span>${dbg.song || '—'}${dbg.songBpm ? ' · ' + dbg.songBpm + ' BPM' : ''}</span></div>`
+            + `<div class="am-row"><span>ROOM</span><span>${dbg.roomLabel || dbg.room}</span></div>`
+            + `<div class="am-row"><span>BED</span><span>${dbg.ambience || 'none'}</span></div>`
+            + `<div class="am-row"><span>MIX</span><span>${flags} · duck ${(dbg.mixLog.at(-1)?.duck ?? 1).toFixed(2)}</span></div>`
+            + `<div class="am-row"><span>SFX</span><span>${m.sfx || '—'} · ${dbg.sfx.length} cues · ${dbg.instruments.length} voices</span></div>`;
+    },
+
     /** size the map canvas to the floor's aspect inside the viewport */
     sizeTacmap(world) {
         const c = $('minimap');
