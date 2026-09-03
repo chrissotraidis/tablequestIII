@@ -578,8 +578,10 @@ onKeyPress((e) => {
             setState('boot-title');
             initAudio();
             startSong('menu');
+            armTitleTimer();
             break;
         case 'boot-title':
+            clearTimeout(bootTimer);
             setState('menu');
             break;
         case 'menu':
@@ -637,10 +639,10 @@ onKeyPress((e) => {
 
 // click anywhere advances boot screens; click canvas during play locks pointer
 $('boot-memory').addEventListener('click', () => {
-    if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); }
+    if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); armTitleTimer(); }
 });
 $('boot-title').addEventListener('click', () => {
-    if (state === 'boot-title') setState('menu');
+    if (state === 'boot-title') { clearTimeout(bootTimer); setState('menu'); }
 });
 canvas.addEventListener('click', () => {
     if (state === 'play') requestPointerLock();
@@ -661,8 +663,12 @@ window.addEventListener('blur', () => {
 
 // ------------------------------------------------------------------ BOOT VISUALS
 
-$('boot-memory').style.backgroundImage = `url(${memoryScreenUrl})`;
-$('boot-title').style.backgroundImage = `url(${titleScreenUrl})`;
+// MODERN M3.7: the untouched 199X screens go on the CRT tubes
+$('tube-memory').style.backgroundImage = `url(${memoryScreenUrl})`;
+$('tube-title').style.backgroundImage = `url(${titleScreenUrl})`;
+// legacy boot auto-advances (any key or click still skips; §5-E default: once per session)
+let bootTimer = setTimeout(() => { if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); armTitleTimer(); } }, 4500);
+function armTitleTimer() { clearTimeout(bootTimer); bootTimer = setTimeout(() => { if (state === 'boot-title') setState('menu'); }, 5000); }
 $('menu-boxart').src = boxArtUrl;
 $('menu-screen').style.setProperty('--menu-workbench-bg', `url(${menuWorkbenchUrl})`);
 $('menu-screen').style.setProperty('--menu-brush-cursor', `url(${menuBrushUrl})`);

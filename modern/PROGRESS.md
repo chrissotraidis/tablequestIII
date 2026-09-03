@@ -10,7 +10,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | M0 Fork and baseline | DONE | gate auto-advanced by the goal harness on 2026-09-03; review still requested |
 | M1 Renderer, lighting, materials | DONE | awaiting user review (hardware fps check owed) |
 | M2 Gunplay and first-person feel | DONE | gate summary logged; running unattended per 5-G |
-| M3 HUD and front-end | IN PROGRESS | |
+| M3 HUD and front-end | DONE | gate summary logged; running unattended per 5-G |
 | M4 Enemies and AI presentation | TODO | |
 | M5 Environment art per floor | TODO | |
 | M6 Audio | TODO | |
@@ -21,6 +21,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | Decision | Applied | When |
 |:--|:--|:--|
 | 5-G review cadence | **User: run unattended, do not pause at milestone gates** ("assign it and keep going"). Gate summaries are still logged and evidence still captured per milestone. | 2026-09-03, after the M1 gate |
+| 5-E legacy boot screens | **Default applied:** shown once per session at load (as classic), auto-advancing 4.5 s / 5 s, any key or click skips (M3.7). | 2026-09-03, M3.7 |
 | 5-C paint as ammo | **Default applied:** single 99-cap paint pool, no magazines, no reload window; a cosmetic top-up flourish only (M2.5). Marked `BLOCKED(§5-C)` per the goal prompt until the user confirms or changes it. | 2026-09-03, M2.5 |
 
 ## Verification recipe (run before every commit)
@@ -285,3 +286,18 @@ Preview rebuilt at `dist/modern/index.html`.
 **Preservation:** all classic screen copy retained (FIRED! / The critics were too harsh / FLOOR CLEARED / Riding elevator up… / MASTERPIECE RECLAIMED! / credits); retry mercy floor unchanged; Enter-to-retry unchanged; floor-select weapon grant unchanged; classic control lines all still listed.
 **Open issues:** the loading card is time-based (not real asset loading — the single-file build has nothing to load); it exists for pacing and information. Music now starts on deploy rather than on load, so the card is silent apart from the previous track's tail.
 **Next:** M3.7 legacy boot (memory + title screens with CRT treatment).
+
+### M3.7 — Legacy boot on a CRT   (2026-09-03)
+**Changed:** the two original 199X screens (memory screen, title card) are drawn on a **CRT tube**: 4:3 curved-corner bezel with a dark frame, phosphor vignette, the classic scanline overlay, a soft screen-glass highlight, a power-on wipe (scaleY from a bright line) and a subtle steps-based flicker, plus a caption row (ARTISAN SOFTWARE · LEGACY BOOT · 199X / PRESS ANY KEY). §5-E default applied: the boot plays once per session at load (classic order memory → title → menu preserved), **auto-advances** after 4.5 s and 5 s, and any key or click still skips exactly as classic. Reduced motion disables the wipe and flicker. The images are set on the tubes untouched.
+**Evidence:** `modern/docs/M3.7/boot-memory-crt.jpg`, `boot-title-crt.jpg`. Harness: auto path `boot-memory → boot-title → menu`; skip path Space → `boot-title`, click → `menu`. **PNG hash check:** all seven original assets (`memory_screen`, `title_screen`, `tableboxart`, `tableboxart2`, `fritos`, `menu_workbench_bg`, `menu_paintbrush_cursor`) sha256-identical between `src/assets` and `modern/src/assets`. Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** boot order, artwork, key/click advance, menu song start on first advance.
+**Open issues:** the auto-advance may start the menu song before a user gesture on strict browsers; the first key press starts it regardless (classic behaviour).
+**Next:** **M3 gate** (below), then M4.1 enemy character builder.
+
+---
+
+## M3 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: the fading minimal HUD with compass tape, objective + feed, projected objective marker, health/paint corners, floor card (M3.1); full-screen blueprint tactical map on Tab (M3.2); main menu over the live Lobby with a five-item list, case file, high score, heritage box art, and an Options panel — post FX, FOV, sensitivity, invert, sound — persisted, keyboard/pointer parity, reduced-motion aware (M3.3); Cartel HQ operations board for Floor Select with facts computed from the canonical maps (M3.4); typewriter field briefing with SAT-LINK floor scans, text of record equal to the classic crawl 852/852 (M3.5); per-floor deploy card plus restyled transition, game over, pause, victory, and instructions (M3.6); CRT legacy boot, PNGs hash-identical (M3.7).
+Every classic screen and readout is present; New Game / Floor Select / How to Play / Sound, high score, story text, controls, boot order all preserved.
+Owed to the user: a hardware pass on the HUD fade timing and CSS transitions (the software renderer paints CSS opacity transitions unreliably, so several captures were forced). Preview rebuilt at `dist/modern/index.html`.
