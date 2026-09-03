@@ -302,8 +302,10 @@ export class Game {
         this.smDY += (input.mouseDY - this.smDY) * lookBlend;
         const turnTarget = (input.turnR ? 1 : 0) - (input.turnL ? 1 : 0);
         this.turnVel += (turnTarget - this.turnVel) * Math.min(1, dt * 11);
+        const rotBefore = p.rot;
         p.rot += this.turnVel * TURN_SPEED * dt;
         p.rot += this.smDX * this.sens;
+        this.yawRate = dt > 0 ? (p.rot - rotBefore) / dt : 0; // rad/s, for post-FX motion blur
         this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - this.smDY * this.sens));
 
         // low-health heartbeat

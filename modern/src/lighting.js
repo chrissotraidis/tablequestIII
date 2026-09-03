@@ -13,6 +13,7 @@
  *   fixture — how the ceiling fixture geometry looks (emissive colour)
  *   panels  — emissive ceiling panels: colour + intensity (bloom picks these up)
  *   exposure— per-floor tone-mapping exposure
+ *   grade   — post-processing grade (see postfx.js DEFAULT_GRADE for keys)
  *
  * Colours follow the classic per-floor palette (levels.js fogColor/ambient/
  * accent) so each floor keeps its mood; values were tuned against captures.
@@ -29,6 +30,7 @@ const RIGS = [
         fixture: 0xfff2d8,
         panels: { color: 0xfff4de, intensity: 1.35 },
         exposure: 1.05,
+        grade: { tint: [1.0, 1.0, 1.04], saturation: 0.88, contrast: 1.06, vignette: 0.35, grain: 0.04, bloom: { strength: 0.3, threshold: 0.92 } },
     },
     // 2 The Office — flat fluorescent grid, slightly warm-white, steep
     {
@@ -39,6 +41,7 @@ const RIGS = [
         fixture: 0xffffff,
         panels: { color: 0xf4f7ff, intensity: 1.5 },
         exposure: 1.0,
+        grade: { tint: [1.02, 1.0, 0.96], saturation: 0.85, contrast: 1.05, vignette: 0.38, grain: 0.045, bloom: { strength: 0.28, threshold: 0.93 } },
     },
     // 3 The Archives — dark basement, low key from a caged bulb rail, orange
     {
@@ -49,6 +52,7 @@ const RIGS = [
         fixture: 0xffc890,
         panels: { color: 0xffb877, intensity: 0.9 },
         exposure: 0.95,
+        grade: { tint: [1.04, 0.98, 0.92], saturation: 0.8, contrast: 1.07, lift: 0.0, vignette: 0.45, grain: 0.07, bloom: { strength: 0.4, threshold: 0.9 } },
     },
     // 4 The Showroom — warm retail spots, key from tall display windows
     {
@@ -59,6 +63,7 @@ const RIGS = [
         fixture: 0xfff0d6,
         panels: { color: 0xfff1de, intensity: 1.2 },
         exposure: 1.02,
+        grade: { tint: [1.05, 1.0, 0.94], saturation: 0.95, contrast: 1.05, vignette: 0.36, grain: 0.04, bloom: { strength: 0.32, threshold: 0.9 } },
     },
     // 5 The Factory — cold clerestory light through smoke, cyan sodium mix
     {
@@ -69,16 +74,18 @@ const RIGS = [
         fixture: 0xc8ecff,
         panels: { color: 0xd0f0ff, intensity: 1.1 },
         exposure: 0.98,
+        grade: { tint: [0.94, 1.0, 1.06], saturation: 0.78, contrast: 1.12, lift: -0.01, vignette: 0.5, grain: 0.065, bloom: { strength: 0.45, threshold: 0.86 } },
     },
     // 6 The Penthouse — night city through glass, red executive accent
     {
-        key: { dir: [0.6, 1, 1.0], color: 0xffc8b0, intensity: 3.0 },
+        key: { dir: [0.6, 1, 1.0], color: 0xffc8b0, intensity: 2.3 },
         ambient: { color: 0x806060, intensity: 0.09 },
         hemi: { sky: 0xffd0c0, ground: 0x200808, intensity: 0.07 },
         accents: { color: 0xff5533, intensity: 4.5, distance: 8.5, decay: 1.9 },
         fixture: 0xffd0c0,
         panels: { color: 0xffe0d0, intensity: 1.0 },
         exposure: 1.0,
+        grade: { tint: [1.06, 0.98, 0.98], saturation: 0.85, contrast: 1.08, vignette: 0.5, grain: 0.06, bloom: { strength: 0.4, threshold: 0.95 } },
     },
 ];
 

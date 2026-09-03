@@ -14,6 +14,8 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(url, { waitUntil: 'load' }); await page.waitForTimeout(1000);
 await page.evaluate(() => TQ.skipBoot());
+// PRE='TQ.setPostFX(false)' — arbitrary setup JS evaluated after boot
+if (process.env.PRE) await page.evaluate((js) => eval(js), process.env.PRE);
 const walk = Number(process.env.WALK || 1500);
 // evidence defaults to JPEG so goal screenshots stay ~100 KB (FORMAT=png to override)
 const fmt = process.env.FORMAT === 'png' ? { type: 'png' } : { type: 'jpeg', quality: 82 };

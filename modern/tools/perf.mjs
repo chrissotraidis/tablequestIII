@@ -10,6 +10,8 @@ const b = await chromium.launch({ headless: true, args: ['--no-sandbox', '--use-
 const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
 await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(800);
 await p.evaluate(() => TQ.skipBoot());
+// PRE='TQ.setPostFX(false)' — arbitrary setup JS evaluated after boot
+if (process.env.PRE) await p.evaluate((js) => eval(js), process.env.PRE);
 const rows = [];
 for (const f of [0, 1, 2, 3, 4, 5]) {
     await p.evaluate((f) => { TQ.startGameAt(f); TQ.godmode(true); }, f);

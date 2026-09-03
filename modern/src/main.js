@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LEVELS } from './levels.js';
 import { getSurfaces } from './textures.js';
+import { PostFX } from './postfx.js';
 import { Game } from './game.js';
 import { hud } from './hud.js';
 import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
@@ -46,11 +47,21 @@ scene.add(camera);
     pmrem.dispose();
 }
 
+// MODERN: post-processing stack (bloom, grade, vignette, grain, motion blur)
+const postfx = new PostFX(renderer, scene, camera);
+postfx.enabled = localStorage.getItem('tq3d-postfx') !== 'off';
+
 window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    postfx.setSize(window.innerWidth, window.innerHeight);
 });
+
+function applyFloorLook() {
+    renderer.toneMappingExposure = game.world?.rig?.exposure ?? 1.1;
+    postfx.applyGrade(game.world?.rig?.grade || {});
+}
 
 // ------------------------------------------------------------------ STATE
 
@@ -83,7 +94,7 @@ const game = new Game(scene, camera, {
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
                 game.loadLevel(next);
-                renderer.toneMappingExposure = game.world.rig?.exposure ?? 1.1;
+                applyFloorLook();
                 renderer.compile(scene, camera); // pre-warm shaders behind the card
                 snapshotLevel();
                 setState('play');
@@ -155,6 +166,7 @@ function setState(next) {
             showOnly('screen-pause');
             exitPointerLock();
             pauseIdx = 0;
+            $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
             renderPause();
             break;
         case 'transition': showOnly('screen-transition'); break;
@@ -304,7 +316,7 @@ function startGameAt(idx) {
     if (idx >= 3 && !game.player.weapons.includes('nailgun')) game.player.weapons.push('nailgun');
     if (idx >= 4 && !game.player.weapons.includes('roller')) game.player.weapons.push('roller');
     if (idx >= 5 && !game.player.weapons.includes('sprayer')) game.player.weapons.push('sprayer');
-    renderer.toneMappingExposure = game.world.rig?.exposure ?? 1.1;
+    applyFloorLook();
     renderer.compile(scene, camera); // pre-warm shaders so play starts hitch-free
     snapshotLevel();
     setState('play');
@@ -319,18 +331,23 @@ function retryFloor() {
         game.player.ammo = Math.max(game.player.ammo, 20);
     }
     game.loadLevel(game.levelIndex, { keepStats: true });
-    renderer.toneMappingExposure = game.world.rig?.exposure ?? 1.1;
+    applyFloorLook();
     renderer.compile(scene, camera);
     setState('play');
 }
 
 function pauseSelect() {
     playSound('menu_select');
-    const items = ['Resume', 'Restart Floor', 'Toggle Sound', 'Quit to Menu'];
+    const items = ['Resume', 'Restart Floor', 'Toggle Sound', 'Post FX', 'Quit to Menu'];
     const item = items[pauseIdx];
     if (item === 'Resume') { setState('play'); requestPointerLock(); }
     else if (item === 'Restart Floor') retryFloor();
     else if (item === 'Toggle Sound') updateMute(toggleMute());
+    else if (item === 'Post FX') {
+        postfx.enabled = !postfx.enabled;
+        localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off');
+        $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
+    }
     else if (item === 'Quit to Menu') { stopMusic(); setState('menu'); startSong('menu'); }
 }
 
@@ -383,8 +400,8 @@ onKeyPress((e) => {
             break;
         case 'pause':
             if (e.code === 'Escape') setState('play');
-            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 3) % 4; playSound('menu_move'); renderPause(); }
-            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 4; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 4) % 5; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 5; playSound('menu_move'); renderPause(); }
             else if (e.code === 'Enter') pauseSelect();
             break;
         case 'gameover':
@@ -469,7 +486,7 @@ function step(now, render = true) {
         hud.setLockHint(!input.pointerLocked);
     }
     if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover')) {
-        renderer.render(scene, camera);
+        postfx.render(elapsed, state === 'play' ? (game.yawRate || 0) : 0);
     }
     clearFrameInput();
 }
@@ -595,6 +612,8 @@ window.TQ = {
     get state() { return state; },
     get game() { return game; },
     get renderer() { return renderer; },
+    get postfx() { return postfx; },
+    setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
     get scene() { return scene; },
     get player() { return game.player; },
     setState,
