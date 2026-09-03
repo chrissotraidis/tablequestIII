@@ -114,6 +114,7 @@ export class World {
             return null;
         };
         const windowCells = [];
+        this.windowSet = new Set();
         const wallBox = (type, x, y, y0, y1) => {
             // metal carries a hazard stripe in its lower band: split tall metal
             // walls so the stripe stays at floor level and the rest is plain plate
@@ -153,6 +154,7 @@ export class World {
                         const axis = ws.side === 'top' || ws.side === 'bottom' ? 'x'
                             : ws.side === 'left' || ws.side === 'right' ? 'z' : (lr ? 'x' : 'z');
                         windowCells.push({ x, y, y0, y1, axis });
+                        this.windowSet.add(this.key(x, y));
                     } else {
                         wallBox(type, x, y, 0, H);
                     }
@@ -300,6 +302,9 @@ export class World {
         this.props.set(k, { x, y, type, def, hp: def.hp, mesh });
         return true;
     }
+
+    /** MODERN: is this wall cell drawn as glass? (impact FX) */
+    isWindowCell(x, y) { return this.windowSet?.has(this.key(x, y)) || false; }
 
     /** The prop record at a cell, or null. */
     propAt(x, y) {

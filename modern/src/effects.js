@@ -67,6 +67,19 @@ function getSplatTextures() {
     return splatTextures;
 }
 
+// soft round sprite for every point burst (classic drew hard squares)
+let particleTex = null;
+function getParticleTexture() {
+    if (particleTex) return particleTex;
+    const c = document.createElement('canvas'); c.width = c.height = 64;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+    g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+    particleTex = new THREE.CanvasTexture(c);
+    return particleTex;
+}
+
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
 const _look = new THREE.Matrix4(), _up = new THREE.Vector3(0, 1, 0), _target = new THREE.Vector3();
 const _e = new THREE.Euler();
@@ -232,28 +245,70 @@ export class Effects {
         this.decalPick = 0;
     }
 
-    /** spray of paint particles (classic) */
-    burst(pos, color, count = 14, speed = 2.2, life = 0.5) {
+    /**
+     * spray of particles (classic API). opts (MODERN):
+     *   size      point size (0.045)
+     *   additive  additive blending, not tone mapped (sparks)
+     *   gravity   units/s² (6)
+     *   dir       THREE.Vector3 bias direction (e.g. surface normal), 0..1 weight via dirW
+     *   dirW      how much of the speed goes along dir (0)
+     *   drag      per-second velocity damping (0)
+     */
+    burst(pos, color, count = 14, speed = 2.2, life = 0.5, opts = {}) {
         const geo = new THREE.BufferGeometry();
         const positions = new Float32Array(count * 3);
         const velocities = [];
+        const dir = opts.dir, dirW = opts.dirW || 0;
         for (let i = 0; i < count; i++) {
             positions[i * 3] = pos.x;
             positions[i * 3 + 1] = pos.y;
             positions[i * 3 + 2] = pos.z;
-            velocities.push(new THREE.Vector3(
+            const v = new THREE.Vector3(
                 (Math.random() - 0.5) * speed,
                 Math.random() * speed * 0.8,
                 (Math.random() - 0.5) * speed
-            ));
+            );
+            if (dir && dirW) v.addScaledVector(dir, speed * dirW * (0.5 + Math.random()));
+            velocities.push(v);
         }
         geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
         const mat = new THREE.PointsMaterial({
-            color, size: 0.045, transparent: true, opacity: 1,
+            color, size: (opts.size ?? 0.045) * 1.35, transparent: true, opacity: 1,
+            map: getParticleTexture(), alphaTest: 0.05,
+            blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+            depthWrite: false, toneMapped: !opts.additive,
         });
         const points = new THREE.Points(geo, mat);
         this.scene.add(points);
-        this.bursts.push({ points, velocities, life, maxLife: life });
+        this.bursts.push({ points, velocities, life, maxLife: life, gravity: opts.gravity ?? 6, drag: opts.drag || 0 });
+    }
+
+    /**
+     * Surface-aware impact (MODERN M2.3). surface: 'metal'|'stone'|'concrete'|
+     * 'wood'|'office'|'glass'|'carpet'|'marble'|'paint'. kind: 'paint'|'nail'.
+     */
+    impact(pos, normal, surface, color, kind = 'paint') {
+        const n = normal;
+        if (kind === 'nail') {
+            // nails: a small dark hole + sparks on metal, chips on wood, dust elsewhere
+            this.splat(pos, n, new THREE.Color(0x1a1a1a), 0.05);
+            if (surface === 'metal' || surface === 'glass') {
+                this.burst(pos, new THREE.Color(0xffe9a0), 14, 3.6, 0.28, { additive: true, size: 0.03, gravity: 9, dir: n, dirW: 0.8 });
+            } else if (surface === 'wood' || surface === 'office') {
+                this.burst(pos, new THREE.Color(0x9a7442), 8, 2.0, 0.4, { size: 0.035, dir: n, dirW: 0.6 });
+            } else {
+                this.burst(pos, new THREE.Color(0xb8b4a8), 10, 1.2, 0.5, { size: 0.06, gravity: 1.5, drag: 2, dir: n, dirW: 0.5 });
+            }
+            return;
+        }
+        // paint: the classic splat + spray, plus a surface reaction
+        this.splat(pos, n, color, 0.26 + Math.random() * 0.18);
+        this.burst(pos, color, 8, 1.4, 0.35, { dir: n, dirW: 0.4 });
+        if (surface === 'metal' || surface === 'glass') {
+            this.burst(pos, new THREE.Color(0xfff4d0), 5, 2.4, 0.22, { additive: true, size: 0.025, gravity: 8, dir: n, dirW: 0.7 });
+        } else if (surface === 'stone' || surface === 'concrete' || surface === 'marble') {
+            this.burst(pos, new THREE.Color(0xc8c4b8), 6, 0.9, 0.45, { size: 0.06, gravity: 1.2, drag: 2, dir: n, dirW: 0.5 });
+        }
     }
 
     /** paint splat decal on a wall/floor (pooled, long-lived) */
@@ -299,9 +354,11 @@ export class Effects {
                 continue;
             }
             const pos = b.points.geometry.attributes.position;
+            const damp = b.drag ? Math.max(0, 1 - b.drag * dt) : 1;
             for (let j = 0; j < b.velocities.length; j++) {
                 const v = b.velocities[j];
-                v.y -= 6 * dt; // gravity
+                v.y -= b.gravity * dt; // gravity
+                if (damp !== 1) v.multiplyScalar(damp);
                 pos.array[j * 3] += v.x * dt;
                 pos.array[j * 3 + 1] = Math.max(0.02, pos.array[j * 3 + 1] + v.y * dt);
                 pos.array[j * 3 + 2] += v.z * dt;

@@ -19,6 +19,8 @@ import {
     buildNailgunPickup, buildRollerPickup,
 } from './models.js';
 import { buildViewmodels } from './viewmodels.js';
+import { MuzzleFlash } from './gunfx.js';
+import { getRig } from './lighting.js';
 import { Effects } from './effects.js';
 import { setShadow } from './lighting.js';
 
@@ -104,6 +106,7 @@ export class Game {
             this.vmRoot.add(vm);
         }
         this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0 };
+        this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
         this.aim = 0;               // MODERN: 0 hip … 1 down the sights
         this.ADS_FOV_DROP = 15;      // degrees
         this.ADS_SPREAD = 0.45;      // spread multiplier while aimed (hip-fire spread unchanged)
@@ -435,6 +438,7 @@ export class Game {
                 : new THREE.Color().setHSL(Math.random(), 1, 0.55);
             this.muzzleColor = color;
             const speed = w.speed || PROJECTILE_SPEED;
+            const wkey = p.weapons[p.currentWeapon];
             this.spawnProjectile({
                 x: p.x + Math.cos(ang) * 0.3,
                 y: p.y + Math.sin(ang) * 0.3,
@@ -448,9 +452,49 @@ export class Game {
                 light: !!w.light,
                 splash: w.splash,
                 splashDamage: w.splashDamage,
+                tracer: wkey === 'nailgun' || wkey === 'sprayer',   // MODERN: streaks
+                trail: wkey === 'paintbrush' || wkey === 'roller',  // MODERN: paint arcs
+                kind: wkey === 'nailgun' ? 'nail' : 'paint',
             });
+            // MODERN: muzzle flash sprite + light, ejection at the muzzle
+            const vm = this.viewmodels[wkey];
+            this.muzzleBoost = this.flash.fire(wkey, vm, color);
+            const mz = this.muzzleWorld(vm);
+            if (mz) {
+                const fwd = new THREE.Vector3(Math.cos(p.rot), 0, Math.sin(p.rot));
+                const right = new THREE.Vector3(-Math.sin(p.rot), 0, Math.cos(p.rot));
+                if (wkey === 'nailgun') {
+                    // strip fragment kicks out to the right
+                    this.effects.burst(mz, new THREE.Color(0xc8ccd4), 2, 1.6, 0.45, { size: 0.03, gravity: 9, dir: right, dirW: 1.2 });
+                } else if (wkey === 'paintbrush') {
+                    this.effects.burst(mz, color, 5, 1.8, 0.4, { size: 0.035, gravity: 7, dir: fwd, dirW: 0.9 });
+                } else if (wkey === 'sprayer') {
+                    this.effects.burst(mz, color, 4, 3.0, 0.22, { size: 0.03, gravity: 2, drag: 3, dir: fwd, dirW: 1.4 });
+                } else if (wkey === 'roller') {
+                    this.effects.burst(mz, color, 10, 1.6, 0.5, { size: 0.05, gravity: 3, drag: 2, dir: fwd, dirW: 0.5 });
+                }
+            }
         }
         this.cb.onHUD();
+    }
+
+    /** world-space muzzle of the visible viewmodel (for ejection particles) */
+    muzzleWorld(vm) {
+        if (!vm?.userData.muzzle) return null;
+        const v = vm.userData.muzzle.clone().applyMatrix4(vm.matrix).applyMatrix4(this.vmRoot.matrix);
+        this.camera.updateMatrixWorld();
+        return v.applyMatrix4(this.camera.matrixWorld);
+    }
+
+    /** which surface family a wall cell is, for impact FX */
+    surfaceAt(cx, cy) {
+        const w = this.world;
+        const t = w.cellRaw(cx, cy);
+        if (t === CELL.DOOR || t === CELL.GATE) return 'metal';
+        if (w.windows && w.isWindowCell?.(cx, cy)) return 'glass';
+        const tex = this.level.wallChar;
+        return { '#': 'stone', 'W': 'wood', 'B': 'stone', 'M': 'metal', 'O': 'office', 'C': 'concrete' }[
+            { [CELL.BRICK]: '#', [CELL.WOOD]: 'W', [CELL.STONE]: 'B', [CELL.CONCRETE]: 'C', [CELL.OFFICE]: 'O', [CELL.METAL]: 'M' }[t] || tex] || 'concrete';
     }
 
     switchWeapon(slot) {
@@ -525,11 +569,21 @@ export class Game {
         l.position.set(0, -50, 0);
     }
 
-    getProjGeo(size) {
-        let g = this.projGeos.get(size);
+    getProjGeo(size, shape = 'sphere') {
+        const key = shape + ':' + size;
+        let g = this.projGeos.get(key);
         if (!g) {
-            g = new THREE.SphereGeometry(size, 8, 8);
-            this.projGeos.set(size, g);
+            if (shape === 'tracer') {
+                // streak along -Z, so lookAt(target) points it down the flight path
+                g = new THREE.CylinderGeometry(size * 0.5, size * 0.9, 0.42, 6);
+                g.rotateX(Math.PI / 2);
+            } else if (shape === 'trail') {
+                g = new THREE.CylinderGeometry(size * 0.35, size, 0.22, 8);
+                g.rotateX(Math.PI / 2);
+            } else {
+                g = new THREE.SphereGeometry(size, 8, 8);
+            }
+            this.projGeos.set(key, g);
         }
         return g;
     }
@@ -537,10 +591,17 @@ export class Game {
     spawnProjectile(opts) {
         const size = opts.size || (opts.owner === 'player' ? 0.05 : 0.065);
         let mesh = this.projMeshPool.pop();
-        if (!mesh) mesh = new THREE.Mesh(this.getProjGeo(size), new THREE.MeshBasicMaterial());
-        mesh.geometry = this.getProjGeo(size);
+        if (!mesh) mesh = new THREE.Mesh(this.getProjGeo(size), new THREE.MeshBasicMaterial({ transparent: true }));
+        const shape = opts.tracer ? 'tracer' : opts.trail ? 'trail' : 'sphere';
+        mesh.geometry = this.getProjGeo(size, shape);
         mesh.material.color.set(opts.color);
+        // tracers glow (bloom picks them up); paint stays diffuse
+        mesh.material.blending = opts.tracer ? THREE.AdditiveBlending : THREE.NormalBlending;
+        mesh.material.toneMapped = !opts.tracer;
+        mesh.material.opacity = opts.tracer ? 0.9 : 1;
+        mesh.material.needsUpdate = true;
         mesh.position.set(opts.x, opts.z, opts.y);
+        if (shape !== 'sphere') mesh.lookAt(opts.x + opts.vx, opts.z, opts.y + opts.vy);
         this.scene.add(mesh);
         const light = opts.light ? this.acquireLight(opts.color) : null;
         if (light) light.position.set(opts.x, opts.z, opts.y);
@@ -582,9 +643,14 @@ export class Game {
                 let normal;
                 if (cellX !== prevCellX) normal = new THREE.Vector3(-Math.sign(pr.vx), 0, 0);
                 else normal = new THREE.Vector3(0, 0, -Math.sign(pr.vy));
-                this.effects.splat(pos, normal, pr.color, 0.26 + Math.random() * 0.18);
-                this.effects.burst(pos, pr.color, 8, 1.4, 0.35);
-                playSound('splat');
+                if (pr.owner === 'player') {
+                    this.effects.impact(pos, normal, this.surfaceAt(cellX, Math.floor(ny)), pr.color, pr.kind || 'paint');
+                    playSound(pr.kind === 'nail' ? 'wood_hit' : 'splat');
+                } else {
+                    this.effects.splat(pos, normal, pr.color, 0.26 + Math.random() * 0.18);
+                    this.effects.burst(pos, pr.color, 8, 1.4, 0.35);
+                    playSound('splat');
+                }
             }
 
             if (!dead) {
@@ -1092,8 +1158,9 @@ export class Game {
         }
         if (this.recoil === 1 && this.muzzleColor) {
             this.muzzleLight.color.copy(this.muzzleColor);
-            this.muzzleLight.intensity = 5;
+            this.muzzleLight.intensity = this.muzzleBoost || 5;
         }
+        this.flash.update(dt);
 
         // viewmodel: whole-arm motion on vmRoot, recoil on the weapon
         this.recoil = Math.max(0, this.recoil - dt * 6);
