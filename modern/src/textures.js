@@ -1,14 +1,23 @@
 /**
  * PROCEDURAL TEXTURES — hi-res canvas-generated, no external files.
+ *
+ * MODERN: every texture is authored in the same 256-unit logical space as the
+ * classic build (so bricks, planks, and tiles keep their exact size and
+ * identity) but rasterised at 2x (walls, 512px) or 4x (floors, 1024px).
+ * From each colour canvas we derive a normal map and a roughness map, and
+ * `surfaceMaterial()` hands out MeshStandardMaterials that use all three.
  */
 import * as THREE from 'three';
 
-const SIZE = 256;
+const SIZE = 256;           // logical authoring size (unchanged from classic)
+let SCALE = 2;              // raster multiplier for the texture being built
 
 function makeCanvas(size = SIZE) {
     const c = document.createElement('canvas');
-    c.width = c.height = size;
-    return [c, c.getContext('2d')];
+    c.width = c.height = size * SCALE;
+    const ctx = c.getContext('2d');
+    ctx.scale(SCALE, SCALE);   // author in logical units, render at SCALE x
+    return [c, ctx];
 }
 
 // deterministic-ish noise sprinkle
@@ -430,12 +439,157 @@ function metalCeil() {
     return c;
 }
 
+// ---------------- SURFACE MAPS (normal + roughness) ----------------
+
+/**
+ * Per-texture surface response. `bump` scales the derived normal map,
+ * `rough`/`roughVar` set the roughness base and how much the height field
+ * modulates it, `metal` is metalness, `invert` flips which tones read as
+ * raised. Tuned so each material keeps its classic look but responds to light.
+ */
+const SURFACE = {
+    brick:        { bump: 2.2, rough: 0.92, roughVar: 0.08, metal: 0.0 },
+    wood:         { bump: 1.1, rough: 0.55, roughVar: 0.20, metal: 0.0 },
+    stone:        { bump: 2.4, rough: 0.88, roughVar: 0.10, metal: 0.0 },
+    metal:        { bump: 1.3, rough: 0.38, roughVar: 0.25, metal: 0.65 },
+    office:       { bump: 0.9, rough: 0.72, roughVar: 0.15, metal: 0.0 },
+    concrete:     { bump: 1.6, rough: 0.92, roughVar: 0.06, metal: 0.0 },
+    door:         { bump: 1.4, rough: 0.48, roughVar: 0.20, metal: 0.35 },
+    gate:         { bump: 1.0, rough: 0.40, roughVar: 0.20, metal: 0.70 },
+    elevator:     { bump: 1.2, rough: 0.30, roughVar: 0.20, metal: 0.70 },
+    marble:       { bump: 0.45, rough: 0.16, roughVar: 0.12, metal: 0.0 },
+    carpet:       { bump: 1.5, rough: 0.96, roughVar: 0.04, metal: 0.0 },
+    woodFloor:    { bump: 1.0, rough: 0.42, roughVar: 0.18, metal: 0.0 },
+    stoneFloor:   { bump: 1.8, rough: 0.80, roughVar: 0.12, metal: 0.0 },
+    factoryFloor: { bump: 2.2, rough: 0.52, roughVar: 0.25, metal: 0.45 },
+    ceiling:      { bump: 1.0, rough: 0.90, roughVar: 0.06, metal: 0.0 },
+    metalCeil:    { bump: 1.4, rough: 0.50, roughVar: 0.20, metal: 0.50 },
+};
+
+/** separable box blur on a Float32 height field (in place, via temp) */
+function boxBlur(src, w, h, r) {
+    const tmp = new Float32Array(w * h);
+    const out = new Float32Array(w * h);
+    const span = r * 2 + 1;
+    for (let y = 0; y < h; y++) {
+        let acc = 0;
+        for (let k = -r; k <= r; k++) acc += src[y * w + ((k + w) % w)];
+        for (let x = 0; x < w; x++) {
+            tmp[y * w + x] = acc / span;
+            acc += src[y * w + ((x + r + 1) % w)] - src[y * w + ((x - r + w) % w)];
+        }
+    }
+    for (let x = 0; x < w; x++) {
+        let acc = 0;
+        for (let k = -r; k <= r; k++) acc += tmp[((k + h) % h) * w + x];
+        for (let y = 0; y < h; y++) {
+            out[y * w + x] = acc / span;
+            acc += tmp[((y + r + 1) % h) * w + x] - tmp[((y - r + h) % h) * w + x];
+        }
+    }
+    return out;
+}
+
+/**
+ * Derive tiling normal + roughness canvases from a colour canvas.
+ * Height = luminance, high-passed so the authoring gradient doesn't tilt the
+ * whole surface, lightly blurred so speckle reads as grain, not spikes.
+ */
+function deriveSurfaceMaps(canvas, cfg) {
+    const w = canvas.width, h = canvas.height;
+    const ctx = canvas.getContext('2d');
+    const img = ctx.getImageData(0, 0, w, h).data;
+    const n = w * h;
+    let height = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+        const r = img[i * 4], g = img[i * 4 + 1], b = img[i * 4 + 2];
+        height[i] = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    }
+    if (cfg.invert) for (let i = 0; i < n; i++) height[i] = 1 - height[i];
+    // high-pass: remove the broad authoring gradient
+    const low = boxBlur(height, w, h, Math.max(8, w >> 4));
+    for (let i = 0; i < n; i++) height[i] -= low[i];
+    // soften
+    height = boxBlur(height, w, h, 1);
+
+    const nrm = new ImageData(w, h);
+    const rgh = new ImageData(w, h);
+    const strength = cfg.bump * (w / 256);
+    for (let y = 0; y < h; y++) {
+        const y0 = ((y - 1 + h) % h) * w, y1 = y * w, y2 = ((y + 1) % h) * w;
+        for (let x = 0; x < w; x++) {
+            const x0 = (x - 1 + w) % w, x2 = (x + 1) % w;
+            // sobel
+            const dx = (height[y0 + x2] + 2 * height[y1 + x2] + height[y2 + x2])
+                     - (height[y0 + x0] + 2 * height[y1 + x0] + height[y2 + x0]);
+            const dy = (height[y2 + x0] + 2 * height[y2 + x] + height[y2 + x2])
+                     - (height[y0 + x0] + 2 * height[y0 + x] + height[y0 + x2]);
+            let nx = -dx * strength, ny = dy * strength, nz = 1;
+            const len = Math.hypot(nx, ny, nz);
+            nx /= len; ny /= len; nz /= len;
+            const i = (y1 + x) * 4;
+            nrm.data[i] = (nx * 0.5 + 0.5) * 255;
+            nrm.data[i + 1] = (ny * 0.5 + 0.5) * 255;
+            nrm.data[i + 2] = (nz * 0.5 + 0.5) * 255;
+            nrm.data[i + 3] = 255;
+            // roughness: raised/bright areas a touch smoother, recesses rougher
+            const rv = Math.min(1, Math.max(0, cfg.rough - height[y1 + x] * cfg.roughVar * 3));
+            const g = rv * 255;
+            rgh.data[i] = g; rgh.data[i + 1] = g; rgh.data[i + 2] = g; rgh.data[i + 3] = 255;
+        }
+    }
+    const nc = document.createElement('canvas'); nc.width = w; nc.height = h;
+    nc.getContext('2d').putImageData(nrm, 0, 0);
+    const rc = document.createElement('canvas'); rc.width = w; rc.height = h;
+    rc.getContext('2d').putImageData(rgh, 0, 0);
+    return { normal: nc, roughness: rc };
+}
+
+function dataTex(canvas) {
+    const t = new THREE.CanvasTexture(canvas);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.NoColorSpace;
+    t.anisotropy = 8;
+    return t;
+}
+
+let surfaces = null;
+
+/** All surfaces: { key: { map, normalMap, roughnessMap, cfg, canvases } } */
+export function getSurfaces() {
+    if (surfaces) return surfaces;
+    getTextures();
+    return surfaces;
+}
+
+/**
+ * A MeshStandardMaterial for a named surface. `repeat` tiles all three maps
+ * (cloned, so callers can set per-mesh repeats without touching the cache).
+ */
+export function surfaceMaterial(key, { repeat = null, ...extra } = {}) {
+    const s = getSurfaces()[key];
+    if (!s) throw new Error('unknown surface ' + key);
+    let map = s.map, normalMap = s.normalMap, roughnessMap = s.roughnessMap;
+    if (repeat) {
+        map = map.clone(); normalMap = normalMap.clone(); roughnessMap = roughnessMap.clone();
+        for (const t of [map, normalMap, roughnessMap]) { t.repeat.set(repeat[0], repeat[1]); t.needsUpdate = true; }
+    }
+    return new THREE.MeshStandardMaterial({
+        map, normalMap, roughnessMap,
+        normalScale: new THREE.Vector2(1, 1),
+        roughness: 1,                 // multiplied by the roughness map
+        metalness: s.cfg.metal,
+        ...extra,
+    });
+}
+
 // ---------------- EXPORT ----------------
 
 // fake ambient occlusion: darken top/bottom edges of wall textures so walls
 // read as grounded instead of uniformly lit
 function applyWallAO(canvas) {
     const ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0); // work in device pixels regardless of raster scale
     const s = canvas.height;
     let g = ctx.createLinearGradient(0, 0, 0, s * 0.14);
     g.addColorStop(0, 'rgba(0,0,0,0.30)');
@@ -452,29 +606,35 @@ function applyWallAO(canvas) {
 
 let cache = null;
 
+const BUILDERS = {
+    brick, wood: woodPanel, stone, metal, office: officePanel, concrete,
+    door: doorTex, gate: gateTex, elevator: elevatorTex,
+    marble, carpet, woodFloor, stoneFloor, factoryFloor, ceiling, metalCeil,
+};
+// floors are seen up close and tile across whole rooms: rasterise at 4x
+const FLOOR_KEYS = new Set(['marble', 'carpet', 'woodFloor', 'stoneFloor', 'factoryFloor']);
+
 export function getTextures() {
     if (cache) return cache;
-    const canvases = {
-        brick: brick(),
-        wood: woodPanel(),
-        stone: stone(),
-        metal: metal(),
-        office: officePanel(),
-        concrete: concrete(),
-        door: doorTex(),
-        gate: gateTex(),
-        elevator: elevatorTex(),
-        marble: marble(),
-        carpet: carpet(),
-        woodFloor: woodFloor(),
-        stoneFloor: stoneFloor(),
-        factoryFloor: factoryFloor(),
-        ceiling: ceiling(),
-        metalCeil: metalCeil(),
-    };
-    const wallKeys = ['brick', 'wood', 'stone', 'metal', 'office', 'concrete', 'door'];
-    for (const k of wallKeys) applyWallAO(canvases[k]);
+    const t0 = performance.now();
     cache = {};
-    for (const [k, cv] of Object.entries(canvases)) cache[k] = tex(cv);
+    surfaces = {};
+    const wallKeys = new Set(['brick', 'wood', 'stone', 'metal', 'office', 'concrete', 'door']);
+    for (const [k, build] of Object.entries(BUILDERS)) {
+        SCALE = FLOOR_KEYS.has(k) ? 4 : 2;
+        const cv = build();
+        const cfg = SURFACE[k];
+        // derive relief before the AO gradient so edge darkening doesn't tilt the normals
+        const maps = deriveSurfaceMaps(cv, cfg);
+        if (wallKeys.has(k)) applyWallAO(cv);
+        const map = tex(cv);
+        cache[k] = map;
+        surfaces[k] = {
+            map, normalMap: dataTex(maps.normal), roughnessMap: dataTex(maps.roughness),
+            cfg, canvases: { color: cv, normal: maps.normal, roughness: maps.roughness },
+        };
+    }
+    SCALE = 2;
+    console.log(`[textures] ${Object.keys(cache).length} surfaces + normal/roughness maps in ${(performance.now() - t0).toFixed(0)} ms`);
     return cache;
 }

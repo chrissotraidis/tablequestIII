@@ -6,7 +6,9 @@ import * as THREE from 'three';
 // original Fritos health-pickup art, ported from the 199X release
 import fritosUrl from './assets/fritos.png';
 
-const mat = (color, opts = {}) => new THREE.MeshLambertMaterial({ color, ...opts });
+// MODERN: every model surface is a StandardMaterial so it responds to the
+// shadowed, graded lighting rig. Default is a satin finish; builders override.
+const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.0, ...opts });
 const box = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
 
 const SKIN = 0xe8b890;
@@ -976,7 +978,7 @@ export function buildPainting(variant = 0) {
     const frame = box(0.56, 0.44, 0.03, mat(0x6a4a22));
     const canvas = new THREE.Mesh(
         new THREE.PlaneGeometry(0.48, 0.36),
-        new THREE.MeshLambertMaterial({ map: texList[variant % texList.length] })
+        new THREE.MeshStandardMaterial({ map: texList[variant % texList.length], roughness: 0.85 })
     );
     canvas.position.z = 0.018;
     g.add(frame, canvas);
@@ -988,13 +990,13 @@ export function buildRug(color = 0x7a2a22) {
     const g = new THREE.Group();
     const rug = new THREE.Mesh(
         new THREE.PlaneGeometry(1.5, 1.0),
-        new THREE.MeshLambertMaterial({ color })
+        new THREE.MeshStandardMaterial({ color, roughness: 0.95 })
     );
     rug.rotation.x = -Math.PI / 2;
     rug.position.y = 0.008;
     const border = new THREE.Mesh(
         new THREE.PlaneGeometry(1.62, 1.12),
-        new THREE.MeshLambertMaterial({ color: 0xc8a86a })
+        new THREE.MeshStandardMaterial({ color: 0xc8a86a, roughness: 0.95 })
     );
     border.rotation.x = -Math.PI / 2;
     border.position.y = 0.005;

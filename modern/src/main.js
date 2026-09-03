@@ -2,7 +2,9 @@
  * MAIN — boot sequence, menus, state machine, render loop.
  */
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LEVELS } from './levels.js';
+import { getSurfaces } from './textures.js';
 import { Game } from './game.js';
 import { hud } from './hud.js';
 import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
@@ -30,6 +32,16 @@ renderer.toneMappingExposure = 1.1;
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
 scene.add(camera);
+
+// MODERN: a procedural room environment (three's RoomEnvironment, no files)
+// gives StandardMaterials something to reflect so roughness maps read.
+// Kept faint so each floor's own lighting palette still sets the mood.
+{
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.28;
+    pmrem.dispose();
+}
 
 window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -634,6 +646,31 @@ window.TQ = {
             bot.fightResolve = res;
             bot.levelIndex = game.levelIndex;
         });
+    },
+    /** MODERN debug: overlay a sheet of every surface's colour / normal / roughness maps. */
+    textureSheet(show = true) {
+        let el = document.getElementById('tq-texsheet');
+        if (!show) { el?.remove(); return 'hidden'; }
+        if (el) return 'shown';
+        el = document.createElement('div');
+        el.id = 'tq-texsheet';
+        el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#111;overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font:11px monospace;color:#ddd';
+        for (const [k, s] of Object.entries(getSurfaces())) {
+            const cell = document.createElement('div');
+            cell.innerHTML = `<div style="margin-bottom:2px">${k} ${s.canvases.color.width}px · rough ${s.cfg.rough} · metal ${s.cfg.metal}</div>`;
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:2px';
+            for (const c of [s.canvases.color, s.canvases.normal, s.canvases.roughness]) {
+                const img = document.createElement('canvas');
+                img.width = img.height = 96;
+                img.getContext('2d').drawImage(c, 0, 0, 96, 96);
+                row.appendChild(img);
+            }
+            cell.appendChild(row);
+            el.appendChild(cell);
+        }
+        document.body.appendChild(el);
+        return 'shown';
     },
     snapshot() {
         const p = game.player;

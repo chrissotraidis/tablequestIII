@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL, WALL_HEIGHT } from './config.js';
-import { getTextures } from './textures.js';
+import { getTextures, surfaceMaterial } from './textures.js';
 import { PROP_BUILDERS, buildPainting, buildRug } from './models.js';
 import { playSound } from './audio.js';
 
@@ -123,30 +123,24 @@ export class World {
         // merged wall meshes (one draw call per material)
         for (const [type, geos] of Object.entries(geosByType)) {
             const merged = BufferGeometryUtils.mergeGeometries(geos);
-            const m = new THREE.MeshLambertMaterial({ map: tex[TEX_FOR_TYPE[type]] });
+            const m = surfaceMaterial(TEX_FOR_TYPE[type]);
             const mesh = new THREE.Mesh(merged, m);
             this.group.add(mesh);
             geos.forEach(g => g.dispose());
         }
 
         // floor & ceiling
-        const floorTex = tex[lvl.floorTex].clone();
-        floorTex.repeat.set(w, h);
-        floorTex.needsUpdate = true;
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(w, h),
-            new THREE.MeshLambertMaterial({ map: floorTex })
+            surfaceMaterial(lvl.floorTex, { repeat: [w, h] })
         );
         floor.rotation.x = -Math.PI / 2;
         floor.position.set(w / 2, 0, h / 2);
         this.group.add(floor);
 
-        const ceilTex = tex[lvl.ceilTex].clone();
-        ceilTex.repeat.set(w, h);
-        ceilTex.needsUpdate = true;
         const ceil = new THREE.Mesh(
             new THREE.PlaneGeometry(w, h),
-            new THREE.MeshLambertMaterial({ map: ceilTex })
+            surfaceMaterial(lvl.ceilTex, { repeat: [w, h] })
         );
         ceil.rotation.x = Math.PI / 2;
         ceil.position.set(w / 2, WALL_HEIGHT, h / 2);
@@ -474,7 +468,7 @@ export class World {
         const geo = spanX
             ? new THREE.BoxGeometry(1, WALL_HEIGHT, 0.14)
             : new THREE.BoxGeometry(0.14, WALL_HEIGHT, 1);
-        const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex.door }));
+        const mesh = new THREE.Mesh(geo, surfaceMaterial('door'));
         mesh.position.set(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
         this.group.add(mesh);
         this.doors.set(this.key(x, y), {
@@ -488,7 +482,7 @@ export class World {
         const tex = getTextures();
         const mesh = new THREE.Mesh(
             new THREE.BoxGeometry(1, WALL_HEIGHT, 0.1),
-            new THREE.MeshLambertMaterial({ map: tex.gate, transparent: true })
+            surfaceMaterial('gate', { transparent: true })
         );
         mesh.position.set(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
         this.group.add(mesh);
@@ -575,7 +569,7 @@ export class World {
             if (t >= CELL.BRICK && t !== CELL.DOOR && t !== CELL.GATE && t !== CELL.ELEVATOR && t !== CELL.EMPTY) {
                 const plane = new THREE.Mesh(
                     new THREE.PlaneGeometry(this.elevatorCells.length, WALL_HEIGHT),
-                    new THREE.MeshLambertMaterial({ map: tex.elevator })
+                    surfaceMaterial('elevator')
                 );
                 plane.position.set(cx - dx * 0 + (dx === 0 ? 0 : 0), WALL_HEIGHT / 2, cy - dy * 0);
                 // place flush against the wall face
