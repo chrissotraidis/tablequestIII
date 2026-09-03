@@ -20,7 +20,8 @@ const $ = (id) => document.getElementById(id);
 
 let hitTimer = null;
 let dirTimer = null;
-let cardTimer = null;
+let cardShownAt = null;
+let cardPending = false;
 
 // dirty-check cache: only touch the DOM when a value actually changes
 const lastVals = {};
@@ -53,7 +54,8 @@ export const hud = {
         $('lock-hint').classList.add('hidden');
         $('damage-dir').classList.remove('on');
         $('obj-marker').classList.add('hidden');
-        $('floor-card').classList.remove('on');
+        $('floor-card').style.opacity = 0; cardShownAt = null; cardPending = false;
+        $('tacmap').classList.add('hidden');
     },
 
     /** four-tick marker; kill = red + pop, held a little longer */
@@ -91,17 +93,27 @@ export const hud = {
         $('lock-hint').classList.toggle('hidden', !show);
     },
 
-    /** floor intro card: FLOOR n / NAME / subtitle, 3.2 s */
+    /** floor intro card: FLOOR n / NAME / subtitle. Alpha is driven from update()
+     *  (fade in 0.3 s, hold, fade out 0.7 s) so it never depends on CSS transitions. */
     floorCard(num, name, subtitle) {
         $('fc-num').textContent = num;
         $('fc-name').textContent = name.toUpperCase();
         $('fc-sub').textContent = subtitle || '';
-        const el = $('floor-card');
-        el.classList.add('on');
-        if (cardTimer) clearTimeout(cardTimer);
-        cardTimer = setTimeout(() => el.classList.remove('on'), 3200);
+        cardShownAt = null; // armed: first update() stamps the game time
+        cardPending = true;
         setText('hud-floor-name', name.toUpperCase());
         poke();
+    },
+
+    updateFloorCard(time) {
+        const el = $('floor-card');
+        if (cardPending) { cardPending = false; cardShownAt = time; }
+        if (cardShownAt === null) return;
+        const t = time - cardShownAt;
+        const a = t < 0.3 ? t / 0.3 : t < 3.4 ? 1 : t < 4.1 ? 1 - (t - 3.4) / 0.7 : 0;
+        const v = a.toFixed(2);
+        if (lastVals._card !== v) { lastVals._card = v; el.style.opacity = v; }
+        if (a <= 0) cardShownAt = null;
     },
 
     update(player, game) {
@@ -186,7 +198,8 @@ export const hud = {
         const lowhp = !(player.health > 25 || player.health <= 0);
         if (lastVals._lowhp !== lowhp) { lastVals._lowhp = lowhp; $('lowhp-overlay').classList.toggle('hidden', !lowhp); }
 
-        // ---- compass + objective marker
+        // ---- floor card, compass, objective marker
+        this.updateFloorCard(time);
         this.drawCompass(player, game);
         this.updateMarker(player, game);
 
@@ -343,8 +356,11 @@ export const hud = {
     drawMinimap(game, player) {
         const c = $('minimap');
         if (c.classList.contains('hidden')) return;
-        const ctx = c.getContext('2d');
         const world = game.world;
+        this.sizeTacmap(world);
+        setText('tac-title', `TACTICAL MAP — FLOOR ${game.levelIndex + 1} · ${game.level.name.toUpperCase()}`);
+        setText('tac-sub', game.level.subtitle || '');
+        const ctx = c.getContext('2d');
         const sx = c.width / world.w, sy = c.height / world.h;
         const key = `${game.levelIndex}:${world.gatesUnlocked}:${c.width}:${world.propsVersion || 0}`;
         if (mmKey !== key) {
@@ -374,25 +390,45 @@ export const hud = {
         }
         ctx.clearRect(0, 0, c.width, c.height);
         ctx.drawImage(mmCanvas, 0, 0);
+        const g = Math.max(3, sx * 0.35); // glyph size scales with the cell
         for (const e of game.pickups) {
             if (!e.active) continue;
-            if (e.kind === 'table') { ctx.fillStyle = '#ffd700'; ctx.fillRect(e.x * sx - 2, e.y * sy - 2, 4, 4); }
+            if (e.kind === 'table') {
+                ctx.save(); ctx.translate(e.x * sx, e.y * sy); ctx.rotate(Math.PI / 4);
+                ctx.fillStyle = '#ffd35a'; ctx.shadowColor = '#ffd35a'; ctx.shadowBlur = 8;
+                ctx.fillRect(-g, -g, g * 2, g * 2); ctx.restore();
+            } else if (e.kind.startsWith('weapon:')) {
+                ctx.fillStyle = '#9ad0ff'; ctx.fillRect(e.x * sx - g * 0.7, e.y * sy - g * 0.7, g * 1.4, g * 1.4);
+            }
         }
         for (const e of game.enemies) {
             if (!e.alive) continue;
             ctx.fillStyle = e.variant === 'boss' ? '#ff3322' : '#ff7788';
-            ctx.fillRect(e.x * sx - 1.5, e.y * sy - 1.5, 3, 3);
+            ctx.beginPath(); ctx.arc(e.x * sx, e.y * sy, e.variant === 'boss' ? g * 1.3 : g * 0.7, 0, 7); ctx.fill();
         }
         ctx.save();
         ctx.translate(player.x * sx, player.y * sy);
         ctx.rotate(player.rot);
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.moveTo(5, 0); ctx.lineTo(-3, -3); ctx.lineTo(-3, 3); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#fff'; ctx.shadowColor = '#fff'; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.moveTo(g * 2.2, 0); ctx.lineTo(-g * 1.4, -g * 1.3); ctx.lineTo(-g * 0.6, 0); ctx.lineTo(-g * 1.4, g * 1.3); ctx.closePath(); ctx.fill();
         ctx.restore();
     },
 
+    /** MODERN M3.2: Tab shows the full-screen tactical map (blueprint kept) */
     toggleMinimap() {
-        $('minimap').classList.toggle('hidden');
+        const wrap = $('tacmap');
+        wrap.classList.toggle('hidden');
+        $('minimap').classList.toggle('hidden', wrap.classList.contains('hidden'));
+        mmKey = ''; // re-rasterise the static layer at the new size
         poke();
+    },
+
+    /** size the map canvas to the floor's aspect inside the viewport */
+    sizeTacmap(world) {
+        const c = $('minimap');
+        const maxW = Math.min(window.innerWidth * 0.66, 1100), maxH = Math.min(window.innerHeight * 0.62, 700);
+        const k = Math.min(maxW / world.w, maxH / world.h);
+        const w = Math.round(world.w * k), h = Math.round(world.h * k);
+        if (c.width !== w || c.height !== h) { c.width = w; c.height = h; mmKey = ''; }
     },
 };
