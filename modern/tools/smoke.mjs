@@ -82,9 +82,13 @@ const storyText = await page.evaluate(() => document.querySelector('.intro-conta
 check(storyText && storyText.includes('They left her alive') && storyText.includes("She's taking them back"),
     'story text intact');
 
+await page.keyboard.press('Enter'); await page.waitForTimeout(1500);
+// MODERN M3.6: a per-floor loading card sits between the briefing and play; Enter deploys
+check(await page.evaluate(() => TQ.state) === 'loading', 'skip crawl shows the loading card');
+await shot('07a-loading-card');
 await page.keyboard.press('Enter'); await page.waitForTimeout(2500);
 await shot('07-floor1-spawn');
-check(await page.evaluate(() => TQ.state) === 'play', 'skip crawl enters play');
+check(await page.evaluate(() => TQ.state) === 'play', 'deploy enters play');
 
 // walk forward, capture, then check pause
 await page.mouse.click(640, 400);

@@ -942,6 +942,56 @@
         .mb-progress i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--intro-progress, 0%); background: #ffd35a; box-shadow: 0 0 8px rgba(255,211,90,.7); }
         .mbrief .intro-skip { position: static; animation: none; font-size: 10px; letter-spacing: 4px; color: rgba(242,240,232,.55); }
         @media (max-width: 900px) { .mb-grid { grid-template-columns: 1fr; } .mb-sat { display: none; } }
+
+        /* ======================= STATE CARDS (M3.6) ======================= */
+        .mcard-wrap { font-family: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif; }
+        .mcard { background: rgba(8, 10, 14, .92) !important; border: 1px solid rgba(255,255,255,.14) !important; border-top: 3px solid #7dff9a !important; border-radius: 0 !important; box-shadow: 0 30px 80px rgba(0,0,0,.75) !important; padding: 28px 40px 24px !important; color: #f2f0e8 !important; letter-spacing: 1px; min-width: 460px; text-align: center; }
+        .mcard-red { border-top-color: #ff4a3a !important; }
+        .mcard-gold { border-top-color: #ffd35a !important; }
+        .mcard .mc-eyebrow { display: block; font-size: 10px; letter-spacing: 5px; color: rgba(242,240,232,.55); margin-bottom: 6px; }
+        .mcard h1 { font-family: inherit !important; font-size: 40px !important; letter-spacing: 6px !important; font-weight: 700; margin: 0 0 12px !important; color: #7dff9a !important; text-shadow: 0 0 20px rgba(125,255,154,.3) !important; }
+        .mcard-red h1 { color: #ff5a4a !important; text-shadow: 0 0 20px rgba(255,90,74,.35) !important; }
+        .mcard-gold h1 { color: #ffd35a !important; text-shadow: 0 0 20px rgba(255,211,90,.35) !important; }
+        .mcard p { font-family: inherit !important; font-size: 15px !important; letter-spacing: 2px; color: rgba(242,240,232,.8) !important; margin: 6px 0 !important; text-transform: uppercase; }
+        .mcard .stat-line { color: #ffd35a !important; font-size: 20px !important; font-weight: 700; margin-top: 10px !important; }
+        .mcard .mc-dim { color: rgba(242,240,232,.45) !important; font-size: 11px !important; letter-spacing: 4px; margin-top: 16px !important; }
+        .mcard .mc-buttons { display: flex; gap: 12px; justify-content: center; margin-top: 18px; }
+        .mcard button { all: unset; font: inherit; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; padding: 10px 22px; border: 1px solid rgba(255,255,255,.35); color: #fff; cursor: pointer; background: rgba(255,255,255,.06); }
+        .mcard button:hover { background: #ffd35a; color: #1a1408; border-color: #ffd35a; }
+        #credits-content p { text-transform: none; }
+        #credits-content div p { color: rgba(242,240,232,.5) !important; font-size: 12px !important; }
+        /* pause */
+        .mpause { background: rgba(4, 6, 10, .62) !important; backdrop-filter: blur(4px); font-family: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif; }
+        .mpause .panel { background: rgba(8, 10, 14, .92) !important; border: 1px solid rgba(255,255,255,.14) !important; border-top: 3px solid #ffd35a !important; border-radius: 0 !important; padding: 22px 34px 20px !important; min-width: 380px; box-shadow: 0 30px 80px rgba(0,0,0,.75) !important; }
+        .mpause .panel h2 { font-family: inherit !important; font-style: normal !important; font-size: 18px !important; letter-spacing: 6px !important; text-transform: uppercase; color: #ffd35a !important; margin: 4px 0 14px !important; }
+        .mpause .panel h2::after { content: none !important; }
+        .mpause #pause-items { display: flex; flex-direction: column; gap: 2px; }
+        .mpause #pause-items .menu-item { all: unset; display: block; font: inherit; font-size: 20px; letter-spacing: 3px; text-transform: uppercase; padding: 8px 14px; color: rgba(242,240,232,.55); border-left: 3px solid transparent; cursor: pointer; text-align: left; }
+        .mpause #pause-items .menu-item.selected { color: #fff; border-left-color: #ffd35a; background: linear-gradient(90deg, rgba(255,211,90,.16), transparent 70%); }
+        .mpause .panel-footer { font-family: inherit !important; font-size: 10px !important; letter-spacing: 3px; color: rgba(242,240,232,.5) !important; margin-top: 14px !important; }
+        /* loading */
+        .mload { background: #06080c; font-family: "Roboto Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif; color: #f2f0e8; letter-spacing: 1px; z-index: 255; }
+        .ml-grid { position: absolute; inset: 0; display: grid; grid-template-columns: 1fr 380px; grid-template-rows: 1fr auto; gap: 18px 50px; padding: 0 clamp(28px, 8vw, 140px) 30px; align-items: center; }
+        .ml-left { display: flex; flex-direction: column; gap: 10px; }
+        .ml-eyebrow { font-size: 10px; letter-spacing: 5px; color: #3a8ae6; }
+        .ml-floor { font-size: 14px; letter-spacing: 6px; color: #ffd35a; }
+        .ml-floor b { font-size: 18px; }
+        .ml-name { margin: 0; font-size: clamp(44px, 6vw, 76px); line-height: .95; letter-spacing: 6px; font-weight: 700; text-transform: uppercase; }
+        .ml-sub { margin: 4px 0 10px; font-family: Georgia, serif; font-style: italic; font-size: 18px; color: rgba(242,240,232,.7); letter-spacing: 0; }
+        .ml-objective, .ml-tip { border-left: 2px solid #ffd35a; padding: 6px 14px; display: flex; flex-direction: column; gap: 4px; }
+        .ml-tip { border-left-color: #3a8ae6; }
+        .ml-objective span, .ml-tip span { font-size: 10px; letter-spacing: 4px; color: rgba(242,240,232,.5); }
+        .ml-objective b { font-size: 16px; letter-spacing: 3px; color: #fff; }
+        .ml-tip i { font-style: normal; font-size: 14px; letter-spacing: .5px; color: rgba(242,240,232,.85); font-family: Georgia, serif; font-style: italic; }
+        .ml-right { display: flex; flex-direction: column; gap: 8px; }
+        #loading-sat { width: 360px; height: 270px; border: 1px solid rgba(160,200,240,.45); box-shadow: 0 0 0 6px rgba(10,26,48,.9); background: #0a1a30; }
+        .ml-arsenal { display: flex; gap: 6px; }
+        .ml-arsenal span { font-size: 9px; letter-spacing: 2px; padding: 4px 8px; border: 1px solid rgba(255,255,255,.2); color: rgba(242,240,232,.5); }
+        .ml-arsenal span.have { color: #ffd35a; border-color: rgba(255,211,90,.6); }
+        .ml-foot { grid-column: 1 / -1; display: flex; align-items: center; gap: 30px; }
+        .ml-foot .mb-progress i { width: var(--ml-progress, 0%); }
+        .ml-hint { font-size: 10px; letter-spacing: 4px; color: rgba(242,240,232,.5); white-space: nowrap; }
+        .mm-sub-overlay .mi-new .key { border-color: #ffd35a; color: #ffd35a; }
     </style>
 </head>
 
@@ -1078,8 +1128,9 @@
                 <p><span class="key">←</span><span class="key">→</span> Turn (classic mode)</p>
                 <p><span class="key">CLICK</span> / <span class="key">CTRL</span> Fire weapon &nbsp; <span class="key">SPACE</span> Jump</p>
                 <p><span class="key">E</span> Open doors &nbsp; <span class="key">SHIFT</span> Sprint</p>
-                <p><span class="key">1</span>–<span class="key">5</span> / <span class="key">Q</span> / <span class="key">WHEEL</span> Switch weapon &nbsp; <span class="key">TAB</span> Minimap</p>
+                <p><span class="key">1</span>–<span class="key">5</span> / <span class="key">Q</span> / <span class="key">WHEEL</span> Switch weapon &nbsp; <span class="key">TAB</span> Tactical map</p>
                 <p><span class="key">[</span><span class="key">]</span> Mouse sensitivity &nbsp; <span class="key">U</span> Mute &nbsp; <span class="key">ESC</span> Pause</p>
+                <p class="mi-new"><span class="key">RMB</span> Aim down sights &nbsp; <span class="key">V</span> Quick melee (table leg) &nbsp; <span class="key">F</span> Inspect weapon</p>
                 <p style="margin-top:14px;color:#fc6">🌽 FRITOS® Corn Chips +25 HP &nbsp; 🎨 Paint Bucket +14 paint</p>
                 <p style="color:#fc6">💰 Cash & Gold = score. Find secret weapons!</p>
                 <div class="panel-footer">PRESS ENTER OR ESC TO RETURN</div>
@@ -1168,26 +1219,48 @@
         </div>
 
         <!-- ============ STATE CARDS ============ -->
-        <div id="screen-transition" class="overlay hidden">
-            <div class="card">
-                <h1 style="color:#0f0">FLOOR CLEARED!</h1>
+        <!-- MODERN M3.6: per-floor loading / briefing card -->
+        <div id="screen-loading" class="overlay hidden mload">
+            <div class="ml-grid">
+                <div class="ml-left">
+                    <span class="ml-eyebrow">DEPLOYING · CARTEL HQ</span>
+                    <div class="ml-floor">FLOOR <b id="ml-num">1</b></div>
+                    <h1 class="ml-name" id="ml-name">THE LOBBY</h1>
+                    <p class="ml-sub" id="ml-sub">Ground floor. Smile for the receptionist.</p>
+                    <div class="ml-objective"><span>OBJECTIVE</span><b id="ml-objective">COLLECT 2 TABLES · REACH THE ELEVATOR</b></div>
+                    <div class="ml-tip"><span>FIELD TIP</span><i id="ml-tip"></i></div>
+                </div>
+                <aside class="ml-right">
+                    <div class="mb-sat-head"><span>SAT-LINK · FLOOR PLAN</span><span id="ml-sat-label">SCAN</span></div>
+                    <canvas id="loading-sat" width="360" height="270"></canvas>
+                    <div class="ml-arsenal" id="ml-arsenal"></div>
+                </aside>
+                <footer class="ml-foot"><div class="mb-progress"><i id="ml-progress"></i></div><span class="ml-hint">PRESS ENTER TO DEPLOY</span></footer>
+            </div>
+        </div>
+
+        <div id="screen-transition" class="overlay hidden mcard-wrap">
+            <div class="card mcard">
+                <span class="mc-eyebrow">ELEVATOR SECURED</span>
+                <h1>FLOOR CLEARED</h1>
                 <p id="transition-stats"></p>
                 <p class="stat-line" id="transition-bonus"></p>
-                <p style="color:#9cf">Riding elevator up…</p>
+                <p class="mc-dim">Riding elevator up…</p>
             </div>
         </div>
 
-        <div id="screen-gameover" class="overlay hidden">
-            <div class="card">
-                <h1 style="color:#f33">FIRED!</h1>
+        <div id="screen-gameover" class="overlay hidden mcard-wrap">
+            <div class="card mcard mcard-red">
+                <span class="mc-eyebrow">PERFORMANCE REVIEW</span>
+                <h1>FIRED!</h1>
                 <p>The critics were too harsh.</p>
                 <p class="stat-line" id="gameover-score"></p>
-                <button id="btn-retry">Retry Floor</button>
-                <button id="btn-quit-menu">Main Menu</button>
+                <div class="mc-buttons"><button id="btn-retry">Retry Floor</button><button id="btn-quit-menu">Main Menu</button></div>
+                <p class="mc-dim">ENTER · RETRY FLOOR</p>
             </div>
         </div>
 
-        <div id="screen-pause" class="overlay hidden">
+        <div id="screen-pause" class="overlay hidden mpause">
             <div class="panel" style="text-align:center">
                 <div class="pause-portrait"><canvas id="face-canvas" width="32" height="32"></canvas><div class="portrait-plate">SANDY</div></div>
                 <h2>Paused</h2>
@@ -1202,8 +1275,8 @@
             </div>
         </div>
 
-        <div id="screen-victory" class="overlay crt hidden">
-            <div class="card" style="max-width:640px">
+        <div id="screen-victory" class="overlay hidden mcard-wrap">
+            <div class="card mcard mcard-gold" style="max-width:640px">
                 <div id="credits-content">
                     <h1 style="color:gold">MASTERPIECE RECLAIMED!</h1>
                     <p style="color:var(--wood);font-size:18px">The Head Designer has been splattered.</p>

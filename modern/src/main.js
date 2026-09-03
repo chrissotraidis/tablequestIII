@@ -97,13 +97,13 @@ const game = new Game(scene, camera, {
             noteFloorReached(next + 1);
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
-                game.loadLevel(next);
+                game.loadLevel(next, { keepStats: true, silent: true });
                 applyFloorLook();
                 renderer.compile(scene, camera); // pre-warm shaders behind the card
                 snapshotLevel();
-                setState('play');
+                showLoading(next, () => { setState('play'); startSong(LEVELS[next].music); hud.floorCard(next + 1, LEVELS[next].name, LEVELS[next].subtitle); });
             }
-        }, 2600);
+        }, 2400);
     },
     onBossDefeated: () => {
         playSound('fanfare');
@@ -133,7 +133,7 @@ function saveHighScore() {
     }
 }
 
-const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options',
+const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'screen-loading',
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
@@ -164,6 +164,7 @@ function setState(next) {
             renderMenu();
             break;
         case 'intro': showOnly('intro-screen'); break;
+        case 'loading': showOnly('screen-loading'); hud.hide(); exitPointerLock(); break;
         case 'play':
             showOnly();
             hud.show();
@@ -428,19 +429,21 @@ function updateIntroPresentation() {
 
 const SAT_WALLS = new Set(['#', 'W', 'B', 'M', 'O', 'C']);
 function drawSatPlan(floor, t) {
-    const c = $('briefing-sat');
+    if (brief.satFloor !== floor) { brief.satFloor = floor; brief.satT0 = t; $('mb-sat-floor').textContent = `FLOOR ${floor + 1} · ${LEVELS[floor].name.toUpperCase()}`; }
+    drawSatPlanTo($('briefing-sat'), floor, Math.min(1, (t - brief.satT0) / 2.2), $('mb-sat-scan'));
+}
+/** blueprint scan of a floor into any canvas; reveal 0..1 draws it in from the top */
+function drawSatPlanTo(c, floor, reveal, scanEl = null) {
     const ctx = c.getContext('2d');
     const lvl = LEVELS[floor];
     const rows = lvl.map, w = Math.max(...rows.map(r => r.length)), h = rows.length;
-    if (brief.satFloor !== floor) { brief.satFloor = floor; brief.satT0 = t; $('mb-sat-floor').textContent = `FLOOR ${floor + 1} · ${lvl.name.toUpperCase()}`; }
     const k = Math.min((c.width - 20) / w, (c.height - 20) / h);
     const ox = (c.width - w * k) / 2, oy = (c.height - h * k) / 2;
     ctx.fillStyle = '#0a1a30'; ctx.fillRect(0, 0, c.width, c.height);
     ctx.strokeStyle = 'rgba(120,160,210,0.10)'; ctx.lineWidth = 1;
     for (let gx = 0; gx < c.width; gx += 18) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, c.height); ctx.stroke(); }
     for (let gy = 0; gy < c.height; gy += 18) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(c.width, gy); ctx.stroke(); }
-    const reveal = Math.min(1, (t - brief.satT0) / 2.2); // the scan draws the floor in from the top
-    $('mb-sat-scan').textContent = `${Math.round(reveal * 100).toString().padStart(2, '0')}%`;
+    if (scanEl) scanEl.textContent = `${Math.round(reveal * 100).toString().padStart(2, '0')}%`;
     for (let y = 0; y < h; y++) {
         if (y / h > reveal) break;
         const row = rows[y].padEnd(w, lvl.wallChar);
@@ -472,12 +475,54 @@ function finishIntro() {
     startGameAt(0);
 }
 
+// ------------------------------------------------------------------ LOADING CARD (MODERN M3.6)
+const FLOOR_TIPS = [
+    'Break rooms hide Fritos. Cabinets hide cash. Everything hides splinters.',
+    'Cubicle walls stop staff, not paint. Aim over them with the nail gun from the supply room.',
+    'The reading rooms are dark. Let the compass bearings lead you to the tables.',
+    'Display pods are glass: you can see the tables, but you still have to walk in.',
+    'Fifteen staff on the line. The sprayer at the top of the floor pays for itself.',
+    'The Head Designer rages under half health and knocks supplies loose. Keep moving.',
+];
+let loadingTimer = null, loadingNext = null, loadingStart = 0, loadingDur = 0;
+const WEAPON_LABEL = { paintbrush: 'BRUSH', tableLeg: 'LEG', nailgun: 'NAILS', roller: 'ROLLER', sprayer: 'SPRAYER' };
+function showLoading(idx, then, dur = 3400) {
+    const lvl = LEVELS[idx];
+    const facts = floorFacts(lvl);
+    $('ml-num').textContent = idx + 1;
+    $('ml-name').textContent = lvl.name;
+    $('ml-sub').textContent = lvl.subtitle;
+    $('ml-objective').textContent = lvl.boss ? 'DEFEAT THE HEAD DESIGNER' : `COLLECT ${facts.tables} TABLES · REACH THE ELEVATOR`;
+    $('ml-tip').textContent = FLOOR_TIPS[idx] || '';
+    $('ml-sat-label').textContent = `FLOOR ${idx + 1} · ${facts.staff} STAFF`;
+    const owned = game.player?.weapons || ['paintbrush'];
+    $('ml-arsenal').innerHTML = Object.entries(WEAPON_LABEL).map(([k, l]) => `<span class="${owned.includes(k) ? 'have' : ''}">${l}</span>`).join('');
+    loadingNext = then; loadingStart = performance.now(); loadingDur = dur;
+    setState('loading');
+    if (loadingTimer) clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(finishLoading, dur);
+    drawSatPlanTo($('loading-sat'), idx, 0);
+    const tick = () => {
+        if (state !== 'loading') return;
+        const t = (performance.now() - loadingStart) / 1000;
+        $('screen-loading').style.setProperty('--ml-progress', `${Math.min(100, t / (loadingDur / 1000) * 100).toFixed(1)}%`);
+        drawSatPlanTo($('loading-sat'), idx, Math.min(1, t / 2.0));
+        requestAnimationFrame(tick);
+    };
+    tick();
+}
+function finishLoading() {
+    if (loadingTimer) { clearTimeout(loadingTimer); loadingTimer = null; }
+    const fn = loadingNext; loadingNext = null;
+    if (fn) fn();
+}
+
 function startGameAt(idx) {
     initAudio();
     window.TQ?.botCancel?.();
     menuBackdrop = false;
     game.player = null; // fresh run
-    game.loadLevel(idx, { keepStats: false });
+    game.loadLevel(idx, { keepStats: false, silent: true });
     // floor-select fairness: grant the weapons a player would have found by now
     if (idx >= 2 && !game.player.weapons.includes('tableLeg')) game.player.weapons.push('tableLeg');
     if (idx >= 3 && !game.player.weapons.includes('nailgun')) game.player.weapons.push('nailgun');
@@ -486,7 +531,8 @@ function startGameAt(idx) {
     applyFloorLook();
     renderer.compile(scene, camera); // pre-warm shaders so play starts hitch-free
     snapshotLevel();
-    setState('play');
+    // MODERN M3.6: floor card first, then deploy (Enter skips)
+    showLoading(idx, () => { setState('play'); startSong(LEVELS[idx].music); hud.floorCard(idx + 1, LEVELS[idx].name, LEVELS[idx].subtitle); });
 }
 
 function retryFloor() {
@@ -497,10 +543,10 @@ function retryFloor() {
         game.player.health = Math.max(game.player.health, 75);
         game.player.ammo = Math.max(game.player.ammo, 20);
     }
-    game.loadLevel(game.levelIndex, { keepStats: true });
+    game.loadLevel(game.levelIndex, { keepStats: true, silent: true });
     applyFloorLook();
     renderer.compile(scene, camera);
-    setState('play');
+    showLoading(game.levelIndex, () => { setState('play'); startSong(game.level.music); hud.floorCard(game.levelIndex + 1, game.level.name, game.level.subtitle); }, 1800);
 }
 
 function pauseSelect() {
@@ -558,6 +604,9 @@ onKeyPress((e) => {
             break;
         case 'intro':
             if (e.code === 'Enter' || e.code === 'Escape' || e.code === 'Space') finishIntro();
+            break;
+        case 'loading':
+            if (e.code === 'Enter' || e.code === 'Space') finishLoading();
             break;
         case 'play':
             if (e.code === 'Escape') setState('pause');
@@ -802,7 +851,7 @@ window.TQ = {
     get scene() { return scene; },
     get player() { return game.player; },
     setState,
-    startGameAt,
+    startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
     skipBoot() { setState('menu'); initAudio(); },
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {
