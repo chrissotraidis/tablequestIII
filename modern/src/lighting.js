@@ -14,6 +14,8 @@
  *   panels  — emissive ceiling panels: colour + intensity (bloom picks these up)
  *   exposure— per-floor tone-mapping exposure
  *   grade   — post-processing grade (see postfx.js DEFAULT_GRADE for keys)
+ *   height  — ceiling height for the floor (classic is 1.35 everywhere)
+ *   trim    — architectural trim colours (see trim.js)
  *
  * Colours follow the classic per-floor palette (levels.js fogColor/ambient/
  * accent) so each floor keeps its mood; values were tuned against captures.
@@ -30,6 +32,8 @@ const RIGS = [
         fixture: 0xfff2d8,
         panels: { color: 0xfff4de, intensity: 1.35 },
         exposure: 1.05,
+        height: 2.0,
+        trim: { base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28, beams: false },
         grade: { tint: [1.0, 1.0, 1.04], saturation: 0.88, contrast: 1.06, vignette: 0.35, grain: 0.04, bloom: { strength: 0.3, threshold: 0.92 } },
     },
     // 2 The Office — flat fluorescent grid, slightly warm-white, steep
@@ -41,6 +45,8 @@ const RIGS = [
         fixture: 0xffffff,
         panels: { color: 0xf4f7ff, intensity: 1.5 },
         exposure: 1.0,
+        height: 1.7,
+        trim: { base: 0x4d3a2a, crown: 0xd9d4c8, frame: 0x6a4c34, beams: false },
         grade: { tint: [1.02, 1.0, 0.96], saturation: 0.85, contrast: 1.05, vignette: 0.38, grain: 0.045, bloom: { strength: 0.28, threshold: 0.93 } },
     },
     // 3 The Archives — dark basement, low key from a caged bulb rail, orange
@@ -52,6 +58,8 @@ const RIGS = [
         fixture: 0xffc890,
         panels: { color: 0xffb877, intensity: 0.9 },
         exposure: 0.95,
+        height: 1.55,
+        trim: { base: 0x2c2f36, crown: 0x3a3e46, frame: 0x3d3128, beams: true, beamColor: 0x2a2d33 },
         grade: { tint: [1.04, 0.98, 0.92], saturation: 0.8, contrast: 1.07, lift: 0.0, vignette: 0.45, grain: 0.07, bloom: { strength: 0.4, threshold: 0.9 } },
     },
     // 4 The Showroom — warm retail spots, key from tall display windows
@@ -63,6 +71,8 @@ const RIGS = [
         fixture: 0xfff0d6,
         panels: { color: 0xfff1de, intensity: 1.2 },
         exposure: 1.02,
+        height: 2.0,
+        trim: { base: 0x5a3a20, crown: 0xf0e6d6, frame: 0x6b4a2c, beams: false },
         grade: { tint: [1.05, 1.0, 0.94], saturation: 0.95, contrast: 1.05, vignette: 0.36, grain: 0.04, bloom: { strength: 0.32, threshold: 0.9 } },
     },
     // 5 The Factory — cold clerestory light through smoke, cyan sodium mix
@@ -74,6 +84,8 @@ const RIGS = [
         fixture: 0xc8ecff,
         panels: { color: 0xd0f0ff, intensity: 1.1 },
         exposure: 0.98,
+        height: 2.3,
+        trim: { base: 0x33383e, crown: 0x2c3036, frame: 0x8a9096, beams: true, beamColor: 0x3a4048, metalFrames: true },
         grade: { tint: [0.94, 1.0, 1.06], saturation: 0.78, contrast: 1.12, lift: -0.01, vignette: 0.5, grain: 0.065, bloom: { strength: 0.45, threshold: 0.86 } },
     },
     // 6 The Penthouse — night city through glass, red executive accent
@@ -85,6 +97,8 @@ const RIGS = [
         fixture: 0xffd0c0,
         panels: { color: 0xffe0d0, intensity: 1.0 },
         exposure: 1.0,
+        height: 2.1,
+        trim: { base: 0x2a1c1c, crown: 0x1e1416, frame: 0xc9a227, beams: false, metalFrames: true },
         grade: { tint: [1.06, 0.98, 0.98], saturation: 0.85, contrast: 1.08, vignette: 0.5, grain: 0.06, bloom: { strength: 0.4, threshold: 0.95 } },
     },
 ];

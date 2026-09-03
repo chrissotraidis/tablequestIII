@@ -265,7 +265,8 @@ export class Game {
         const b = builders[char];
         if (!b) return;
         const [kind, build] = b;
-        const mesh = setShadow(build(), { receive: false });
+        // objectives and weapons cast; small consumables hover and don't need to
+        const mesh = setShadow(build(), { receive: false, cast: kind === 'table' || kind.startsWith('weapon:') });
         mesh.position.set(x, 0, y);
         this.scene.add(mesh);
         if (kind === 'table') this.requiredTables++;

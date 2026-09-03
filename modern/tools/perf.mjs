@@ -1,7 +1,8 @@
 /**
  * Per-floor render stats for the §3.2-4 budget (draw calls < 400, frame time).
  *   node modern/tools/perf.mjs [url]
- * Draw calls include the shadow pass. Frame time is SwiftShader (software)
+ * `calls` is the main pass; `callsWithShadow` adds the shadow-map pass
+ * (the §3.2-4 budget of 400 applies to the whole frame). Frame time is SwiftShader (software)
  * and only meaningful relative to the M0 baseline in PROGRESS.md.
  */
 import { chromium } from 'playwright-core';
@@ -23,9 +24,16 @@ for (const f of [0, 1, 2, 3, 4, 5]) {
         requestAnimationFrame(tick);
     }).then(({ ts }) => {
         const avg = ts.slice(4).reduce((a, c) => a + c, 0) / (ts.length - 4);
-        const i = TQ.renderer.info;
+        const r = TQ.renderer, info = r.info, cam = TQ.game.camera;
+        // main pass only (three resets its counters after the shadow pass)
+        info.autoReset = true; r.render(TQ.scene, cam);
+        const mainCalls = info.render.calls, tris = info.render.triangles;
+        // whole frame incl. shadow pass: accumulate one explicit render
+        info.autoReset = false; info.reset(); r.render(TQ.scene, cam);
+        const totalCalls = info.render.calls;
+        info.autoReset = true;
         let lights = 0; TQ.scene.traverse(o => { if (o.isLight) lights++; });
-        return { floor: TQ.game.levelIndex + 1, calls: i.render.calls, tris: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, lights, avgMs: +avg.toFixed(1) };
+        return { floor: TQ.game.levelIndex + 1, calls: mainCalls, callsWithShadow: totalCalls, tris, geometries: info.memory.geometries, textures: info.memory.textures, lights, avgMs: +avg.toFixed(1) };
     }));
     rows.push(r);
 }

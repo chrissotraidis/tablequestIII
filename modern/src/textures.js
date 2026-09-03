@@ -140,7 +140,7 @@ function stone() {
     return c;
 }
 
-function metal() {
+function metal(stripe = true) {
     const [c, ctx] = makeCanvas();
     vgrad(ctx, SIZE, '#6a7077', '#4d5258');
     // brushed lines
@@ -161,7 +161,8 @@ function metal() {
         ctx.fillStyle = '#9aa3ad';
         ctx.beginPath(); ctx.arc(rx - 1.5, ry - 1.5, 2, 0, 7); ctx.fill();
     }
-    // warning stripe
+    // warning stripe (lower band only — upper repeats use metalPlain)
+    if (stripe) {
     ctx.save();
     ctx.globalAlpha = 0.55;
     for (let x = -SIZE; x < SIZE; x += 28) {
@@ -171,9 +172,11 @@ function metal() {
         ctx.closePath(); ctx.fill();
     }
     ctx.restore();
+    }
     speckle(ctx, SIZE, 600, '#000', 0.12);
     return c;
 }
+const metalPlain = () => metal(false);
 
 function officePanel() {
     const [c, ctx] = makeCanvas();
@@ -452,6 +455,7 @@ const SURFACE = {
     wood:         { bump: 0.7, rough: 0.55, roughVar: 0.20, metal: 0.0 },
     stone:        { bump: 2.4, rough: 0.88, roughVar: 0.10, metal: 0.0 },
     metal:        { bump: 1.3, rough: 0.38, roughVar: 0.25, metal: 0.65 },
+    metalPlain:   { bump: 1.3, rough: 0.38, roughVar: 0.25, metal: 0.65 },
     office:       { bump: 0.7, rough: 0.72, roughVar: 0.15, metal: 0.0 },
     concrete:     { bump: 1.6, rough: 0.92, roughVar: 0.06, metal: 0.0 },
     door:         { bump: 1.4, rough: 0.48, roughVar: 0.20, metal: 0.35 },
@@ -610,7 +614,7 @@ function applyWallAO(canvas) {
 let cache = null;
 
 const BUILDERS = {
-    brick, wood: woodPanel, stone, metal, office: officePanel, concrete,
+    brick, wood: woodPanel, stone, metal, metalPlain, office: officePanel, concrete,
     door: doorTex, gate: gateTex, elevator: elevatorTex,
     marble, carpet, woodFloor, stoneFloor, factoryFloor, ceiling, metalCeil,
 };
@@ -629,7 +633,9 @@ export function getTextures() {
         const cfg = SURFACE[k];
         // derive relief before the AO gradient so edge darkening doesn't tilt the normals
         const maps = deriveSurfaceMaps(cv, cfg);
-        if (wallKeys.has(k)) applyWallAO(cv);
+        // MODERN: no baked AO band — walls tile vertically now and real
+        // shadows + baseboards/crown do the grounding (applyWallAO kept for reference)
+        void wallKeys;
         const map = tex(cv);
         cache[k] = map;
         surfaces[k] = {

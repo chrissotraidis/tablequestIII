@@ -9,6 +9,7 @@ import { PROP_BUILDERS, buildPainting, buildRug } from './models.js';
 import { playSound } from './audio.js';
 import { getRig, makeKeyLight, setShadow } from './lighting.js';
 import { bakeStatic } from './bake.js';
+import { buildTrim } from './trim.js';
 
 const WALL_TYPE = {
     '#': CELL.BRICK, 'W': CELL.WOOD, 'B': CELL.STONE,
@@ -18,6 +19,11 @@ const TEX_FOR_TYPE = {
     [CELL.BRICK]: 'brick', [CELL.WOOD]: 'wood', [CELL.STONE]: 'stone',
     [CELL.CONCRETE]: 'concrete', [CELL.OFFICE]: 'office', [CELL.METAL]: 'metal',
 };
+// MODERN: walls are taller per floor. Tileable surfaces repeat vertically at
+// the classic 1.35-unit scale (bricks stay brick-sized); the office panel has
+// a wainscot band, so it stretches like classic did.
+const VERTICAL_TILE = new Set([CELL.BRICK, CELL.WOOD, CELL.STONE, CELL.CONCRETE, CELL.METAL]);
+const DOOR_H = WALL_HEIGHT; // door/gate/elevator panels keep the classic height
 
 /** deterministic RNG so prop placement is stable per level */
 function mulberry32(seed) {
@@ -90,8 +96,29 @@ export class World {
         const w = this.w = Math.max(...rows.map(r => r.length));
         const h = this.h = rows.length;
         const grid = this.grid = new Int8Array(w * h);
+        const H = this.H = getRig(this.levelIndex).height ?? WALL_HEIGHT;
+        const wallType = WALL_TYPE[lvl.wallChar] ?? CELL.OFFICE;
 
         const geosByType = {};
+        const wallBox = (type, x, y, y0, y1) => {
+            // metal carries a hazard stripe in its lower band: split tall metal
+            // walls so the stripe stays at floor level and the rest is plain plate
+            if (type === CELL.METAL && y0 < DOOR_H && y1 > DOOR_H + 0.01) {
+                wallBox(type, x, y, y0, DOOR_H);
+                wallBox('metalPlain', x, y, DOOR_H, y1);
+                return;
+            }
+            const g = new THREE.BoxGeometry(1, y1 - y0, 1);
+            const tile = VERTICAL_TILE.has(type) || type === 'metalPlain';
+            if (tile) {
+                const uv = g.attributes.uv;
+                const k = (y1 - y0) / WALL_HEIGHT;
+                for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * k + y0 / WALL_HEIGHT);
+            }
+            g.translate(x + 0.5, (y0 + y1) / 2, y + 0.5);
+            const surf = type === 'metalPlain' ? 'metalPlain' : TEX_FOR_TYPE[type];
+            (geosByType[surf] = geosByType[surf] || []).push(g);
+        };
 
         for (let y = 0; y < h; y++) {
             const row = rows[y].padEnd(w, lvl.wallChar);
@@ -101,15 +128,15 @@ export class World {
 
                 if (WALL_TYPE[ch] !== undefined) {
                     type = WALL_TYPE[ch];
-                    const g = new THREE.BoxGeometry(1, WALL_HEIGHT, 1);
-                    g.translate(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
-                    (geosByType[type] = geosByType[type] || []).push(g);
+                    wallBox(type, x, y, 0, H);
                 } else if (ch === '+') {
                     type = CELL.DOOR;
                     this.makeDoor(x, y, rows, w, h, lvl);
+                    if (H > DOOR_H + 0.01) wallBox(wallType === CELL.METAL ? 'metalPlain' : wallType, x, y, DOOR_H, H); // transom above the door
                 } else if (ch === 'X') {
                     type = CELL.GATE;
                     this.makeGate(x, y);
+                    if (H > DOOR_H + 0.01) wallBox(wallType === CELL.METAL ? 'metalPlain' : wallType, x, y, DOOR_H, H);
                 } else if (ch === 'E') {
                     type = CELL.ELEVATOR;
                     this.elevatorCells.push([x, y]);
@@ -123,9 +150,9 @@ export class World {
         }
 
         // merged wall meshes (one draw call per material)
-        for (const [type, geos] of Object.entries(geosByType)) {
+        for (const [surf, geos] of Object.entries(geosByType)) {
             const merged = BufferGeometryUtils.mergeGeometries(geos);
-            const m = surfaceMaterial(TEX_FOR_TYPE[type]);
+            const m = surfaceMaterial(surf);
             const mesh = new THREE.Mesh(merged, m);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
@@ -148,7 +175,7 @@ export class World {
             surfaceMaterial(lvl.ceilTex, { repeat: [w, h] })
         );
         ceil.rotation.x = Math.PI / 2;
-        ceil.position.set(w / 2, WALL_HEIGHT, h / 2);
+        ceil.position.set(w / 2, H, h / 2);
         // the ceiling never casts: the key light is "the overhead lighting"
         ceil.castShadow = false;
         ceil.receiveShadow = false;
@@ -164,6 +191,9 @@ export class World {
         this.addZones();
         this.addProps();
         this.addWallDecor();
+        this.group.add(buildTrim(this, this.H, DOOR_H, getRig(this.levelIndex).trim || {
+            base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28,
+        }));
     }
 
     // ------------------------------------------------------------ PROPS
@@ -431,7 +461,7 @@ export class World {
                 const art = buildPainting(Math.floor(rng() * 3));
                 art.position.set(
                     x + 0.5 + dx * 0.51,
-                    WALL_HEIGHT * 0.58,
+                    WALL_HEIGHT * 0.58 + (this.H - WALL_HEIGHT) * 0.25,
                     y + 0.5 + dy * 0.51);
                 art.rotation.y = rotY;
                 this.group.add(art);
@@ -475,10 +505,10 @@ export class World {
         // panel spans X if walls left+right, else spans Z
         const spanX = isWallAt(x - 1, y) && isWallAt(x + 1, y);
         const geo = spanX
-            ? new THREE.BoxGeometry(1, WALL_HEIGHT, 0.14)
-            : new THREE.BoxGeometry(0.14, WALL_HEIGHT, 1);
+            ? new THREE.BoxGeometry(1, DOOR_H, 0.14)
+            : new THREE.BoxGeometry(0.14, DOOR_H, 1);
         const mesh = new THREE.Mesh(geo, surfaceMaterial('door'));
-        mesh.position.set(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
+        mesh.position.set(x + 0.5, DOOR_H / 2, y + 0.5);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         this.group.add(mesh);
@@ -492,10 +522,10 @@ export class World {
     makeGate(x, y) {
         const tex = getTextures();
         const mesh = new THREE.Mesh(
-            new THREE.BoxGeometry(1, WALL_HEIGHT, 0.1),
+            new THREE.BoxGeometry(1, DOOR_H, 0.1),
             surfaceMaterial('gate', { transparent: true })
         );
-        mesh.position.set(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
+        mesh.position.set(x + 0.5, DOOR_H / 2, y + 0.5);
         this.group.add(mesh);
         this.gates.push({ x, y, mesh, t: 0 });
     }
@@ -513,7 +543,7 @@ export class World {
         const hemi = new THREE.HemisphereLight(rig.hemi.sky, rig.hemi.ground, rig.hemi.intensity);
         this.group.add(hemi);
 
-        const key = makeKeyLight(rig, this.w, this.h, WALL_HEIGHT);
+        const key = makeKeyLight(rig, this.w, this.h, this.H);
         this.group.add(key);
         this.group.add(key.target);
         this.keyLight = key;
@@ -537,14 +567,14 @@ export class World {
             const [cx, cy] = cell;
             const a = rig.accents;
             const light = new THREE.PointLight(a.color, a.intensity, a.distance, a.decay);
-            light.position.set(cx + 0.5, WALL_HEIGHT - 0.14, cy + 0.5);
+            light.position.set(cx + 0.5, this.H - 0.14, cy + 0.5);
             this.group.add(light);
             this.fixtureLights.push(light);
             const hg = new THREE.BoxGeometry(0.46, 0.06, 0.46);
-            hg.translate(cx + 0.5, WALL_HEIGHT - 0.03, cy + 0.5);
+            hg.translate(cx + 0.5, this.H - 0.03, cy + 0.5);
             housingGeos.push(hg);
             const lg = new THREE.BoxGeometry(0.36, 0.02, 0.36);
-            lg.translate(cx + 0.5, WALL_HEIGHT - 0.065, cy + 0.5);
+            lg.translate(cx + 0.5, this.H - 0.065, cy + 0.5);
             lensGeos.push(lg);
         }
         if (housingGeos.length) {
@@ -569,7 +599,7 @@ export class World {
                 if (this.grid[y * this.w + x] === CELL.EMPTY) {
                     const pg = new THREE.PlaneGeometry(0.5, 0.5);
                     pg.rotateX(Math.PI / 2);
-                    pg.translate(x + 0.5, WALL_HEIGHT - 0.01, y + 0.5);
+                    pg.translate(x + 0.5, this.H - 0.01, y + 0.5);
                     panelGeos.push(pg);
                 }
         if (panelGeos.length) {
@@ -594,7 +624,7 @@ export class World {
         cy /= this.elevatorCells.length;
 
         const light = new THREE.PointLight(0x55ff88, 8, 7, 1.4);
-        light.position.set(cx, WALL_HEIGHT - 0.2, cy);
+        light.position.set(cx, this.H - 0.2, cy);
         this.group.add(light);
         this.elevatorLight = light;
 
@@ -617,10 +647,10 @@ export class World {
             const t = this.cellRaw(nx, ny);
             if (t >= CELL.BRICK && t !== CELL.DOOR && t !== CELL.GATE && t !== CELL.ELEVATOR && t !== CELL.EMPTY) {
                 const plane = new THREE.Mesh(
-                    new THREE.PlaneGeometry(this.elevatorCells.length, WALL_HEIGHT),
+                    new THREE.PlaneGeometry(this.elevatorCells.length, DOOR_H),
                     surfaceMaterial('elevator')
                 );
-                plane.position.set(cx - dx * 0 + (dx === 0 ? 0 : 0), WALL_HEIGHT / 2, cy - dy * 0);
+                plane.position.set(cx - dx * 0 + (dx === 0 ? 0 : 0), DOOR_H / 2, cy - dy * 0);
                 // place flush against the wall face
                 plane.position.x = dx !== 0 ? nx + (dx > 0 ? -0.01 : 1.01) : cx;
                 plane.position.z = dy !== 0 ? ny + (dy > 0 ? -0.01 : 1.01) : cy;
@@ -777,7 +807,7 @@ export class World {
             for (const g of this.gates) {
                 if (g.t < 1) {
                     g.t = Math.min(1, g.t + dt * 0.7);
-                    g.mesh.position.y = WALL_HEIGHT / 2 - g.t * WALL_HEIGHT;
+                    g.mesh.position.y = DOOR_H / 2 - g.t * DOOR_H;
                     g.mesh.material.opacity = 1 - g.t * 0.6;
                 }
             }
