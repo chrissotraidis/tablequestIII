@@ -354,6 +354,7 @@ export class Game {
 
         // --- move: smoothed velocity for snappy-but-not-instant feel ---
         const speed = input.sprint ? PLAYER_SPRINT : PLAYER_SPEED;
+        this.sprinting = !!input.sprint; // R2.2: the portrait huffs while sprinting and moving
         let mx = 0, my = 0;
         const c = Math.cos(p.rot), s = Math.sin(p.rot);
         if (input.forward) { mx += c; my += s; }
@@ -809,7 +810,7 @@ export class Game {
                     const d = Math.hypot(p.x - nx, p.y - ny);
                     if (d < 0.32) {
                         dead = true;
-                        this.hurtPlayer(pr.damage, nx - pr.vx, ny - pr.vy);
+                        this.hurtPlayer(pr.damage, nx - pr.vx, ny - pr.vy, pr.color);
                         this.effects.burst(new THREE.Vector3(nx, pr.z, ny), pr.color, 10, 1.6, 0.4);
                     }
                 } else {
@@ -890,7 +891,7 @@ export class Game {
         }
     }
 
-    hurtPlayer(dmg, fromX, fromY) {
+    hurtPlayer(dmg, fromX, fromY, color = null) {
         const p = this.player;
         if (this.godmode || !p.alive) return;
         // brief mercy window, slightly longer when nearly dead (pity rule)
@@ -899,6 +900,7 @@ export class Game {
         p.lastHurtTime = this.time;
         playSound('pain');
         hud.damageFlash(0.55);
+        if (color) hud.setSplat('#' + (color.isColor ? color.getHex() : color).toString(16).padStart(6, '0')); // R2.2
         // MODERN M2.4: wedge toward the source, relative to facing (0 = ahead, +cw)
         if (fromX !== undefined) {
             let rel = Math.atan2(fromY - p.y, fromX - p.x) - p.rot;
@@ -1298,6 +1300,7 @@ export class Game {
         if (this.time - this.lastFullHint < 1.5) return;
         this.lastFullHint = this.time;
         hud.toast(`${what} ALREADY FULL`, 900);
+        hud.benchHint(`${what} ALREADY FULL`); // R2.3
     }
 
     checkElevator() {

@@ -480,3 +480,44 @@ Not in §1.3 but checked: the classic build is byte-identical to `main` (`check:
 
 Delivered: full campaign clear in the modern build (M7.1); whole-frame draw calls under 400 on every floor (M7.2); the classic-vs-modern comparison sheet (M7.3); the §1.3 audit with every line ticked and proven (M7.4); README gallery, CHANGELOG entry, and the design chapter under `docs/modern/` (M7.5). Smoke green, validator 6/6, frozen guard OK, build 14.5 MB, no external assets.
 Owed to the user (the M7 gate is the final review): hardware checks for 60 fps, recoil/ADS feel, animation subtlety, and the listening review of the score; the pending §5 decisions carry their defaults (5-C, 5-D, 5-E). No merge or release has been made: the preview lives on `modern-preview` and builds to `dist/modern/index.html`.
+
+
+---
+
+## Round 2 — polish (docs/modern/GOAL_LOOP_2.md)
+
+| Milestone | Status | Notes |
+|:--|:--|:--|
+| R1 Front-end charm returns | DONE | workbench menu, cinematic crawl, flow |
+| R2 Workbench status bar returns | DONE | bench, reactive portrait, rack icons |
+| R3 Hands and arms | TODO | |
+| R4 Weapons, major polish | TODO | |
+| R5 Controls polish | TODO | |
+| R6 Playtest and gate | TODO | |
+
+Decisions: R-A bench opaque and non-fading; R-B crawl is the New Game path; R-C ADS and sprint default to hold. §5-G (unattended) carries over.
+
+### R1.1 — Workbench main menu returns   (2026-09-03)
+**Changed:** `modern/index.html` — the classic v2 menu markup and CSS (wood cover `menu_workbench_bg.png`, tilted box art with caption, Impact title, numbered items, animated paintbrush cursor, high-score plate, case file, footer) replace the live-Lobby lockup, with the five modern items. Modern touches: sawdust motes drifting up, a slow warm light sweep, animated film grain, the pointer parallax kept. Sub-screens (Floor Select, Options, How to Play) now open **without** the cover, so the live, lit Lobby shows behind them — the cover lifts.
+**Evidence:** `modern/docs/R1/menu.jpg`, `menu-floor-select-item.jpg`, `floor-select.jpg` (Lobby behind the elevation), `options.jpg`.
+**Preservation:** the seven original PNGs unmodified; menu actions, high score key unchanged.
+
+### R1.2 — Cinematic story crawl returns, modernized   (2026-09-03)
+**Changed:** the six-beat scrolling crawl is the New Game path again (backdrop drift, floating brush, beat focus, vertical progress rail, skip). The scroll is driven by wall-clock JavaScript (56 s, 105 % → −360 %) instead of a CSS transition so it is frame-rate independent and screenshots deterministically. Modern staging: letterbox bars, grain, kinetic word reveal per beat (words wrapped once at runtime; the text of record is untouched), a paint-splat wipe on every beat change, a satellite inset scanning one floor per beat, and a white smash cut into the Floor 1 loading card. Focus rule: a beat covering the centre line wins, else the nearest edge.
+**Evidence:** `modern/docs/R1/crawl-2_5s.jpg` … `crawl-55_2s.jpg`, `loading-card.jpg`; smoke's story-text check passes (`.intro-container` text identical).
+**Preservation:** story text verbatim; ≈56 s; Enter skips.
+
+### R1.3 — Flow check   (2026-09-03)
+Boot → title → workbench menu → crawl → loading card → Floor 1 → pause → quit → menu, with the menu, intro, and floor songs at each step. Smoke green.
+
+### R2.1 — The bench panel is the HUD again   (2026-09-03)
+**Changed:** `#bench` inside `#hud`: brass plaques (Floor, Score), tables (with icons) and staff counters, health and paint troughs with values, Sandy's portrait in the carved frame, the weapon name and pegboard rack. CSS wood with an SVG grain overlay, brass screws and bevels, tabular numerals, low-state pulse on the troughs, 1240 px and 980 px breakpoints. The modern bottom-left and bottom-right clusters and the top-left chips are gone; compass, objective line, feed, hit markers, damage wedge, objective marker, floor card, barks stay. The bench never fades with the idle HUD (R-A).
+**Evidence:** `modern/docs/R2/bench-1280.jpg`, `bench-960.jpg`, `pause-portrait.jpg`. Smoke green (all classic ids present).
+
+### R2.2 — Sandy's face reacts   (2026-09-03)
+**Changed:** `modern/src/face.js` — a 64×64 pixel portrait with idle breathing, blink and glance, hit flinch away from the damage direction with eyes shut and the hit's paint colour on the cheek, mid/low/critical palettes (pale, sweat, bloodshot, bruise, mussed hair), X eyes when dead, a grin for 0.8 s after a pickup, an aiming squint, sprint huff with flushed cheeks, a teeth-grit on heavy tools, worried brows under the boss's rage, and a rim/tint from the floor's accent colour. `hud.js` feeds it from `damageDir`, `pickupFlash`, `setSplat` (projectile colour passed from `hurtPlayer`), `game.aim`, `game.sprinting`, `game.recoil`, `game.boss.phase2`, `level.accent`. The pause panel mirrors the bench canvas.
+**Evidence:** `modern/docs/R2/face-sheet.jpg` (`TQ.faceSheet()`, 16 states), `bench-hurt-low.jpg` (hit from the right, 21 HP: shut eyes, red splat, low-health pulse on the trough).
+
+### R2.3 — Rack icons and readouts   (2026-09-03)
+**Changed:** 12×7 pixel tool icons drawn into each rack slot (brush, leg, nailer, roller launcher, sprayer), empty slots ghosted, active slot lit; low-paint and low-health pulse; `hud.benchHint()` shows "ALREADY FULL" on the bench.
+**Evidence:** rack visible in `bench-1280.jpg`.

@@ -15,6 +15,7 @@
  */
 import * as THREE from 'three';
 import { CELL } from './config.js';
+import { drawFace as paintFace, FACE_DEFAULTS } from './face.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -42,6 +43,22 @@ const IDLE_AFTER = 4; // seconds
 function poke(time) { lastEvent = time ?? lastEvent; if (idle) { idle = false; $('hud').classList.remove('idle'); } }
 
 const _v = new THREE.Vector3();
+
+// R2.2: signals the portrait listens to
+const face = { hurtDir: 0, splat: null, pickupAt: -99, hurtAt: -99 };
+const TOOL_ICON = { // 12×7 pixel tools, drawn 3× into the rack slot canvases
+    paintbrush: ['....bbb.....', '....bbb.....', '.hhhhhhh....', 'wwwwwwwwwwr.', '.hhhhhhh....', '....bbb.....', '....bbb.....'],
+    tableLeg:   ['............', 'ddwwwwwwwwd.', 'dwwwwwwwwwwd', 'dwwwwwwwwwwd', 'ddwwwwwwwwd.', '............', '............'],
+    nailgun:    ['..oooooo....', '..oooooooo..', 'ssoooooooo..', '..oooooo....', '....dd......', '....dd......', '....ddd.....'],
+    roller:     ['..mmmmmmmm..', '.mmmmmmmmmmy', '.mmmmmmmmmmy', '..mmmmmmmm..', '....dd......', '....dd......', '....ddd.....'],
+    sprayer:    ['..rrrrr.....', '.rrrrrrr.ss.', '.rrrrrrrsss.', '..rrrrr.ss..', '....dd......', '....dd......', '....ddd.....'],
+};
+const ICON_COL = { b: '#8a5a2e', h: '#d8d5cc', w: '#8a5a2c', r: '#cc3322', o: '#e07820', s: '#8a929c', d: '#2b3038', m: '#4a525c', y: '#ffaa22' };
+function drawToolIcon(c, key) {
+    const rows = TOOL_ICON[key]; if (!rows) return;
+    const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, c.width, c.height);
+    rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') { ctx.fillStyle = ICON_COL[ch]; ctx.fillRect(x, y, 1, 1); } }));
+}
 
 export const hud = {
     show() { $('hud').classList.remove('hidden'); $('crosshair').classList.remove('hidden'); poke(); },
@@ -75,6 +92,8 @@ export const hud = {
         const el = $('damage-dir');
         el.style.transform = `rotate(${(angleRel * 180 / Math.PI).toFixed(1)}deg)`;
         el.classList.add('on');
+        face.hurtDir = Math.abs(Math.sin(angleRel)) < 0.3 ? 0 : Math.sin(angleRel) > 0 ? 1 : -1; // R2.2: the portrait flinches away from the hit
+        face.hurtAt = performance.now();
         if (dirTimer) clearTimeout(dirTimer);
         dirTimer = setTimeout(() => el.classList.remove('on'), holdMs);
         poke();
@@ -129,7 +148,7 @@ export const hud = {
         if (lastVals._hbw !== hbw) { lastVals._hbw = hbw; $('healthbar').style.width = hbw; }
         const hpEl = $('hud-health');
         const hpState = hp <= 25 ? 'low' : hp <= 50 ? 'mid' : 'ok';
-        if (lastVals._hpState !== hpState) { lastVals._hpState = hpState; hpEl.style.color = hpState === 'low' ? '#ff5a4a' : hpState === 'mid' ? '#ffb070' : ''; }
+        if (lastVals._hpState !== hpState) { lastVals._hpState = hpState; hpEl.style.color = hpState === 'low' ? '#ff5a4a' : hpState === 'mid' ? '#ffb070' : ''; $('health-trough')?.classList.toggle('low', hpState === 'low'); }
 
         // ---- paint + weapon
         if (lastVals.ammo !== player.ammo) { if (lastVals.ammo !== undefined) poke(time); lastVals.ammo = player.ammo; }
@@ -145,6 +164,7 @@ export const hud = {
             lastVals._ammoState = ammoState;
             ammoEl.style.color = ammoState === 'low' ? '#ff5a4a' : '';
             ammoEl.style.opacity = ammoState === 'melee' ? '0.35' : '1';
+            $('paint-trough')?.classList.toggle('low', ammoState === 'low');
         }
         const rackSig = `${player.weapons.join(',')}|${player.currentWeapon}`;
         if (lastVals._rack !== rackSig) {
@@ -155,9 +175,10 @@ export const hud = {
                 const k = player.weapons[i];
                 const def = k && game.weaponDefs[k];
                 const cls = 'rack-slot' + (i === player.currentWeapon ? ' active' : '') + (def ? '' : ' empty');
-                html += `<div class="${cls}"><span class="num">${i + 1}</span><span class="wname">${def ? (def.short || def.name) : '—'}</span></div>`;
+                html += `<div class="${cls}"><canvas class="ricon" width="12" height="7" data-w="${k || ''}"></canvas><span class="wname">${def ? (def.short || def.name) : '—'}</span><span class="num">${i + 1}</span></div>`;
             }
             $('weapon-rack').innerHTML = html;
+            $('weapon-rack').querySelectorAll('.ricon').forEach((c, i) => drawToolIcon(c, c.dataset.w || ['paintbrush', 'tableLeg', 'nailgun', 'roller', 'sprayer'][i]));
         }
 
         // ---- counters
@@ -310,48 +331,40 @@ export const hud = {
         const el = $('pickup-overlay');
         el.style.opacity = 1;
         setTimeout(() => { el.style.opacity = 0; }, 180);
+        face.pickupAt = performance.now(); // R2.2: a grin on the portrait
         poke();
     },
 
-    /** Sandy's pixel portrait (now on the pause panel; skipped while hidden) */
-    drawFace(player, time) {
+    /** R2.2: the colour of the last paint that hit Sandy (portrait cheek splat) */
+    setSplat(cssColor) { face.splat = cssColor; },
+
+    /** R2.3: "ALREADY FULL" and friends, on the bench */
+    benchHint(text, ms = 1200) {
+        let el = $('bench-hint');
+        if (!el) { el = document.createElement('div'); el.id = 'bench-hint'; el.className = 'bench-hint'; $('bench').appendChild(el); }
+        el.textContent = text; el.classList.add('on');
+        clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove('on'), ms);
+    },
+
+    /** Sandy's portrait on the bench (R2.2); also mirrored onto the pause panel when it is open */
+    drawFace(player, time, game = null) {
         const c = $('face-canvas');
-        if (!c || !c.offsetParent) return;
-        const ctx = c.getContext('2d');
-        const hp = player.health;
-        ctx.clearRect(0, 0, 32, 32);
-        ctx.fillStyle = '#2e2e33';
-        ctx.fillRect(0, 0, 32, 32);
-        const px = (x, y, w, h, col) => { ctx.fillStyle = col; ctx.fillRect(x, y, w, h); };
-        px(7, 6, 18, 14, '#d9a34a');
-        px(5, 10, 4, 12, '#d9a34a');
-        px(23, 10, 4, 12, '#d9a34a');
-        const skin = hp > 33 ? '#eebb93' : '#dba383';
-        px(9, 10, 14, 13, skin);
-        px(6, 3, 20, 6, '#b22230');
-        px(14, 1, 4, 3, '#8a1422');
-        const blink = Math.floor(time / 0.18) % 22 === 0;
-        const dmgRecent = player.lastHurtTime && time - player.lastHurtTime < 0.5;
-        if (blink && !dmgRecent) {
-            px(11, 15, 4, 1, '#5a3a1a');
-            px(18, 15, 4, 1, '#5a3a1a');
-        } else if (dmgRecent || hp <= 0) {
-            px(11, 14, 4, 3, hp <= 0 ? '#999' : '#fff');
-            px(18, 14, 4, 3, hp <= 0 ? '#999' : '#fff');
-            px(12, 15, 2, 1, '#a02');
-            px(19, 15, 2, 1, '#a02');
-        } else {
-            px(11, 13, 4, 4, '#fff');
-            px(18, 13, 4, 4, '#fff');
-            const look = Math.floor(time / 2.6) % 3 - 1;
-            px(12 + look, 14, 2, 2, '#2a4a8a');
-            px(19 + look, 14, 2, 2, '#2a4a8a');
+        if (!c || !player) return;
+        const now = performance.now() / 1000;
+        const f = { ...FACE_DEFAULTS, hp: player.health, dead: !player.alive || player.health <= 0 };
+        f.hurtAge = player.lastHurtTime ? time - player.lastHurtTime : 99;
+        f.hurtDir = face.hurtDir; f.splat = face.splat;
+        f.grinAge = now - face.pickupAt / 1000;
+        if (game) {
+            f.aim = game.aim || 0; f.sprint = !!game.sprinting; f.moving = !!game.moving;
+            f.fireAge = game.recoil > 0.85 ? 0.05 : 1;
+            const wk = player.weapons[player.currentWeapon]; f.heavy = wk === 'roller' || wk === 'tableLeg' || wk === 'nailgun';
+            f.rage = !!(game.boss && game.boss.alive && game.boss.phase2);
+            f.tint = game.level ? '#' + (game.level.accent ?? 0x5a6a80).toString(16).padStart(6, '0') : null;
         }
-        if (hp < 66) { px(11, 11, 4, 1, '#a8742a'); px(18, 11, 4, 1, '#a8742a'); }
-        if (hp > 66) { px(13, 19, 6, 1, '#7a3a2a'); px(12, 18, 1, 1, '#7a3a2a'); px(19, 18, 1, 1, '#7a3a2a'); }
-        else if (hp > 33) px(13, 19, 6, 1, '#7a3a2a');
-        else { px(13, 19, 6, 2, '#5a1a12'); px(14, 18, 4, 1, '#7a3a2a'); }
-        px(9, 17, 2, 2, '#3a6acc');
+        paintFace(c.getContext('2d'), f, time);
+        const pc = $('pause-face');
+        if (pc && pc.offsetParent) { const pctx = pc.getContext('2d'); pctx.imageSmoothingEnabled = false; pctx.drawImage(c, 0, 0); }
     },
 
     drawMinimap(game, player) {
