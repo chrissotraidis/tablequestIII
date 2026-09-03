@@ -107,6 +107,7 @@ export const hud = {
 
     updateFloorCard(time) {
         const el = $('floor-card');
+        if (this.holdCard) { el.style.opacity = 1; return; } // harness: pin the card for captures
         if (cardPending) { cardPending = false; cardShownAt = time; }
         if (cardShownAt === null) return;
         const t = time - cardShownAt;

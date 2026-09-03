@@ -74,6 +74,9 @@ let introTimer = null;
 let introFrame = null;
 let introStartedAt = 0;
 let levelSnapshot = null;
+let menuBackdrop = false; // MODERN: Floor 1 loaded as the menu's live scene
+let menuCamT = 0;
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let highScore = Number(localStorage.getItem('tq3d-highscore') || 0);
 
 const game = new Game(scene, camera, {
@@ -129,7 +132,7 @@ function saveHighScore() {
     }
 }
 
-const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels',
+const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options',
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
@@ -153,6 +156,9 @@ function setState(next) {
             hud.hide();
             exitPointerLock();
             menuSub = null;
+            // MODERN: the Lobby is the live backdrop (loaded silently: no music, no card)
+            if (!menuBackdrop) { game.player = null; game.loadLevel(0, { keepStats: false, silent: true }); applyFloorLook(); renderer.compile(scene, camera); menuBackdrop = true; }
+            menuCamT = 0;
             $('menu-highscore').textContent = String(highScore || 0).padStart(6, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             renderMenu();
             break;
@@ -187,13 +193,49 @@ function setState(next) {
 
 // ------------------------------------------------------------------ MENU
 
-const MENU_ITEMS = ['New Game', 'Level Select', 'Instructions', 'Toggle Sound'];
+const MENU_ITEMS = ['New Game', 'Level Select', 'Options', 'Instructions', 'Toggle Sound'];
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
     ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
+    ['FIELD SETTINGS', 'OPTIONS', 'Post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
     ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
 ];
+
+// ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
+const OPTIONS = ['postfx', 'fov', 'sens', 'invert', 'sound'];
+let optIdx = 0;
+function renderOptions() {
+    document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => el.classList.toggle('selected', i === optIdx));
+    $('opt-postfx').textContent = postfx.enabled ? 'ON' : 'OFF';
+    $('opt-fov').textContent = String(Math.round(game.baseFov));
+    $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
+    $('opt-invert').textContent = game.invertY ? 'ON' : 'OFF';
+    $('opt-sound').textContent = isMuted() ? 'OFF' : 'ON';
+}
+function adjustOption(dir) {
+    const key = OPTIONS[optIdx];
+    if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
+    else if (key === 'fov') {
+        game.baseFov = Math.max(60, Math.min(100, game.baseFov + (dir || 1) * 2));
+        camera.fov = game.baseFov; camera.updateProjectionMatrix();
+        localStorage.setItem('tq3d-fov', String(game.baseFov));
+    }
+    else if (key === 'sens') game.adjustSensitivity((dir || 1) * 0.0002);
+    else if (key === 'invert') { game.invertY = !game.invertY; localStorage.setItem('tq3d-invert', game.invertY ? '1' : '0'); }
+    else if (key === 'sound') updateMute(toggleMute());
+    playSound('menu_move');
+    renderOptions();
+}
+document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => {
+    el.addEventListener('mouseenter', () => { optIdx = i; renderOptions(); });
+    el.addEventListener('click', (e) => {
+        optIdx = i;
+        const arrows = [...el.querySelectorAll('.opt-arrow')];
+        const which = arrows.indexOf(e.target);
+        adjustOption(which === 0 ? -1 : 1);
+    });
+});
 
 function renderMenu() {
     const items = document.querySelectorAll('#menu-items .menu-item');
@@ -208,7 +250,7 @@ function renderMenu() {
     $('menu-detail-title').textContent = title;
     $('menu-detail-copy').textContent = copy;
     $('menu-sound-value').textContent = isMuted() ? 'OFF' : 'ON';
-    items[3].setAttribute('aria-pressed', String(isMuted()));
+    items[4].setAttribute('aria-pressed', String(isMuted()));
 }
 
 function renderPause() {
@@ -241,6 +283,7 @@ function menuSelect() {
     const item = MENU_ITEMS[menuIdx];
     if (item === 'New Game') startIntro();
     else if (item === 'Level Select') { menuSub = 'levels'; levelIdx = 0; buildLevelList(); showOnly('menu-screen', 'menu-levels'); }
+    else if (item === 'Options') { menuSub = 'options'; optIdx = 0; renderOptions(); showOnly('menu-screen', 'menu-options'); }
     else if (item === 'Instructions') { menuSub = 'instructions'; showOnly('menu-screen', 'menu-instructions'); }
     else if (item === 'Toggle Sound') updateMute(toggleMute());
 }
@@ -248,7 +291,8 @@ function menuSelect() {
 function updateMute(m) {
     $('mute-indicator').classList.toggle('hidden', !m);
     $('menu-sound-value').textContent = m ? 'OFF' : 'ON';
-    document.querySelectorAll('#menu-items .menu-item')[3].setAttribute('aria-pressed', String(m));
+    document.querySelectorAll('#menu-items .menu-item')[4].setAttribute('aria-pressed', String(m));
+    if ($('opt-sound')) $('opt-sound').textContent = m ? 'OFF' : 'ON';
 }
 
 // menu mouse support
@@ -309,6 +353,7 @@ function finishIntro() {
 function startGameAt(idx) {
     initAudio();
     window.TQ?.botCancel?.();
+    menuBackdrop = false;
     game.player = null; // fresh run
     game.loadLevel(idx, { keepStats: false });
     // floor-select fairness: grant the weapons a player would have found by now
@@ -372,6 +417,12 @@ onKeyPress((e) => {
         case 'menu':
             if (menuSub === 'instructions') {
                 if (['Enter', 'Escape', 'Space'].includes(e.code)) { menuSub = null; showOnly('menu-screen'); }
+            } else if (menuSub === 'options') {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') { optIdx = (optIdx + OPTIONS.length - 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
+                else if (e.code === 'ArrowDown' || e.code === 'KeyS') { optIdx = (optIdx + 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
+                else if (e.code === 'ArrowLeft' || e.code === 'KeyA') adjustOption(-1);
+                else if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Enter' || e.code === 'Space') adjustOption(1);
+                else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
             } else if (menuSub === 'levels') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { levelIdx = (levelIdx + LEVELS.length - 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { levelIdx = (levelIdx + 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
@@ -476,6 +527,16 @@ function step(now, render = true) {
         bot.sleep -= dt;
         if (bot.sleep <= 0 && bot.sleepResolve) { bot.sleepResolve(); bot.sleepResolve = null; }
     }
+    if (state === 'menu' && menuBackdrop) {
+        // slow dolly along the Lobby entry hall toward the reception, gentle yaw sway
+        if (!reducedMotion()) menuCamT += dt;
+        const t = menuCamT;
+        const x = 3.2 + ((Math.sin(t * 0.045) + 1) / 2) * 5.5;
+        camera.position.set(x, 0.86 + Math.sin(t * 0.3) * 0.015, 2.6 + Math.sin(t * 0.11) * 0.4);
+        camera.rotation.order = 'YXZ';
+        camera.rotation.set(0.02 + Math.sin(t * 0.17) * 0.01, -Math.PI / 2 + 0.35 + Math.sin(t * 0.13) * 0.09, 0);
+        game.vmRoot.visible = false;
+    } else game.vmRoot.visible = true;
     if (state === 'play') {
         elapsed += dt;
         if (testMode) botStep(dt);
@@ -486,8 +547,8 @@ function step(now, render = true) {
         hud.setLockHint(!input.pointerLocked);
     }
     if (state === 'pause') hud.drawFace(game.player, elapsed);
-    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover')) {
-        postfx.render(elapsed, state === 'play' ? (game.yawRate || 0) : 0);
+    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || (state === 'menu' && menuBackdrop))) {
+        postfx.render(state === 'menu' ? menuCamT : elapsed, state === 'play' ? (game.yawRate || 0) : 0);
     }
     clearFrameInput();
 }
@@ -615,6 +676,7 @@ window.TQ = {
     get renderer() { return renderer; },
     get postfx() { return postfx; },
     get hud() { return hud; },
+    openOptions() { setState('menu'); menuIdx = 2; renderMenu(); menuSelect(); return 'options'; },
     setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
     get scene() { return scene; },
     get player() { return game.player; },

@@ -66,7 +66,9 @@ export class Game {
         this.vel = new THREE.Vector2(0, 0);     // smoothed planar velocity
         this.pitch = 0;
         this.sens = Number(localStorage.getItem('tq3d-sens') || 0.0028);
-        this.baseFov = camera.fov;
+        this.invertY = localStorage.getItem('tq3d-invert') === '1';           // MODERN option
+        this.baseFov = Number(localStorage.getItem('tq3d-fov') || camera.fov); // MODERN option
+        camera.fov = this.baseFov; camera.updateProjectionMatrix();
         this.shake = 0;
 
         // player light follows camera
@@ -158,7 +160,7 @@ export class Game {
         hud.toast(`MOUSE SENSITIVITY: ${(this.sens * 1000).toFixed(1)}`, 1200);
     }
 
-    loadLevel(index, { keepStats = true } = {}) {
+    loadLevel(index, { keepStats = true, silent = false } = {}) {
         // tear down old
         if (this.world) this.world.dispose();
         // MODERN: free per-level GPU resources (classic only removed them)
@@ -220,8 +222,10 @@ export class Game {
         this.updateViewmodel(true);
         this.vmAnim.swapPhase = 'idle'; this.vmAnim.pending = null;
         this.spawnGrace = 3; // seconds before staff start noticing the intruder
-        startSong(this.level.music);
-        hud.floorCard(index + 1, this.level.name, this.level.subtitle);
+        if (!silent) { // MODERN: the menu loads Floor 1 as a live backdrop without music/card
+            startSong(this.level.music);
+            hud.floorCard(index + 1, this.level.name, this.level.subtitle);
+        }
     }
 
     findSpawnFacing() {
@@ -326,7 +330,7 @@ export class Game {
         p.rot += this.turnVel * TURN_SPEED * dt;
         p.rot += this.smDX * this.sens;
         this.yawRate = dt > 0 ? (p.rot - rotBefore) / dt : 0; // rad/s, for post-FX motion blur
-        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - this.smDY * this.sens));
+        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - this.smDY * this.sens * (this.invertY ? -1 : 1)));
 
         // low-health heartbeat
         if (p.health > 0 && p.health <= 25 && this.time - this.lastHeartbeat > 0.85) {
