@@ -9,6 +9,7 @@ export const input = {
     fireKeyHeld: false, mouseHeld: false,
     interact: false, sprint: false,
     inspect: false,         // MODERN: hold F to look the weapon over
+    aimHeld: false,         // MODERN: right mouse = aim down sights
     cycleWeapon: 0,         // +1 / -1 per frame (wheel or Q)
     mouseDX: 0, mouseDY: 0,
     pointerLocked: false,
@@ -49,10 +50,13 @@ export function initInput(canvasEl) {
     });
     canvas.addEventListener('mousedown', (e) => {
         if (e.button === 0) { input.fire = true; input.mouseHeld = true; }
+        if (e.button === 2) input.aimHeld = true;
     });
     window.addEventListener('mouseup', (e) => {
         if (e.button === 0) input.mouseHeld = false;
+        if (e.button === 2) input.aimHeld = false;
     });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => {
         input.cycleWeapon += e.deltaY > 0 ? 1 : -1;
         e.preventDefault();
@@ -64,6 +68,7 @@ export function releaseAllKeys() {
     input.inspect = false;
     input.turnL = input.turnR = input.sprint = false;
     input.fireKeyHeld = input.mouseHeld = false;
+    input.aimHeld = false;
 }
 
 export function requestPointerLock() {

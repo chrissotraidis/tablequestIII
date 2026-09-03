@@ -170,3 +170,18 @@ The composer's own cost is inside run-to-run noise on the software rasteriser (t
 **Preservation:** weapon damage/cooldown/cost untouched; switch keys, cycling, and viewmodel visibility rules unchanged; classic recoil amounts kept.
 **Open issues:** poses are tuned against the classic HUD bar; M3.1 will free the bottom 15 % of the screen and poses may want a small drop. The brush's off-hand paint can is partly hidden by the bar today. Inspect has no per-weapon detail animation (stretch goal, left as a simple turn).
 **Next:** M2.2 aim-down-sights.
+
+### M2.2 — Aim-down-sights   (2026-09-03)
+**Changed:** right mouse aims (`input.aimHeld`; context menu suppressed on the canvas). `game.js`: `aim` eases 0→1 (≈90 ms) for aimable weapons only (brush, nail gun, roller, sprayer — the table leg has no sight pose and ignores the button), never mid-swap or while sprinting; aiming cancels the sprint lower and inspect. Each viewmodel carries an `ads` pose (`viewmodels.js` `finish(..., ads)`): the arm root blends to it with a smoothstep, sway/bob/look-lag damped to 30 %, so the sight line runs just over the weapon body. **FOV** narrows by 15° (72 → 57 at full aim, stacking with the sprint kick); **spread** multiplies by 0.45 while aimed — hip-fire spread is untouched, so classic balance is preserved and ADS is strictly a bonus for the accuracy-minded. Crosshair fades out as the sights come up (`hud.setAim`).
+**Evidence:** `modern/docs/M2.2/ads-brush,nailgun,roller,sprayer.jpg` at full aim (crosshair opacity 0, fov 62.6 mid-ease → 57 settled). Numbers logged by the harness:
+
+| Weapon | hip spread | ADS spread |
+|:--|:-:|:-:|
+| nail gun | 0.015 | 0.0067 |
+| sprayer | 0.055 | 0.0248 |
+| brush / roller | 0 | 0 |
+
+Table leg: aim stays 0 with the button held. Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** damage, cooldown, cost, projectile speed, hip spread unchanged; movement speed while aiming unchanged (deliberately — a CoD-style ADS slowdown would alter dodge pacing, see §2.2).
+**Open issues:** the brush "sight" is a raised hold rather than an iron sight; fine for a paint game, revisit if it reads oddly in motion. Right-click while pointer-unlocked also aims (harmless).
+**Next:** M2.3 muzzle flash, tracers, ejection, impact FX.

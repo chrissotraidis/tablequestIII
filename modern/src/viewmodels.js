@@ -115,12 +115,16 @@ function buildHand({ side, grip, elbow, radius = 0.02, axis = V(0, 0, 1), curl =
     return g;
 }
 
-function finish(g, name, baseRotX, muzzle) {
+/**
+ * ads: where vmRoot goes while aiming (camera space) and how much the
+ * weapon pitches; null = the weapon cannot be aimed (melee).
+ */
+function finish(g, name, baseRotX, muzzle, ads = null) {
     g.userData.name = name;
     g.userData.baseRotX = baseRotX;
     g.userData.muzzle = muzzle;
     const baked = bakeStatic(g);
-    baked.userData = { name, baseRotX, muzzle };
+    baked.userData = { name, baseRotX, muzzle, ads };
     baked.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; o.renderOrder = 10; } });
     return baked;
 }
@@ -156,7 +160,7 @@ export function buildBrushViewmodel() {
     g.rotation.y = 0.18;
     g.position.set(0.05, 0.02, 0.0);
     g.scale.setScalar(0.92);
-    return finish(g, 'paintbrush', -0.42, V(0, 0.0, -0.24));
+    return finish(g, 'paintbrush', -0.42, V(0, 0.0, -0.24), { pos: V(0.05, -0.1, -0.42), rotX: 0.16, rotY: -0.22 });
 }
 
 export function buildLegViewmodel() {
@@ -215,7 +219,7 @@ export function buildNailgunViewmodel() {
     // off hand cupped under the nose
     inner.add(buildHand({ side: 'L', grip: V(-0.02, -0.06, -0.13), elbow: V(-0.26, -0.28, 0.2), radius: 0.03, axis: V(0, 0, 1), curl: 0.6, watch: true }));
     g.add(inner);
-    return finish(g, 'nailgun', 0, V(0, 0.06, -0.25));
+    return finish(g, 'nailgun', 0, V(0, 0.06, -0.25), { pos: V(0.0, -0.165, -0.48), rotX: 0.0, rotY: 0.0 });
 }
 
 export function buildRollerViewmodel() {
@@ -241,7 +245,7 @@ export function buildRollerViewmodel() {
     inner.add(buildHand({ side: 'R', grip: V(0, -0.065, 0.085), elbow: V(0.16, -0.28, 0.29), radius: 0.02, axis: V(0, 1, 0.3).normalize(), curl: 0.95 }));
     inner.add(buildHand({ side: 'L', grip: V(-0.01, -0.03, -0.13), elbow: V(-0.26, -0.28, 0.2), radius: 0.056, axis: V(0, 0, 1), curl: 0.75, watch: true }));
     g.add(inner);
-    return finish(g, 'roller', 0, V(0, 0.08, -0.31));
+    return finish(g, 'roller', 0, V(0, 0.08, -0.31), { pos: V(0.045, -0.19, -0.52), rotX: 0.0, rotY: 0.0 });
 }
 
 export function buildSprayerViewmodel() {
@@ -265,7 +269,7 @@ export function buildSprayerViewmodel() {
     inner.add(buildHand({ side: 'R', grip: V(0, -0.05, 0.06), elbow: V(0.16, -0.27, 0.28), radius: 0.02, axis: V(0, 1, 0.25).normalize(), curl: 0.95 }));
     inner.add(buildHand({ side: 'L', grip: V(-0.015, 0.02, -0.09), elbow: V(-0.26, -0.27, 0.22), radius: 0.024, axis: V(0, 0, 1), curl: 0.9, watch: true }));
     g.add(inner);
-    return finish(g, 'sprayer', 0, V(0, 0.11, -0.25));
+    return finish(g, 'sprayer', 0, V(0, 0.11, -0.25), { pos: V(0.0, -0.175, -0.48), rotX: 0.0, rotY: 0.0 });
 }
 
 export function buildViewmodels() {

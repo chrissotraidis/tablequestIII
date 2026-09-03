@@ -40,6 +40,14 @@ export const hud = {
         hitTimer = setTimeout(() => { el.style.opacity = 0; }, 90);
     },
 
+    /** MODERN: crosshair fades out as the sights come up */
+    setAim(t) {
+        const v = (1 - t).toFixed(2);
+        if (lastVals._aim === v) return;
+        lastVals._aim = v;
+        $('crosshair').style.opacity = v;
+    },
+
     setLockHint(show) {
         $('lock-hint').classList.toggle('hidden', !show);
     },

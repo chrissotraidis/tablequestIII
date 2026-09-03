@@ -104,6 +104,9 @@ export class Game {
             this.vmRoot.add(vm);
         }
         this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0 };
+        this.aim = 0;               // MODERN: 0 hip … 1 down the sights
+        this.ADS_FOV_DROP = 15;      // degrees
+        this.ADS_SPREAD = 0.45;      // spread multiplier while aimed (hip-fire spread unchanged)
         this.recoil = 0;
         this.bobPhase = 0;
         this.lastStepTime = 0;
@@ -424,7 +427,8 @@ export class Game {
             }
         } else {
             playSound(w.sound || (w === WEAPONS.sprayer ? 'spray' : 'shoot'));
-            const spread = (w.spread || 0) * (Math.random() - 0.5) * 2;
+            const spreadMul = 1 - (1 - this.ADS_SPREAD) * this.aim; // ADS tightens the cone
+            const spread = (w.spread || 0) * spreadMul * (Math.random() - 0.5) * 2;
             const ang = p.rot + spread;
             const color = w.fixedColor !== undefined
                 ? new THREE.Color(w.fixedColor)
@@ -491,8 +495,16 @@ export class Game {
         const sprinting = input.sprint && this.moving && this.vel.length() > PLAYER_SPEED * 0.9;
         a.lower += ((sprinting ? 1 : 0) - a.lower) * Math.min(1, dt * 9);
         // inspect: hold F to turn the weapon toward the camera
-        const wantInspect = input.inspect && !fireHeld() && this.player.cooldown <= 0.01;
+        const wantInspect = input.inspect && !fireHeld() && this.player.cooldown <= 0.01 && this.aim < 0.1;
         a.inspect += ((wantInspect ? 1 : 0) - a.inspect) * Math.min(1, dt * 5);
+        // aim down sights: right mouse, aimable weapons only, not mid-swap or sprinting
+        const vm = this.viewmodels[this.player.weapons[this.player.currentWeapon]];
+        const canAim = !!vm?.userData.ads && a.swapPhase === 'idle' && !sprinting;
+        const wantAim = canAim && input.aimHeld;
+        this.aim += ((wantAim ? 1 : 0) - this.aim) * Math.min(1, dt * 11);
+        if (this.aim < 0.001) this.aim = 0;
+        hud.setAim(this.aim);
+        if (wantAim) a.lower = 0;
         a.breathe = this.time;
         return { swapDrop: swapDrop * swapDrop, lower: a.lower, inspect: a.inspect };
     }
@@ -1066,7 +1078,7 @@ export class Game {
         this.camera.rotation.z = -this.lean; // bank into the move
 
         // sprint FOV kick
-        const targetFov = this.baseFov + (input.sprint && this.moving ? 7 : 0);
+        const targetFov = this.baseFov + (input.sprint && this.moving ? 7 : 0) - this.aim * this.ADS_FOV_DROP;
         if (Math.abs(this.camera.fov - targetFov) > 0.05) {
             this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 9);
             this.camera.updateProjectionMatrix();
@@ -1102,6 +1114,19 @@ export class Game {
                 anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2,
                 -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5,
                 anim.lower * 0.12 - anim.inspect * 0.18);
+            // ADS: blend toward the weapon's sight pose, damp sway/bob/lag
+            const adsVm = this.viewmodels[p.weapons[p.currentWeapon]];
+            const ads = adsVm?.userData.ads;
+            if (ads && this.aim > 0) {
+                const k = this.aim * this.aim * (3 - 2 * this.aim);
+                const steady = 1 - k * 0.7;
+                root.position.x = THREE.MathUtils.lerp(root.position.x, ads.pos.x + (walkSway + lagX) * 0.3, k);
+                root.position.y = THREE.MathUtils.lerp(root.position.y, ads.pos.y + (walkBob + lagY) * 0.3, k);
+                root.position.z = THREE.MathUtils.lerp(root.position.z, ads.pos.z, k);
+                root.rotation.x = THREE.MathUtils.lerp(root.rotation.x, ads.rotX + lagY * 2 * steady, k);
+                root.rotation.y = THREE.MathUtils.lerp(root.rotation.y, ads.rotY - lagX * 1.5 * steady, k);
+                root.rotation.z = THREE.MathUtils.lerp(root.rotation.z, 0, k);
+            }
         }
         const vm = this.viewmodels[p.weapons[p.currentWeapon]];
         if (vm) {
