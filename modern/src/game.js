@@ -72,6 +72,13 @@ export class Game {
         this.sens = Number(localStorage.getItem('tq3d-sens') || 0.0028);
         this.invertY = localStorage.getItem('tq3d-invert') === '1';           // MODERN option
         this.baseFov = Number(localStorage.getItem('tq3d-fov') || camera.fov); // MODERN option
+        // R5: handling options (presentation of input only; PLAYER_* constants untouched)
+        this.lookSmooth = Number(localStorage.getItem('tq3d-smooth') ?? 0.35); // 0 raw … 1 heavy
+        this.adsSens = Number(localStorage.getItem('tq3d-adssens') ?? 0.7);    // look scale while aimed
+        this.adsToggle = localStorage.getItem('tq3d-adstoggle') === '1';
+        this.sprintToggle = localStorage.getItem('tq3d-sprinttoggle') === '1';
+        this.bobAmount = Number(localStorage.getItem('tq3d-bob') ?? 1);        // 0 off, 0.5 low, 1 full
+        this.landDip = 0;
         camera.fov = this.baseFov; camera.updateProjectionMatrix();
         this.shake = 0;
 
@@ -104,7 +111,7 @@ export class Game {
         // vmRoot carries the whole-arm motion (bob, sway, sprint lower, swap,
         // inspect); each weapon group carries only its own recoil.
         this.vmRoot = new THREE.Group();
-        this.vmRoot.position.set(0.19, -0.13, -0.47); // MODERN: a touch higher/further than classic so both hands stay in frame
+        this.vmRoot.position.set(0.19, -0.075, -0.47); // R3: raised so both hands clear the bench
         camera.add(this.vmRoot);
         this.viewmodels = buildViewmodels();
         for (const vm of Object.values(this.viewmodels)) {
@@ -157,6 +164,13 @@ export class Game {
             weapons: ['paintbrush'], currentWeapon: 0,
             cooldown: 0, lastHurtTime: -10, alive: true,
         };
+    }
+
+    /** R5.2: sprint from the held key, or the Alt toggle while moving forward (option) */
+    sprintHeld() {
+        if (input.sprint) return true;
+        if (this.sprintToggle && input.sprintToggled) { if (!input.forward) input.sprintToggled = false; return input.forward; }
+        return false;
     }
 
     adjustSensitivity(delta) {
@@ -335,16 +349,17 @@ export class Game {
         const p = this.player;
 
         // --- look: lightly smoothed mouse + eased keyboard turn ---
-        const lookBlend = 1 - Math.exp(-dt * 30); // ~1 frame of smoothing, kills jitter
+        const lookBlend = 1 - Math.exp(-dt * (60 - this.lookSmooth * 44)); // R5.1: raw at 0, ~1 frame at 0.35 (default), heavy at 1
         this.smDX += (input.mouseDX - this.smDX) * lookBlend;
         this.smDY += (input.mouseDY - this.smDY) * lookBlend;
         const turnTarget = (input.turnR ? 1 : 0) - (input.turnL ? 1 : 0);
         this.turnVel += (turnTarget - this.turnVel) * Math.min(1, dt * 11);
         const rotBefore = p.rot;
         p.rot += this.turnVel * TURN_SPEED * dt;
-        p.rot += this.smDX * this.sens;
+        const adsScale = 1 - this.aim * (1 - this.adsSens); // R5.1: steadier on the sights
+        p.rot += this.smDX * this.sens * adsScale;
         this.yawRate = dt > 0 ? (p.rot - rotBefore) / dt : 0; // rad/s, for post-FX motion blur
-        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - this.smDY * this.sens * (this.invertY ? -1 : 1)));
+        this.pitch = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, this.pitch - this.smDY * this.sens * adsScale * (this.invertY ? -1 : 1)));
 
         // low-health heartbeat
         if (p.health > 0 && p.health <= 25 && this.time - this.lastHeartbeat > 0.85) {
@@ -353,8 +368,9 @@ export class Game {
         }
 
         // --- move: smoothed velocity for snappy-but-not-instant feel ---
-        const speed = input.sprint ? PLAYER_SPRINT : PLAYER_SPEED;
-        this.sprinting = !!input.sprint; // R2.2: the portrait huffs while sprinting and moving
+        const sprintHeld = this.sprintHeld();
+        const speed = sprintHeld ? PLAYER_SPRINT : PLAYER_SPEED;
+        this.sprinting = sprintHeld; // R2.2: the portrait huffs while sprinting and moving
         let mx = 0, my = 0;
         const c = Math.cos(p.rot), s = Math.sin(p.rot);
         if (input.forward) { mx += c; my += s; }
@@ -394,6 +410,7 @@ export class Game {
             if (this.jumpZ <= 0) {
                 this.jumpZ = 0;
                 this.jumpVel = 0;
+                this.landDip = 1; // R5.2: camera dips on landing
                 playSound('land');
                 this.shake = Math.max(this.shake, 0.06);
             }
@@ -414,6 +431,7 @@ export class Game {
         }
         p.cooldown = Math.max(0, p.cooldown - dt);
         if (input.melee) this.startQuickMelee();
+        if (input.regrip && this.vmAnim.swapPhase === 'idle' && this.quick.t <= 0) this.topUp(true); // R5.3: R re-grips the tool
         this.updateQuickMelee(dt);
         const w = WEAPONS[p.weapons[p.currentWeapon]];
         const wantFire = input.fire || (w.auto && fireHeld());
@@ -480,14 +498,17 @@ export class Game {
                 const fwd = new THREE.Vector3(Math.cos(p.rot), 0, Math.sin(p.rot));
                 const right = new THREE.Vector3(-Math.sin(p.rot), 0, Math.cos(p.rot));
                 if (wkey === 'nailgun') {
-                    // strip fragment kicks out to the right
+                    // strip fragment kicks out to the right; exhaust puffs up from the cap (R4.2)
                     this.effects.burst(mz, new THREE.Color(0xc8ccd4), 2, 1.6, 0.45, { size: 0.03, gravity: 9, dir: right, dirW: 1.2 });
+                    this.effects.burst(mz.clone().addScaledVector(fwd, -0.18).add(new THREE.Vector3(0, 0.08, 0)), new THREE.Color(0xd8dce0), 4, 0.9, 0.3, { size: 0.05, gravity: -0.6, drag: 3, dir: new THREE.Vector3(0, 1, 0), dirW: 0.6 });
                 } else if (wkey === 'paintbrush') {
                     this.effects.burst(mz, color, 5, 1.8, 0.4, { size: 0.035, gravity: 7, dir: fwd, dirW: 0.9 });
                 } else if (wkey === 'sprayer') {
                     this.effects.burst(mz, color, 4, 3.0, 0.22, { size: 0.03, gravity: 2, drag: 3, dir: fwd, dirW: 1.4 });
                 } else if (wkey === 'roller') {
                     this.effects.burst(mz, color, 10, 1.6, 0.5, { size: 0.05, gravity: 3, drag: 2, dir: fwd, dirW: 0.5 });
+                    // tank hiss: a steam puff off the pressure tank behind the muzzle (R4.2)
+                    this.effects.burst(mz.clone().addScaledVector(fwd, -0.3).addScaledVector(right, 0.06).add(new THREE.Vector3(0, -0.06, 0)), new THREE.Color(0xe8ecf0), 6, 1.2, 0.35, { size: 0.06, gravity: -1, drag: 3, dir: right, dirW: 0.8 });
                 }
             }
         }
@@ -663,7 +684,7 @@ export class Game {
         }
         const swapDrop = a.swapPhase === 'lower' ? a.swapT : a.swapPhase === 'raise' ? 1 - a.swapT : 0;
         // sprint: weapon drops and tilts away while running
-        const sprinting = input.sprint && this.moving && this.vel.length() > PLAYER_SPEED * 0.9;
+        const sprinting = this.sprintHeld() && this.moving && this.vel.length() > PLAYER_SPEED * 0.9;
         a.lower += ((sprinting ? 1 : 0) - a.lower) * Math.min(1, dt * 9);
         // inspect: hold F to turn the weapon toward the camera
         const wantInspect = input.inspect && !fireHeld() && this.player.cooldown <= 0.01 && this.aim < 0.1;
@@ -671,7 +692,8 @@ export class Game {
         // aim down sights: right mouse, aimable weapons only, not mid-swap or sprinting
         const vm = this.viewmodels[this.player.weapons[this.player.currentWeapon]];
         const canAim = !!vm?.userData.ads && a.swapPhase === 'idle' && !sprinting;
-        const wantAim = canAim && input.aimHeld;
+        const wantAim = canAim && (input.aimHeld || (this.adsToggle && input.aimToggled));
+        if (!canAim) input.aimToggled = false;
         this.aim += ((wantAim ? 1 : 0) - this.aim) * Math.min(1, dt * 11);
         if (this.aim < 0.001) this.aim = 0;
         hud.setAim(this.aim);
@@ -1323,7 +1345,9 @@ export class Game {
     updateCameraAndViewmodel(dt, time) {
         const p = this.player;
         const speedNow = this.vel.length();
-        const bobAmp = 0.014 + speedNow * 0.0035;
+        const bobAmp = (0.014 + speedNow * 0.0035) * this.bobAmount; // R5.2: head-bob amount option
+        this.landDip = Math.max(0, this.landDip - dt * 4.5);
+        const dip = Math.sin(Math.min(1, this.landDip) * Math.PI) * 0.055; // R5.2: landing dip
         const bob = this.moving ? Math.sin(this.bobPhase) * bobAmp : 0;
         // subtle figure-8: head also sways sideways with the stride
         const sway = this.moving ? Math.cos(this.bobPhase * 0.5) * bobAmp * 0.9 : 0;
@@ -1337,7 +1361,7 @@ export class Game {
 
         this.camera.position.set(
             p.x + shx + rightX * sway,
-            EYE_HEIGHT + bob + shy + this.jumpZ,
+            EYE_HEIGHT + bob + shy + this.jumpZ - dip,
             p.y + rightY * sway);
         // MODERN M2.4: recoil kick spring (critically damped, returns to zero)
         {
@@ -1364,7 +1388,7 @@ export class Game {
         this.camera.rotation.z = -this.lean + this.kick.roll; // bank into the move (+ recoil roll)
 
         // sprint FOV kick
-        const targetFov = this.baseFov + (input.sprint && this.moving ? 7 : 0) - this.aim * this.ADS_FOV_DROP;
+        const targetFov = this.baseFov + (this.sprinting && this.moving ? 7 : 0) - this.aim * this.ADS_FOV_DROP;
         if (Math.abs(this.camera.fov - targetFov) > 0.05) {
             this.camera.fov += (targetFov - this.camera.fov) * Math.min(1, dt * 9);
             this.camera.updateProjectionMatrix();
@@ -1394,8 +1418,8 @@ export class Game {
             const lagX = -THREE.MathUtils.clamp(this.smDX * this.sens * 0.35, -0.03, 0.03);
             const lagY = THREE.MathUtils.clamp(this.smDY * this.sens * 0.25, -0.02, 0.02);
             root.position.set(
-                0.19 + walkSway + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
-                -0.13 + walkBob + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
+                0.19 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
+                -0.075 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
                 -0.47 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
             root.rotation.set(
                 anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2 + anim.top * 0.35,
@@ -1431,6 +1455,31 @@ export class Game {
                 vm.rotation.x = base + this.recoil * 0.35 * rvm;
                 vm.rotation.z = 0;
             }
+            // R3.3: hand parts — trigger squeeze, wrist flick, off-hand pump / fidget / hose sway
+            const parts = vm.userData.parts || {};
+            const r = this.recoil;
+            if (parts.trigger) parts.trigger.rotation.x = parts.trigger.userData.rest.x + Math.min(1, r * 1.5) * 0.5;
+            if (parts.head) parts.head.rotation.x = parts.head.userData.rest.x - r * 0.6 * rvm;
+            if (parts.offHand) {
+                const rest = parts.offHand.userData.rest;
+                if (shownKey === 'roller') { const pump = r > 0.55 ? (1 - r) / 0.45 : r / 0.55; parts.offHand.position.z = rest.pz + pump * 0.05; }
+                else parts.offHand.position.z = rest.pz + r * 0.012;
+                parts.offHand.position.y = rest.py + Math.sin(time * 0.9) * 0.002 + (this.moving ? Math.sin(this.bobPhase * 0.5 + 1) * 0.003 : 0);
+                parts.offHand.rotation.z = rest.z + Math.sin(time * 0.7) * 0.012 + (shownKey === 'sprayer' ? Math.sin(time * 2.1) * 0.02 : 0);
+                parts.offHand.rotation.x = rest.x + (shownKey === 'paintbrush' ? anim.top * 0.6 : 0);
+            }
+        }
+        // R4.3: the tool pulls in and tilts down against a wall
+        {
+            const ahead = this.world.isSolidCell(Math.floor(p.x + Math.cos(p.rot) * 0.6), Math.floor(p.y + Math.sin(p.rot) * 0.6)) ? 1 : 0;
+            this.wallK = (this.wallK || 0) + (ahead - (this.wallK || 0)) * Math.min(1, dt * 8);
+            root.position.z += this.wallK * 0.11; root.position.y -= this.wallK * 0.05; root.rotation.x += this.wallK * 0.35; root.rotation.y += this.wallK * 0.15;
+        }
+        // R4.3: dynamic crosshair
+        {
+            const w = WEAPONS[p.weapons[p.currentWeapon]];
+            const gap = 5 + (w.spread || 0) * 90 + (this.moving ? (this.sprinting ? 9 : 4) : 0) + this.recoil * 12 + (this.jumpZ > 0.01 ? 6 : 0);
+            hud.setCrosshair({ gap, style: w.type === 'melee' ? 'melee' : 'lines', hidden: this.sprinting && this.moving && this.aim < 0.1, aim: this.aim });
         }
     }
 }

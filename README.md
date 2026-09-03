@@ -124,7 +124,7 @@ The pre-built game is a single self-contained HTML file.
 |:-:|:-:|:-:|:-:|
 | ![Modern Lobby](modern/docs/M5.1/lobby-reception.jpg) | ![Modern Office](modern/docs/M5.2/office-conference.jpg) | ![Modern Factory](modern/docs/M5.5/factory-line.jpg) | ![Modern Penthouse](modern/docs/M5.6/penthouse-arena.jpg) |
 
-Every screen and floor side by side with the classic: [`modern/docs/comparison.md`](modern/docs/comparison.md). Design notes: [`docs/modern/design.md`](docs/modern/design.md). Score previews: [`modern/docs/M6/`](modern/docs/M6/).
+Polish round 2 (workbench menu and crawl restored, bench HUD with Sandy's portrait, new hands and tools, controls pass) is logged in [`docs/modern/GOAL_LOOP_2.md`](docs/modern/GOAL_LOOP_2.md) with sheets under `modern/docs/R*`. Every screen and floor side by side with the classic: [`modern/docs/comparison.md`](modern/docs/comparison.md). Design notes: [`docs/modern/design.md`](docs/modern/design.md). Score previews: [`modern/docs/M6/`](modern/docs/M6/).
 
 
 1. [Download the repository as a ZIP](https://github.com/chrissotraidis/tablequestIII/archive/refs/heads/main.zip) and extract it.

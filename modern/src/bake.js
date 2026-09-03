@@ -62,11 +62,15 @@ export function bakeStatic(group, { fresh = false, quantize = 0, single = false 
         const g = o.geometry.clone();
         // bake transform relative to the group root
         g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
-        // bake flat colour into a vertex colour attribute
+        // bake flat colour into a vertex colour attribute (R3.1: a mesh that already carries
+        // vertex colours with vertexColors on keeps them, tinted by the material colour)
         color.copy(o.material.color);
         const n = g.attributes.position.count;
         const cols = new Float32Array(n * 3);
-        for (let i = 0; i < n; i++) { cols[i * 3] = color.r; cols[i * 3 + 1] = color.g; cols[i * 3 + 2] = color.b; }
+        const pre = o.material.vertexColors && g.attributes.color ? g.attributes.color.array : null;
+        for (let i = 0; i < n; i++) {
+            cols[i * 3] = color.r * (pre ? pre[i * 3] : 1); cols[i * 3 + 1] = color.g * (pre ? pre[i * 3 + 1] : 1); cols[i * 3 + 2] = color.b * (pre ? pre[i * 3 + 2] : 1);
+        }
         g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
         // drop attributes that differ between geometries and would block the merge
         for (const name of Object.keys(g.attributes))

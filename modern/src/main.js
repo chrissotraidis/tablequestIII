@@ -214,7 +214,7 @@ const MENU_DETAILS = [
 ];
 
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
-const OPTIONS = ['postfx', 'fov', 'sens', 'invert', 'sound'];
+const OPTIONS = ['postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 let optIdx = 0;
 function renderOptions() {
     document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => el.classList.toggle('selected', i === optIdx));
@@ -222,6 +222,11 @@ function renderOptions() {
     $('opt-fov').textContent = String(Math.round(game.baseFov));
     $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
     $('opt-invert').textContent = game.invertY ? 'ON' : 'OFF';
+    $('opt-smooth').textContent = ['RAW', 'LIGHT', 'MEDIUM', 'HEAVY'][Math.round(game.lookSmooth * 3)];
+    $('opt-adssens').textContent = Math.round(game.adsSens * 100) + '%';
+    $('opt-adstoggle').textContent = game.adsToggle ? 'TOGGLE' : 'HOLD';
+    $('opt-sprinttoggle').textContent = game.sprintToggle ? 'TOGGLE' : 'HOLD';
+    $('opt-bob').textContent = ['OFF', 'LOW', 'FULL'][Math.round(game.bobAmount * 2)];
     $('opt-sound').textContent = isMuted() ? 'OFF' : 'ON';
 }
 function adjustOption(dir) {
@@ -234,6 +239,11 @@ function adjustOption(dir) {
     }
     else if (key === 'sens') game.adjustSensitivity((dir || 1) * 0.0002);
     else if (key === 'invert') { game.invertY = !game.invertY; localStorage.setItem('tq3d-invert', game.invertY ? '1' : '0'); }
+    else if (key === 'smooth') { game.lookSmooth = Math.max(0, Math.min(1, Math.round(game.lookSmooth * 3 + (dir || 1)) / 3)); localStorage.setItem('tq3d-smooth', String(game.lookSmooth)); }
+    else if (key === 'adssens') { game.adsSens = Math.max(0.3, Math.min(1.2, +(game.adsSens + (dir || 1) * 0.1).toFixed(2))); localStorage.setItem('tq3d-adssens', String(game.adsSens)); }
+    else if (key === 'adstoggle') { game.adsToggle = !game.adsToggle; localStorage.setItem('tq3d-adstoggle', game.adsToggle ? '1' : '0'); }
+    else if (key === 'sprinttoggle') { game.sprintToggle = !game.sprintToggle; localStorage.setItem('tq3d-sprinttoggle', game.sprintToggle ? '1' : '0'); }
+    else if (key === 'bob') { game.bobAmount = Math.max(0, Math.min(1, Math.round(game.bobAmount * 2 + (dir || 1)) / 2)); localStorage.setItem('tq3d-bob', String(game.bobAmount)); }
     else if (key === 'sound') updateMute(toggleMute());
     playSound('menu_move');
     renderOptions();
@@ -864,6 +874,7 @@ window.TQ = {
     setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
     get scene() { return scene; },
     get player() { return game.player; },
+    get input() { return input; }, // R5 harness: drive look/move directly
     setState,
     startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
     deploy() { finishLoading(); return state; },                   // harness: dismiss a loading card

@@ -2,6 +2,12 @@
 
 ## 2026-09-03 — Modern preview build (fork)
 
+### Changed (polish round 2)
+
+- The classic workbench menu cover and the cinematic story crawl return to the modern preview, modernized (parallax, dust, grain, letterbox, kinetic beats, satellite inset).
+- The workbench status bar returns as the HUD, with Sandy's portrait reacting to hits, health, pickups, aiming, sprinting, firing, and the boss's rage.
+- New arms and hands, rebuilt tools with procedural textures, per-tool firing feedback, a dynamic crosshair, and a controls pass (look smoothing, aim sensitivity, hold/toggle aim and sprint, head-bob amount, new keys).
+
 ### Added
 
 - `modern/`: a preview build that re-presents the same game in a mid-2000s shooter style. Same six floors, weapons, enemies, pickups, story, nine pieces of music, and original artwork; new lighting and shadows, materials with normal and roughness maps, trim, windows, and exteriors, a modern HUD and front-end, two-handed weapons with aim-down-sights and recoil, particles and decals, layered character animation with staff callouts, per-floor set dressing, a re-orchestrated score with ambience beds and a dynamic mix, and post-processing. Builds to `dist/modern/index.html` (`npm run build:modern`).

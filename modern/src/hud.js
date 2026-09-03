@@ -99,13 +99,22 @@ export const hud = {
         poke();
     },
 
-    /** crosshair fades as the sights come up */
+    /** crosshair fades as the sights come up (the ADS dot takes over) */
     setAim(t) {
         const v = (1 - t).toFixed(2);
         if (lastVals._aim === v) return;
         lastVals._aim = v;
-        $('crosshair').style.opacity = (0.85 * (1 - t)).toFixed(2);
+        $('crosshair').style.setProperty('--ads', t.toFixed(2));
         if (t > 0.05) poke();
+    },
+
+    /** R4.3: dynamic crosshair — gap in px, style 'lines' | 'melee', hidden while sprinting */
+    setCrosshair({ gap = 6, style = 'lines', hidden = false, aim = 0 }) {
+        const el = $('crosshair');
+        const gv = Math.round(gap);
+        if (lastVals._chGap !== gv) { lastVals._chGap = gv; el.style.setProperty('--gap', gv + 'px'); }
+        if (lastVals._chStyle !== style) { lastVals._chStyle = style; el.classList.toggle('melee', style === 'melee'); }
+        if (lastVals._chHidden !== hidden) { lastVals._chHidden = hidden; el.classList.toggle('sprint', hidden); }
     },
 
     setLockHint(show) {

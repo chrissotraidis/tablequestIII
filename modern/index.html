@@ -1702,6 +1702,22 @@
         /* the modern bottom clusters are gone; keep the marker clear of the bench */
         #obj-marker { z-index: 5; }
         #lowhp-overlay { bottom: 110px !important; }
+        /* ======================= CROSSHAIR (R4.3) ======================= */
+        #crosshair { --gap: 6px; --ads: 0; font-size: 0 !important; width: 0; height: 0; opacity: 1 !important; }
+        #crosshair i { position: absolute; display: block; background: rgba(255,255,255,.92); box-shadow: 0 0 2px rgba(0,0,0,.9); transition: transform .08s ease-out, opacity .15s; }
+        #crosshair .ch-t, #crosshair .ch-b { width: 2px; height: 9px; left: -1px; }
+        #crosshair .ch-l, #crosshair .ch-r { height: 2px; width: 9px; top: -1px; }
+        #crosshair .ch-t { top: 0; transform: translateY(calc(-1 * var(--gap) - 9px)); }
+        #crosshair .ch-b { top: 0; transform: translateY(var(--gap)); }
+        #crosshair .ch-l { left: 0; transform: translateX(calc(-1 * var(--gap) - 9px)); }
+        #crosshair .ch-r { left: 0; transform: translateX(var(--gap)); }
+        #crosshair .ch-t, #crosshair .ch-b, #crosshair .ch-l, #crosshair .ch-r { opacity: calc(1 - var(--ads)); }
+        #crosshair .ch-dot { width: 3px; height: 3px; left: -1.5px; top: -1.5px; border-radius: 50%; opacity: calc(.35 + var(--ads)); }
+        #crosshair .ch-m1, #crosshair .ch-m2 { display: none; width: 14px; height: 14px; background: none; box-shadow: none; border: 2px solid rgba(255,255,255,.9); }
+        #crosshair .ch-m1 { left: -20px; top: -7px; border-right: 0; } #crosshair .ch-m2 { left: 6px; top: -7px; border-left: 0; }
+        #crosshair.melee .ch-t, #crosshair.melee .ch-b, #crosshair.melee .ch-l, #crosshair.melee .ch-r { display: none; }
+        #crosshair.melee .ch-m1, #crosshair.melee .ch-m2 { display: block; }
+        #crosshair.sprint i { opacity: 0; }
         /* ======================= BARKS (M4.3) ======================= */
         #audio-meter { position: absolute; right: 16px; top: 96px; width: 300px; padding: 8px 10px; background: rgba(6, 8, 12, 0.72); border: 1px solid rgba(255,255,255,0.14); border-radius: 4px; font: 11px/1.5 'Courier New', monospace; letter-spacing: 0.04em; color: #d8dce4; pointer-events: none; z-index: 12; }
 #audio-meter .am-row { display: grid; grid-template-columns: 58px 1fr auto; gap: 8px; align-items: center; }
@@ -1721,7 +1737,7 @@
         <canvas id="game-canvas"></canvas>
 
         <!-- ============ HUD ============ -->
-        <div id="crosshair" class="hidden">+</div>
+        <div id="crosshair" class="hidden"><i class="ch-t"></i><i class="ch-b"></i><i class="ch-l"></i><i class="ch-r"></i><i class="ch-dot"></i><i class="ch-m1"></i><i class="ch-m2"></i></div>
         <div id="hit-marker"></div>
         <div id="damage-dir"></div>
         <div id="lowhp-overlay" class="hidden"></div>
@@ -1852,7 +1868,12 @@
                     <div class="opt-row selected" data-opt="postfx"><span class="opt-label">Post-processing</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-postfx">ON</b><i class="opt-arrow">›</i></span></div>
                     <div class="opt-row" data-opt="fov"><span class="opt-label">Field of view</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-fov">72</b><i class="opt-arrow">›</i></span></div>
                     <div class="opt-row" data-opt="sens"><span class="opt-label">Mouse sensitivity</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-sens">2.8</b><i class="opt-arrow">›</i></span></div>
+                    <div class="opt-row" data-opt="smooth"><span class="opt-label">Look smoothing</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-smooth">LIGHT</b><i class="opt-arrow">›</i></span></div>
+                    <div class="opt-row" data-opt="adssens"><span class="opt-label">Aim sensitivity</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-adssens">70%</b><i class="opt-arrow">›</i></span></div>
+                    <div class="opt-row" data-opt="adstoggle"><span class="opt-label">Aim down sights</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-adstoggle">HOLD</b><i class="opt-arrow">›</i></span></div>
                     <div class="opt-row" data-opt="invert"><span class="opt-label">Invert look</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-invert">OFF</b><i class="opt-arrow">›</i></span></div>
+                    <div class="opt-row" data-opt="sprinttoggle"><span class="opt-label">Sprint</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-sprinttoggle">HOLD</b><i class="opt-arrow">›</i></span></div>
+                    <div class="opt-row" data-opt="bob"><span class="opt-label">Head bob</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-bob">FULL</b><i class="opt-arrow">›</i></span></div>
                     <div class="opt-row" data-opt="sound"><span class="opt-label">Sound</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-sound">ON</b><i class="opt-arrow">›</i></span></div>
                 </div>
                 <div class="mm-panel-footer">↑↓ SELECT · ←→ ADJUST · ENTER TOGGLE · ESC BACK</div>
@@ -1870,7 +1891,8 @@
                 <p><span class="key">E</span> Open doors &nbsp; <span class="key">SHIFT</span> Sprint</p>
                 <p><span class="key">1</span>–<span class="key">5</span> / <span class="key">Q</span> / <span class="key">WHEEL</span> Switch weapon &nbsp; <span class="key">TAB</span> Tactical map</p>
                 <p><span class="key">[</span><span class="key">]</span> Mouse sensitivity &nbsp; <span class="key">U</span> Mute &nbsp; <span class="key">ESC</span> Pause</p>
-                <p class="mi-new"><span class="key">RMB</span> Aim down sights &nbsp; <span class="key">V</span> Quick melee (table leg) &nbsp; <span class="key">F</span> Inspect weapon</p>
+                <p class="mi-new"><span class="key">RMB</span> / <span class="key">C</span> Aim down sights &nbsp; <span class="key">V</span> Quick melee (table leg) &nbsp; <span class="key">F</span> Inspect &nbsp; <span class="key">R</span> Re-grip</p>
+                <p class="mi-new"><span class="key">ALT</span> Sprint toggle &nbsp; · &nbsp; aim/sprint hold or toggle, aim sensitivity, look smoothing and head bob are in Options</p>
                 <p style="margin-top:14px;color:#fc6">🌽 FRITOS® Corn Chips +25 HP &nbsp; 🎨 Paint Bucket +14 paint</p>
                 <p style="color:#fc6">💰 Cash & Gold = score. Find secret weapons!</p>
                 <div class="panel-footer">PRESS ENTER OR ESC TO RETURN</div>

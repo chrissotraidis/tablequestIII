@@ -490,10 +490,10 @@ Owed to the user (the M7 gate is the final review): hardware checks for 60 fps, 
 |:--|:--|:--|
 | R1 Front-end charm returns | DONE | workbench menu, cinematic crawl, flow |
 | R2 Workbench status bar returns | DONE | bench, reactive portrait, rack icons |
-| R3 Hands and arms | TODO | |
-| R4 Weapons, major polish | TODO | |
-| R5 Controls polish | TODO | |
-| R6 Playtest and gate | TODO | |
+| R3 Hands and arms | DONE | new rig, grips, animated parts |
+| R4 Weapons, major polish | DONE | rebuilt tools, firing feedback, crosshair |
+| R5 Controls polish | DONE | look, move, bindings, options |
+| R6 Playtest and gate | DONE | campaign clear, sheets, rebuild |
 
 Decisions: R-A bench opaque and non-fading; R-B crawl is the New Game path; R-C ADS and sprint default to hold. §5-G (unattended) carries over.
 
@@ -521,3 +521,57 @@ Boot → title → workbench menu → crawl → loading card → Floor 1 → pau
 ### R2.3 — Rack icons and readouts   (2026-09-03)
 **Changed:** 12×7 pixel tool icons drawn into each rack slot (brush, leg, nailer, roller launcher, sprayer), empty slots ghosted, active slot lit; low-paint and low-health pulse; `hud.benchHint()` shows "ALREADY FULL" on the bench.
 **Evidence:** rack visible in `bench-1280.jpg`.
+
+### R3.1 — New arm and hand model   (2026-09-03)
+**Changed:** `modern/src/viewmodels.js` rewritten. Each arm is a capsule limb chain: shoulder stub → elbow → rolled sleeve with three folds and a double-rolled cuff → bare forearm → wrist (with a wrist bone). The hand has a palm and heel, a padded fingerless work glove (pad, back panel, strap, buckle, two stitching lines, finger loops with thread rings), a knuckle ridge, four three-segment fingers with knuckles and nails, a thumb on its mound, and a watch on the off hand (band, bezel, face, crown). Soft directional shading is baked into vertex colours (`shadeGroup`; `bake.js` now keeps pre-shaded colours), so creases read even under flat light. Elbows sit lower and further back than the M2 rig so forearms read at a natural size.
+**Evidence:** `modern/docs/R3/*-hip.jpg`, `*-ads.jpg`, `*-fire.jpg`. Meshes per viewmodel after baking: brush 17 (six textured pieces), leg 6, nailer 13, roller 11, sprayer 11.
+
+### R3.2 — Grips per weapon   (2026-09-03)
+**Changed:** the index finger reaches for each trigger (nailer, roller launcher, sprayer) and lives in its own pivot; the off hand cups the nailer nose, supports the roller tube, holds the sprayer barrel, chokes up under the leg's right hand, and carries the paint can for the brush. ADS poses re-set so the sights come to the eye above the bench (nailer −0.17/−0.64, roller −0.15/−0.56, sprayer −0.14/−0.54). Guns rest pitched slightly nose-down so their tops read from the play camera. Muzzle points unchanged.
+**Evidence:** `*-ads.jpg`.
+
+### R3.3 — Hand animation   (2026-09-03)
+**Changed:** `finish()` bakes `trigger`, `offHand`, and `head` parts separately with their rest transforms; `game.js` drives them each frame: trigger squeeze on fire, brush-head wrist flick, roller off-hand pump (out and back over the recoil), a small off-hand kick on the other tools, idle finger/hand fidget, sprayer hose sway, walk bounce on the off hand, and the top-up hand motion on paint pickup; sprint lowering, inspect, swap and re-grip (R key) reuse the M2.5 whole-arm animation.
+**Evidence:** `*-fire.jpg` (trigger pulled, roller pumped, hiss puff).
+
+### R4.1 — Rebuilt tools   (2026-09-03)
+**Changed:** paintbrush — lathe-turned handle with a wood-grain map, tape band, lacquered tip, wrapped "ARTISAN No. 7" label, brushed-steel ferrule with crimp rings and rivets, sixteen fanned bristle tufts, paint-loaded tip and a drip; a brushed paint can with a stain label and wire handle. Table leg — lathe profile (foot, beads, taper, top block) in wood grain, three bent nails, scuffs, tape grip, brass ferrule, held smaller and higher. Nail gun — chamfered orange body with brushed side plates and screws, exhaust cap, knurled depth dial, "CARTEL-PRO FN-90" decal, brushed nose with safety contact, angled magazine with a visible nine-nail strip, brass air fitting with a coiled hose, ridged rubber overmould grip, trigger and guard. Roller launcher — brushed tube with three bolted clamps, brass muzzle collar, a fuzzy roller nap (noise map), pressure tank with rubber straps, "90 PSI" label, gauge with needle, valve, hose, and a shoulder strap. Sprayer — hopper tank with straps and "SPRAY-MASTER AIRLESS" label, fill cap, brushed gun body, shrouded barrel with vent holes, pattern knob, nozzle guard and glowing tip, gauge, hose, ridged grip. Procedural canvas textures: wood grain (two tones), brushed metal, tape, roller nap, labels.
+**Evidence:** `modern/docs/R3/*-hip.jpg`.
+**Preservation:** WEAPONS numbers untouched (`config.js` identical).
+
+### R4.2 — Firing feedback per tool   (2026-09-03)
+**Changed:** on top of the M2 flashes, tracers, and bursts: the nailer's exhaust cap puffs upward on every shot; the roller launcher's tank hisses a steam puff and the off hand pumps; the trigger finger squeezes; the brush head flicks. Recoil signatures per tool are the M2.4 table.
+**Evidence:** `nailgun-fire.jpg`, `roller-fire.jpg`, `sprayer-fire.jpg`.
+
+### R4.3 — Crosshair and readouts   (2026-09-03)
+**Changed:** a four-line crosshair whose gap follows the weapon's spread, movement (more when sprinting), recoil, and jumping; a centre dot that takes over as the sights come up; a bracket for the table leg; hidden while sprinting. Wall clip avoidance: the tool pulls in, drops, and tilts when a wall is within 0.6 m ahead.
+**Evidence:** `tableLeg-hip.jpg` (bracket), `*-ads.jpg` (dot), gap visible in `*-fire.jpg`.
+
+### R5.1 — Look   (2026-09-03)
+**Changed:** look smoothing is an option (RAW / LIGHT / MEDIUM / HEAVY; default LIGHT ≈ one frame), frame-rate independent (`1 − e^(−dt·k)`); an ADS sensitivity scale (default 70 %); aim hold or toggle (C toggles when the option is on); `[` `]`, invert, and the sensitivity option unchanged.
+**Evidence:** `modern/tools/controls_probe.mjs`: yaw for 240 mouse counts = 0.672 rad at both 60 fps and 20 fps for every smoothing level; 0.470 rad while aimed (70 %).
+
+### R5.2 — Move   (2026-09-03)
+**Changed:** landing dip on the camera (sine bump 0.055 over ~0.22 s), head-bob amount option (OFF / LOW / FULL, applies to camera bob and arm sway), sprint hold or toggle (Alt toggles while moving forward). Speeds untouched.
+**Evidence:** probe: walking 3.52 u/s and sprinting 5.43 u/s over half a second after half a second of acceleration (constants 3.7 / 5.6).
+
+### R5.3 — Bindings   (2026-09-03)
+**Changed:** C aim toggle, Alt sprint toggle, R re-grip; Options gains Look smoothing, Aim sensitivity, Aim down sights (hold/toggle), Sprint (hold/toggle), Head bob; How to Play lists them. All classic bindings unchanged.
+**Evidence:** `modern/docs/R6/options.jpg` (captured at the gate).
+
+### R6.1 — Full verification   (2026-09-03)
+- `npm run check:classic` OK; `validate:levels:modern` 6/6; `diff src/config.js modern/src/config.js` and `diff src/levels.js modern/src/levels.js` identical; build 13.8 MB (< 40 MB); `smoke:modern` green (boot → title → workbench menu → sub-screens → crawl → loading card → play → pause → six floors).
+- Autopilot campaign (`modern/docs/R6/campaign.json`): **victory**, 6/6 floors, boss defeated, score 34,410, game time 883 s, 13 deaths (Office 1, Factory 12, all through the classic retry). Two earlier runs hit the tool's old 12-death cap on the Factory (fifteen staff against retry-floor paint) — the cap was raised to match the game's unlimited retries; no enemy, projectile, or config code changed this round (`git diff` audited).
+- Controls probe (`modern/tools/controls_probe.mjs`): look frame-rate independent at every smoothing level; ADS scale 70 %; walking and sprinting speeds match the classic constants.
+- Collision signatures (`modern/tools/collision_sig.mjs`, classic 5173 vs modern 5174): identical on all six floors — bbd9de57, e5dd0df8, 473211ec, 892d4d6b, c4ae3547, 66dc2900.
+
+### R6.2 — Sheets   (2026-09-03)
+`modern/docs/R1/` menu, floor select over the live Lobby, options, crawl at six moments, loading card; `modern/docs/R2/` bench at 1280×800 and 960×600, hurt/low-health bench, pause portrait, 16-state face sheet; `modern/docs/R3/` five tools at hip, ADS, and mid-fire; `modern/docs/R6/` menu, options with the five new rows, crawl, loading card.
+
+### R6.3 — Docs and release candidate   (2026-09-03)
+PROGRESS round-2 entries (this section), CHANGELOG "polish round 2" lines, README pointer to `GOAL_LOOP_2.md`; `dist/modern/index.html` rebuilt and committed as the round-2 release candidate.
+
+### Round 2 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: the workbench menu cover and the cinematic crawl are back and modernized; the bench status bar is back with a reactive 64×64 portrait and rack icons; new arms and hands with baked shading and animated parts; five rebuilt tools with procedural textures and per-tool firing feedback; a dynamic crosshair and wall-clip avoidance; a controls pass with five new options and three new keys. Preserved: config and levels identical, story text identical, classic frozen, collision signatures unchanged, campaign clear.
+Owed to the user (this gate is the review): feel of look smoothing, aim sensitivity, and the toggles on hardware; the read of hands and tools at real frame rates (the software renderer shows them still); the bench height (R-A, 110 px) against your taste; and whether the Factory's difficulty for a fresh retry is right (the bot's twelve deaths there are the bot's straight-line kiting, but a human check is worth it).
