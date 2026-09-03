@@ -24,6 +24,17 @@ for (const f of floors.map(Number)) {
     await page.keyboard.down('w'); await page.waitForTimeout(walk); await page.keyboard.up('w'); await page.waitForTimeout(500);
     await page.screenshot({ path: `${out}/floor-${f}.${ext}`, timeout: 90000, ...fmt });
 }
+// POSES='[{"f":2,"x":6,"y":2.5,"rot":0.6,"pitch":0.45,"name":"desk"}]' — teleport + aim before shooting
+if (process.env.POSES) {
+    for (const pose of JSON.parse(process.env.POSES)) {
+        await page.evaluate((po) => {
+            TQ.startGameAt(po.f - 1); TQ.godmode(true);
+            TQ.teleport(po.x, po.y); TQ.player.rot = po.rot ?? 0; TQ.game.pitch = po.pitch ?? 0;
+        }, pose);
+        await page.waitForTimeout(1200);
+        await page.screenshot({ path: `${out}/${pose.name || `pose-${pose.f}`}.${ext}`, timeout: 90000, ...fmt });
+    }
+}
 if (process.env.TEXSHEET) {
     await page.evaluate(() => TQ.textureSheet());
     await page.waitForTimeout(300);

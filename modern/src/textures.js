@@ -449,10 +449,10 @@ function metalCeil() {
  */
 const SURFACE = {
     brick:        { bump: 2.2, rough: 0.92, roughVar: 0.08, metal: 0.0 },
-    wood:         { bump: 1.1, rough: 0.55, roughVar: 0.20, metal: 0.0 },
+    wood:         { bump: 0.7, rough: 0.55, roughVar: 0.20, metal: 0.0 },
     stone:        { bump: 2.4, rough: 0.88, roughVar: 0.10, metal: 0.0 },
     metal:        { bump: 1.3, rough: 0.38, roughVar: 0.25, metal: 0.65 },
-    office:       { bump: 0.9, rough: 0.72, roughVar: 0.15, metal: 0.0 },
+    office:       { bump: 0.7, rough: 0.72, roughVar: 0.15, metal: 0.0 },
     concrete:     { bump: 1.6, rough: 0.92, roughVar: 0.06, metal: 0.0 },
     door:         { bump: 1.4, rough: 0.48, roughVar: 0.20, metal: 0.35 },
     gate:         { bump: 1.0, rough: 0.40, roughVar: 0.20, metal: 0.70 },
@@ -572,7 +572,10 @@ export function surfaceMaterial(key, { repeat = null, ...extra } = {}) {
     let map = s.map, normalMap = s.normalMap, roughnessMap = s.roughnessMap;
     if (repeat) {
         map = map.clone(); normalMap = normalMap.clone(); roughnessMap = roughnessMap.clone();
-        for (const t of [map, normalMap, roughnessMap]) { t.repeat.set(repeat[0], repeat[1]); t.needsUpdate = true; }
+        for (const t of [map, normalMap, roughnessMap]) {
+            t.repeat.set(repeat[0], repeat[1]); t.needsUpdate = true;
+            t.userData.clone = true; // per-mesh copy: World.dispose() must free it
+        }
     }
     return new THREE.MeshStandardMaterial({
         map, normalMap, roughnessMap,

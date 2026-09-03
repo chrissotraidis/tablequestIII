@@ -124,6 +124,12 @@ export const hud = {
             }
             setText('objective', '◆ DEFEAT THE HEAD DESIGNER ◆');
         } else {
+            // MODERN fix: warping off the boss floor without passing the menu
+            // used to leave the boss bar up (classic cached the visible state)
+            if (lastVals._boss !== false) {
+                lastVals._boss = false;
+                $('boss-bar-wrap').classList.add('hidden');
+            }
             setText('objective', done
                 ? '◆ TABLES SECURED — GET TO THE ELEVATOR ◆'
                 : `◆ ${game.level.name.toUpperCase()} — COLLECT ${game.requiredTables} TABLES ◆`);

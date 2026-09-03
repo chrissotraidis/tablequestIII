@@ -28,6 +28,9 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
+// MODERN: shadow maps on (one directional key per floor, see lighting.js)
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
@@ -39,7 +42,7 @@ scene.add(camera);
 {
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    scene.environmentIntensity = 0.28;
+    scene.environmentIntensity = 0.18;
     pmrem.dispose();
 }
 
@@ -80,6 +83,7 @@ const game = new Game(scene, camera, {
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
                 game.loadLevel(next);
+                renderer.toneMappingExposure = game.world.rig?.exposure ?? 1.1;
                 renderer.compile(scene, camera); // pre-warm shaders behind the card
                 snapshotLevel();
                 setState('play');
@@ -300,6 +304,7 @@ function startGameAt(idx) {
     if (idx >= 3 && !game.player.weapons.includes('nailgun')) game.player.weapons.push('nailgun');
     if (idx >= 4 && !game.player.weapons.includes('roller')) game.player.weapons.push('roller');
     if (idx >= 5 && !game.player.weapons.includes('sprayer')) game.player.weapons.push('sprayer');
+    renderer.toneMappingExposure = game.world.rig?.exposure ?? 1.1;
     renderer.compile(scene, camera); // pre-warm shaders so play starts hitch-free
     snapshotLevel();
     setState('play');
@@ -314,6 +319,7 @@ function retryFloor() {
         game.player.ammo = Math.max(game.player.ammo, 20);
     }
     game.loadLevel(game.levelIndex, { keepStats: true });
+    renderer.toneMappingExposure = game.world.rig?.exposure ?? 1.1;
     renderer.compile(scene, camera);
     setState('play');
 }
@@ -588,6 +594,8 @@ function botStep(dt) {
 window.TQ = {
     get state() { return state; },
     get game() { return game; },
+    get renderer() { return renderer; },
+    get scene() { return scene; },
     get player() { return game.player; },
     setState,
     startGameAt,

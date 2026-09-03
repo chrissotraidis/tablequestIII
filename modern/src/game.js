@@ -21,6 +21,7 @@ import {
     buildNailgunViewmodel, buildRollerViewmodel,
 } from './models.js';
 import { Effects } from './effects.js';
+import { setShadow } from './lighting.js';
 
 const ENEMY_CHAR = { g: 0, m: 1, x: 2, D: -1, G: 'boss' };
 
@@ -68,7 +69,9 @@ export class Game {
         this.shake = 0;
 
         // player light follows camera
-        this.playerLight = new THREE.PointLight(0xffe0b0, 7, 9, 1.5);
+        // MODERN: the classic 'flashlight' fill is dimmed — real shadows and
+        // fixture pools do the reading now; this only keeps Sandy's hands lit
+        this.playerLight = new THREE.PointLight(0xffe0b0, 2.4, 6, 1.6);
         scene.add(this.playerLight);
 
         // muzzle flash light (brief spike when firing)
@@ -141,11 +144,20 @@ export class Game {
     loadLevel(index, { keepStats = true } = {}) {
         // tear down old
         if (this.world) this.world.dispose();
+        // MODERN: free per-level GPU resources (classic only removed them)
+        const disposeTree = (obj) => obj.traverse(o => {
+            if (o.geometry) o.geometry.dispose();
+            if (o.material && !o.material.map) { // keep shared sprite textures (Fritos)
+                const ms = Array.isArray(o.material) ? o.material : [o.material];
+                ms.forEach(m => { if (!m.userData.shared) m.dispose(); });
+            }
+        });
         for (const e of this.enemies) {
             this.scene.remove(e.model.group);
-            if (e.shadow) this.scene.remove(e.shadow);
+            disposeTree(e.model.group);
+            if (e.shadow) { this.scene.remove(e.shadow); e.shadow.geometry.dispose(); e.shadow.material.dispose(); }
         }
-        for (const p of this.pickups) this.scene.remove(p.mesh);
+        for (const p of this.pickups) { this.scene.remove(p.mesh); disposeTree(p.mesh); }
         for (const pr of this.projectiles) this.removeProjectileMesh(pr);
         this.effects.clear();
         this.enemies = [];
@@ -212,6 +224,7 @@ export class Game {
             const stats = ENEMY_STATS[variant];
             const model = buildEnemy(variant);
             model.group.position.set(x, 0, y);
+            setShadow(model.group);
             this.scene.add(model.group);
 
             const shadow = new THREE.Mesh(
@@ -221,6 +234,7 @@ export class Game {
                 })
             );
             shadow.rotation.x = -Math.PI / 2;
+            shadow.material.opacity = 0.45; // real shadows carry most of the grounding now
             const shScale = variant === 'boss' ? 1.1 : 0.62;
             shadow.scale.set(shScale, shScale, 1);
             shadow.position.set(x, 0.012, y);
@@ -251,7 +265,7 @@ export class Game {
         const b = builders[char];
         if (!b) return;
         const [kind, build] = b;
-        const mesh = build();
+        const mesh = setShadow(build(), { receive: false });
         mesh.position.set(x, 0, y);
         this.scene.add(mesh);
         if (kind === 'table') this.requiredTables++;
