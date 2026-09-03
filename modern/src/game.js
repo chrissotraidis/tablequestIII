@@ -14,6 +14,7 @@ import { input, fireHeld } from './input.js';
 import { playSound, startSong } from './audio.js';
 import { hud } from './hud.js';
 import { buildEnemy } from './characters.js'; // MODERN M4.1
+import { poseEnemy, poseDeath } from './enemyanim.js'; // MODERN M4.2
 import {
     buildTable, buildAmmo, buildHealth, buildMoney,
     buildGoldBar, buildTableLegPickup, buildSprayerPickup,
@@ -870,6 +871,9 @@ export class Game {
         e.health -= dmg;
         if (e.painT <= 0 && e.health > 0) playSound('enemy_pain'); // grunt (throttled by painT)
         e.painT = 0.22;
+        // MODERN M4.2: flinch on any hit; stagger on a heavy one (≥ 30 % of max)
+        e.flinchT = 0.3;
+        if (dmg >= e.maxHealth * 0.3 && e.health > 0) { e.staggerT = 0.6; e.staggerSide = Math.random() < 0.5 ? -1 : 1; }
         if (e.state === 'idle' || e.state === 'alert') {
             e.state = 'chase'; // getting shot wakes them up
             this.packAlert(e);
@@ -877,7 +881,7 @@ export class Game {
         if (e.health <= 0) {
             e.alive = false;
             e.state = 'dead';
-            e.deathT = 0;
+            e.deathT = 0; e.deathSide = undefined;
             for (const mat of e.model.flashMats) mat.emissive?.setRGB(0, 0, 0);
             // they go down in a spray of paint
             this.effects.burst(new THREE.Vector3(e.x, 0.5, e.y),
@@ -924,11 +928,7 @@ export class Game {
 
             // death animation: fall over then stay
             if (!e.alive) {
-                if (e.deathT < 1) {
-                    e.deathT = Math.min(1, e.deathT + dt * 2.2);
-                    m.group.rotation.x = -e.deathT * Math.PI / 2;
-                    m.group.position.y = e.deathT * 0.06;
-                }
+                poseDeath(e, m, dt); // MODERN M4.2: buckle → fall → settle
                 continue;
             }
 
@@ -1048,16 +1048,8 @@ export class Game {
                 }
             }
 
-            // update model transform + walk animation
+            // update model transform; facing is still decided here (classic)
             const isMoving = !!(moveX || moveY);
-            // bouncy step + startled hop
-            let bounceY = isMoving ? Math.abs(Math.sin(e.walkPhase)) * 0.045 : 0;
-            if (e.hopT > 0) {
-                e.hopT -= dt;
-                bounceY += Math.sin(Math.max(0, 1 - e.hopT / 0.3) * Math.PI) * 0.12;
-            }
-            m.group.position.set(e.x, bounceY, e.y);
-            e.shadow.position.set(e.x, 0.012, e.y);
             const face = (e.state === 'chase' || e.state === 'alert')
                 ? Math.atan2(p.x - e.x, p.y - e.y)
                 : Math.atan2(Math.cos(e.patrolDir), Math.sin(e.patrolDir));
@@ -1066,33 +1058,19 @@ export class Game {
             while (dFace > Math.PI) dFace -= Math.PI * 2;
             while (dFace < -Math.PI) dFace += Math.PI * 2;
             m.group.rotation.y += dFace * Math.min(1, dt * 10);
-
-            const swing = isMoving ? Math.sin(e.walkPhase) * 0.75 : 0;
-            m.legL.rotation.x = swing;
-            m.legR.rotation.x = -swing;
-            m.armL.rotation.x = -swing * 0.75;
-            m.armR.rotation.x = swing * 0.75;
-            if (isMoving) {
-                // lean into the run, shoulders rolling with the stride
-                const urgency = e.state === 'chase' ? 1 : 0.4;
-                m.torso.rotation.x = 0.1 * urgency;
-                m.torso.rotation.z = Math.sin(e.walkPhase) * 0.07;
-                m.headG.rotation.y = 0;
-            } else {
-                // idle: breathe and glance around
-                m.torso.rotation.x = Math.sin(this.time * 1.8 + e.walkPhase) * 0.022;
-                m.torso.rotation.z = 0;
-                m.armL.rotation.x = Math.sin(this.time * 1.8 + e.walkPhase) * 0.05;
-                m.armR.rotation.x = -Math.sin(this.time * 1.8 + e.walkPhase) * 0.05;
-                m.headG.rotation.y = e.state === 'idle'
-                    ? Math.sin(this.time * 0.7 + e.walkPhase * 2) * 0.45
-                    : m.headG.rotation.y * Math.max(0, 1 - dt * 8);
-            }
-            // wind-up: raise arm and rear back right before attacking
-            if (e.state === 'chase' && e.attackTimer < 0.35) {
-                m.armR.rotation.x = -1.9;
-                m.torso.rotation.x = -0.08;
-            }
+            // MODERN M4.2: pose layers (locomotion, aim, fire, flinch, stagger, hop)
+            let playerRel = Math.atan2(p.x - e.x, p.y - e.y) - m.group.rotation.y;
+            while (playerRel > Math.PI) playerRel -= Math.PI * 2;
+            while (playerRel < -Math.PI) playerRel += Math.PI * 2;
+            const bounceY = poseEnemy(e, m, {
+                dt, time: this.time, isMoving,
+                speedFrac: Math.hypot(moveX, moveY) / (stats.moveSpeed * speedMul || 1),
+                aiming: e.state === 'chase' && los && dist < stats.attackRange,
+                playerRel,
+                windUp: e.state === 'chase' && e.attackTimer < 0.35,
+            });
+            m.group.position.set(e.x, bounceY, e.y);
+            e.shadow.position.set(e.x, 0.012, e.y);
         }
     }
 
@@ -1105,6 +1083,7 @@ export class Game {
             return;
         }
         playSound('shoot');
+        e.fireT = 0.18; // MODERN M4.2: arm kick
         const p = this.player;
         // lead the target: aim where the player will be (skill varies by rank)
         const flight = Math.hypot(p.x - e.x, p.y - e.y) / ENEMY_PROJECTILE_SPEED;
