@@ -37,9 +37,9 @@ function mergeable(mesh) {
     const m = mesh.material;
     if (!m || Array.isArray(m) || !m.isMeshStandardMaterial) return false;
     if (m.map || m.transparent || m.side !== THREE.FrontSide) return false;
-    if (m.emissive && m.emissive.getHex() !== 0 && m.emissiveIntensity > 0) return false;
-    return true;
+    return true; // emissive meshes merge too: they get their own bucket per emissive colour/intensity
 }
+const emissiveKey = (m) => (m.emissive && m.emissive.getHex() !== 0 && m.emissiveIntensity > 0) ? `|e${m.emissive.getHex().toString(16)}:${m.emissiveIntensity.toFixed(2)}` : '';
 
 /**
  * Flatten `group` into as few meshes as possible. Returns a new Group with
@@ -71,7 +71,7 @@ export function bakeStatic(group, { fresh = false, quantize = 0 } = {}) {
         // drop attributes that differ between geometries and would block the merge
         for (const name of Object.keys(g.attributes))
             if (!['position', 'normal', 'uv', 'color'].includes(name)) g.deleteAttribute(name);
-        const k = `${q(o.material.roughness).toFixed(2)}|${q(o.material.metalness).toFixed(2)}`;
+        const k = `${q(o.material.roughness).toFixed(2)}|${q(o.material.metalness).toFixed(2)}${emissiveKey(o.material)}`;
         (buckets.get(k) || buckets.set(k, []).get(k)).push(g);
     });
 
@@ -85,20 +85,28 @@ export function bakeStatic(group, { fresh = false, quantize = 0 } = {}) {
         const merged = BufferGeometryUtils.mergeGeometries(geos, false);
         geos.forEach(g => g.dispose());
         if (!merged) continue;
-        const [r, m] = k.split('|').map(Number);
+        const [rs, ms, es] = k.split('|');
+        const r = Number(rs), m = Number(ms);
         // fresh: an uncached material owned by this object (characters flash their own)
-        const material = fresh ? Object.assign(bakedMat.clone(), { roughness: r, metalness: m }) : matFor(r, m);
+        let material = fresh ? Object.assign(bakedMat.clone(), { roughness: r, metalness: m }) : matFor(r, m);
+        if (es) { // emissive bucket: own material carrying the emissive (vertex colour still tints the base)
+            const [hex, inten] = es.slice(1).split(':');
+            material = Object.assign(bakedMat.clone(), { roughness: r, metalness: m, emissive: new THREE.Color(parseInt(hex, 16)), emissiveIntensity: Number(inten) });
+            material.userData.shared = false;
+        }
         const mesh = new THREE.Mesh(merged, material);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         out.add(mesh);
     }
-    // re-parent the un-mergeable meshes with their transform relative to the root
+    // un-mergeable meshes: clone into the output with their transform relative to the root
+    // (clones share geometry/material with the source, so the source group stays intact)
     for (const o of keep) {
         const rel = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
-        o.removeFromParent();
-        rel.decompose(o.position, o.quaternion, o.scale);
-        out.add(o);
+        const c = o.clone();
+        rel.decompose(c.position, c.quaternion, c.scale);
+        c.userData.cloneOf = o;
+        out.add(c);
     }
     return out;
 }

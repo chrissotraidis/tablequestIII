@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL, WALL_HEIGHT } from './config.js';
 import { getTextures, surfaceMaterial } from './textures.js';
-import { PROP_BUILDERS, buildPainting, buildRug } from './models.js';
+import { buildPainting, buildRug } from './models.js';
+import { PROP_BUILDERS } from './props.js'; // MODERN M5.7: prop library with damage states
 import { playSound } from './audio.js';
 import { getRig, makeKeyLight, setShadow } from './lighting.js';
 import { bakeStatic } from './bake.js';
@@ -84,6 +85,9 @@ export class World {
         this.propCells = new Set();  // cells blocked by furniture
         this.tallProps = new Set();  // furniture tall enough to stop shots
         this.props = new Map();      // "x,y" -> { x, y, type, def, hp, mesh }
+        this.propStore = new THREE.Group(); // MODERN M5.7: prop groups live here (not in the scene) and are batched
+        this.wrecks = [];
+        this.batchDirty = false;
 
         this.build();
     }
@@ -220,6 +224,7 @@ export class World {
         this.addZones();
         this.addProps();
         this.addWallDecor();
+        this.rebuildPropBatch();
         this.group.add(buildTrim(this, this.H, DOOR_H, getRig(this.levelIndex).trim || {
             base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28,
         }));
@@ -294,13 +299,43 @@ export class World {
         }
         this._reachable = after;
         // props are static: flatten to one vertex-coloured mesh per finish (draw-call budget)
-        const mesh = setShadow(bakeStatic(def.build()));
+        // MODERN M5.7: props are built in their intact state into the prop store and
+        // batched per level (rebuildPropBatch) instead of being drawn one by one
+        const mesh = def.build('intact');
         mesh.position.set(x + 0.5, 0, y + 0.5);
         mesh.rotation.y = rotY;
-        this.group.add(mesh);
+        this.propStore.add(mesh);
+        this.batchDirty = true;
         if (def.tall) this.tallProps.add(k);
-        this.props.set(k, { x, y, type, def, hp: def.hp, mesh });
+        this.props.set(k, { x, y, type, def, hp: def.hp, mesh, state: 'intact', rotY });
         return true;
+    }
+
+    /** MODERN M5.7: replace a prop's group with another state's build, keeping its transform */
+    swapPropMesh(rec, state) {
+        const old = rec.mesh;
+        const fresh = rec.def.build(state);
+        fresh.position.copy(old.position); fresh.rotation.copy(old.rotation);
+        this.propStore.remove(old);
+        old.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
+        this.propStore.add(fresh);
+        rec.mesh = fresh; rec.state = state;
+        this.batchDirty = true;
+    }
+
+    /** MODERN M5.7: bake every prop group in the store into a few merged meshes */
+    rebuildPropBatch() {
+        this.batchDirty = false;
+        if (this.propBatch) {
+            this.group.remove(this.propBatch);
+            this.propBatch.traverse(o => { if (o.isMesh && !o.userData.cloneOf) { o.geometry.dispose(); if (!o.material.userData.shared) o.material.dispose(); } });
+        }
+        this.propStore.updateMatrixWorld(true);
+        const batch = bakeStatic(this.propStore, { quantize: 0.25 });
+        setShadow(batch);
+        this.propBatch = batch;
+        this.group.add(batch);
+        this.propDrawCalls = 0; batch.traverse(o => { if (o.isMesh) this.propDrawCalls++; });
     }
 
     /** MODERN: is this wall cell drawn as glass? (impact FX) */
@@ -332,18 +367,15 @@ export class World {
         const info = { destroyed: false, type: rec.type, x: rec.x + 0.5, y: rec.y + 0.5 };
         if (rec.hp <= 0) {
             info.destroyed = true;
-            this.group.remove(rec.mesh);
-            rec.mesh.traverse(o => {
-                if (o.geometry) o.geometry.dispose();
-                if (o.material) {
-                    const ms = Array.isArray(o.material) ? o.material : [o.material];
-                    ms.forEach(m => { if (!m.userData.shared) m.dispose(); });
-                }
-            });
+            // MODERN M5.7: leave the wreck (non-blocking remains) and re-batch
+            this.swapPropMesh(rec, 'wreck');
+            this.wrecks.push(rec.mesh);
             this.props.delete(k);
             this.propCells.delete(k);
             this.tallProps.delete(k);
             this.propsVersion = (this.propsVersion || 0) + 1; // minimap cache bust
+        } else if (rec.state === 'intact' && rec.hp < rec.def.hp * 0.5) {
+            this.swapPropMesh(rec, 'damaged'); // MODERN M5.7: dented / knocked about
         }
         return info;
     }
@@ -856,6 +888,7 @@ export class World {
                 }
             }
         }
+        if (this.batchDirty) this.rebuildPropBatch();
         if (this.exterior) this.exterior.update(dt);
         if (this.rage) { // MODERN M4.4: uneasy strobe on the fixtures while he rages
             const a = getRig(this.levelIndex).accents.intensity * 1.4;
@@ -878,6 +911,7 @@ export class World {
     }
 
     dispose() {
+        this.propStore.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
         this.scene.remove(this.group);
         this.group.traverse(o => {
             if (o.geometry) o.geometry.dispose();

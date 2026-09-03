@@ -6,6 +6,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LEVELS } from './levels.js';
 import { getSurfaces } from './textures.js';
 import { PostFX } from './postfx.js';
+import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
 import { hud } from './hud.js';
 import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
@@ -862,6 +863,24 @@ window.TQ = {
     setState,
     startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
     deploy() { finishLoading(); return state; },                   // harness: dismiss a loading card
+    get propBuilders() { return PROP_BUILDERS; },
+    /** MODERN M5.7 harness: lay every prop out in three rows (intact / damaged / wreck) */
+    propSheetLayout(builders = PROP_BUILDERS) {
+        const w = game.world;
+        for (const rec of w.props.values()) w.propStore.remove(rec.mesh);
+        w.props.clear(); w.propCells.clear(); w.tallProps.clear();
+        for (const m of w.wrecks) w.propStore.remove(m); w.wrecks = [];
+        const names = Object.keys(builders);
+        names.forEach((name, i) => {
+            ['intact', 'damaged', 'wreck'].forEach((st, row) => {
+                const g = builders[name].build(st);
+                g.position.set(2.5 + i * 1.5, 0, 2.0 + row * 2.2);
+                w.propStore.add(g);
+            });
+        });
+        w.rebuildPropBatch();
+        return { placed: names.length * 3, drawCalls: w.propDrawCalls };
+    },
     skipBoot() { setState('menu'); initAudio(); },
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {
