@@ -21,6 +21,7 @@ Status legend: `TODO` · `IN PROGRESS` · `DONE` · `BLOCKED(§5-x)`.
 | Decision | Applied | When |
 |:--|:--|:--|
 | 5-G review cadence | **User: run unattended, do not pause at milestone gates** ("assign it and keep going"). Gate summaries are still logged and evidence still captured per milestone. | 2026-09-03, after the M1 gate |
+| 5-C paint as ammo | **Default applied:** single 99-cap paint pool, no magazines, no reload window; a cosmetic top-up flourish only (M2.5). Marked `BLOCKED(§5-C)` per the goal prompt until the user confirms or changes it. | 2026-09-03, M2.5 |
 
 ## Verification recipe (run before every commit)
 
@@ -209,3 +210,20 @@ Measured roller kick: camera pitch 0 → +0.0585 rad (3.4°) the frame after fir
 **Preservation:** damage values, mercy window, pity rule, hit radii unchanged; classic `hit`/`pain`/`enemy_death` sounds still play alongside the new ticks; classic red damage flash retained.
 **Open issues:** the headless software renderer shows CSS opacity transitions unreliably (stale compositor state), which made these captures flaky — the toast has the same issue; on hardware they are fine. Manual feel review of kick strengths owed (§4 M2.4 verify line).
 **Next:** M2.5 paint top-up presentation (§5-C default: cosmetic, no magazines).
+
+### M2.5 — Paint top-up presentation   `BLOCKED(§5-C)` — complete under the default   (2026-09-03)
+**Changed:** §5-C default applied: the 99-cap paint pool and per-shot costs are untouched and there is no magazine or reload window. Presentation only: `Game.topUp()` runs a 0.45 s arm flourish (the tool dips toward the paint can, rolls, and comes back) with a small blue paint puff at the muzzle on the way up. It fires when a paint bucket is collected and as the new weapon comes up after a swap. Melee never puffs.
+**Evidence:** `modern/docs/M2.5/topup-dip.jpg` (brush mid-dip). Paint economy check by the harness — spent vs expected after N shots:
+
+| Weapon | shots | paint spent | expected (classic cost × shots) |
+|:--|:-:|:-:|:-:|
+| paintbrush | 20 | 20 | 20 |
+| nail gun | 20 | 20 | 20 |
+| sprayer | 20 | 20 | 20 |
+| roller | 10 | 40 | 40 |
+| table leg | 10 | 0 | 0 |
+
+Deviation 0 % (goal allowed 5 %). Smoke green; validator, frozen guard OK; build 14.4 MB.
+**Preservation:** ammo costs, cap, pickup value (+14), "PAINT ALREADY FULL" hint all unchanged.
+**Open issues:** if the user later chooses magazines (§5-C alternative), this goal reopens: it would need a reserve/magazine split in the HUD (M3.1) and a reload window, which changes time-to-kill — flagged in GOAL_LOOP §5.
+**Next:** M2.6 quick melee on V.

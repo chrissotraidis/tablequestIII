@@ -105,7 +105,7 @@ export class Game {
             vm.visible = false;
             this.vmRoot.add(vm);
         }
-        this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0 };
+        this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0, topT: 0, topPuff: false };
         this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
         // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
         // spring that fully recovers, so aim is never displaced (balance §2.2).
@@ -552,6 +552,7 @@ export class Game {
             if (a.swapT >= 1) {
                 for (const [k, vm] of Object.entries(this.viewmodels)) vm.visible = k === a.pending;
                 a.pending = null; a.swapPhase = 'raise'; a.swapT = 0;
+                this.topUp(false); // MODERN M2.5: settle the tool as it comes up (cosmetic)
             }
         } else if (a.swapPhase === 'raise') {
             a.swapT = Math.min(1, a.swapT + dt / SWAP);
@@ -573,7 +574,32 @@ export class Game {
         hud.setAim(this.aim);
         if (wantAim) a.lower = 0;
         a.breathe = this.time;
-        return { swapDrop: swapDrop * swapDrop, lower: a.lower, inspect: a.inspect };
+        // top-up flourish: 0→1 over 0.45 s; a paint puff at the muzzle on the way back up
+        let top = 0;
+        if (a.topT > 0) {
+            a.topT = Math.max(0, a.topT - dt / 0.45);
+            top = Math.sin((1 - a.topT) * Math.PI); // dip and return
+            if (a.topPuff && a.topT < 0.45) {
+                a.topPuff = false;
+                const key = this.player.weapons[this.player.currentWeapon];
+                const mz = this.muzzleWorld(this.viewmodels[key]);
+                if (mz && WEAPONS[key].type === 'ranged')
+                    this.effects.burst(mz, new THREE.Color(0x3a6acc), 6, 1.2, 0.35, { size: 0.03, gravity: 6 });
+            }
+        }
+        return { swapDrop: swapDrop * swapDrop, lower: a.lower, inspect: a.inspect, top };
+    }
+
+    /**
+     * MODERN M2.5 (§5-C default): purely cosmetic "top-up" — the tool dips
+     * toward the paint can and comes back. No magazine, no reload window,
+     * no change to the 99-cap paint pool or per-shot costs.
+     */
+    topUp(withPuff = true) {
+        const a = this.vmAnim;
+        if (a.topT > 0.2) return;
+        a.topT = 1;
+        a.topPuff = withPuff;
     }
 
     acquireLight(color) {
@@ -1082,7 +1108,7 @@ export class Game {
                 }
             } else if (item.kind === 'ammo') {
                 if (p.ammo >= 99) { collected = false; this.fullHint('PAINT'); }
-                else { p.ammo = Math.min(99, p.ammo + 14); playSound('collect'); }
+                else { p.ammo = Math.min(99, p.ammo + 14); playSound('collect'); this.topUp(true); }
             } else if (item.kind === 'health') {
                 if (p.health >= MAX_HEALTH) { collected = false; this.fullHint('HEALTH'); }
                 else {
@@ -1218,13 +1244,13 @@ export class Game {
             const lagX = -THREE.MathUtils.clamp(this.smDX * this.sens * 0.35, -0.03, 0.03);
             const lagY = THREE.MathUtils.clamp(this.smDY * this.sens * 0.25, -0.02, 0.02);
             root.position.set(
-                0.19 + walkSway + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05,
-                -0.13 + walkBob + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY,
-                -0.47 + anim.lower * 0.03 + anim.inspect * 0.06);
+                0.19 + walkSway + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
+                -0.13 + walkBob + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
+                -0.47 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
             root.rotation.set(
-                anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2,
-                -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5,
-                anim.lower * 0.12 - anim.inspect * 0.18);
+                anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2 + anim.top * 0.35,
+                -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5 + anim.top * 0.25,
+                anim.lower * 0.12 - anim.inspect * 0.18 - anim.top * 0.3);
             // ADS: blend toward the weapon's sight pose, damp sway/bob/lag
             const adsVm = this.viewmodels[p.weapons[p.currentWeapon]];
             const ads = adsVm?.userData.ads;
