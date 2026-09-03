@@ -16,6 +16,8 @@
  *   grade   — post-processing grade (see postfx.js DEFAULT_GRADE for keys)
  *   height  — ceiling height for the floor (classic is 1.35 everywhere)
  *   trim    — architectural trim colours (see trim.js)
+ *   windows — glass cells: { side, from, to, y0, y1 } on a boundary, or { cellType } (see exterior.js)
+ *   exterior— what is outside the glass: { kind, rain, seed } or null
  *
  * Colours follow the classic per-floor palette (levels.js fogColor/ambient/
  * accent) so each floor keeps its mood; values were tuned against captures.
@@ -34,6 +36,8 @@ const RIGS = [
         exposure: 1.05,
         height: 2.0,
         trim: { base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28, beams: false },
+        windows: [{ side: 'top', from: 3, to: 28, y0: 0, y1: 2.0 }],
+        exterior: { kind: 'street', seed: 0x101 },
         grade: { tint: [1.0, 1.0, 1.04], saturation: 0.88, contrast: 1.06, vignette: 0.35, grain: 0.04, bloom: { strength: 0.3, threshold: 0.92 } },
     },
     // 2 The Office — flat fluorescent grid, slightly warm-white, steep
@@ -47,6 +51,8 @@ const RIGS = [
         exposure: 1.0,
         height: 1.7,
         trim: { base: 0x4d3a2a, crown: 0xd9d4c8, frame: 0x6a4c34, beams: false },
+        windows: [{ side: 'left', from: 2, to: 24, y0: 0.85, y1: 1.7 }],
+        exterior: { kind: 'city', seed: 0x202 },
         grade: { tint: [1.02, 1.0, 0.96], saturation: 0.85, contrast: 1.05, vignette: 0.38, grain: 0.045, bloom: { strength: 0.28, threshold: 0.93 } },
     },
     // 3 The Archives — dark basement, low key from a caged bulb rail, orange
@@ -73,6 +79,8 @@ const RIGS = [
         exposure: 1.02,
         height: 2.0,
         trim: { base: 0x5a3a20, crown: 0xf0e6d6, frame: 0x6b4a2c, beams: false },
+        windows: [{ cellType: 'C', y0: 0, y1: 2.0 }],
+        exterior: null,
         grade: { tint: [1.05, 1.0, 0.94], saturation: 0.95, contrast: 1.05, vignette: 0.36, grain: 0.04, bloom: { strength: 0.32, threshold: 0.9 } },
     },
     // 5 The Factory — cold clerestory light through smoke, cyan sodium mix
@@ -86,6 +94,8 @@ const RIGS = [
         exposure: 0.98,
         height: 2.3,
         trim: { base: 0x33383e, crown: 0x2c3036, frame: 0x8a9096, beams: true, beamColor: 0x3a4048, metalFrames: true },
+        windows: [{ side: 'top', from: 2, to: 45, y0: 1.35, y1: 2.3 }, { side: 'bottom', from: 2, to: 45, y0: 1.35, y1: 2.3 }],
+        exterior: { kind: 'industrial', seed: 0x505 },
         grade: { tint: [0.94, 1.0, 1.06], saturation: 0.78, contrast: 1.12, lift: -0.01, vignette: 0.5, grain: 0.065, bloom: { strength: 0.45, threshold: 0.86 } },
     },
     // 6 The Penthouse — night city through glass, red executive accent
@@ -99,6 +109,8 @@ const RIGS = [
         exposure: 1.0,
         height: 2.1,
         trim: { base: 0x2a1c1c, crown: 0x1e1416, frame: 0xc9a227, beams: false, metalFrames: true },
+        windows: [{ side: 'left', from: 1, to: 21, y0: 0, y1: 2.1 }, { side: 'right', from: 1, to: 21, y0: 0, y1: 2.1 }, { side: 'bottom', from: 1, to: 30, y0: 0, y1: 2.1 }],
+        exterior: { kind: 'skyline-below', rain: true, seed: 0x606 },
         grade: { tint: [1.06, 0.98, 0.98], saturation: 0.85, contrast: 1.08, vignette: 0.5, grain: 0.06, bloom: { strength: 0.4, threshold: 0.95 } },
     },
 ];

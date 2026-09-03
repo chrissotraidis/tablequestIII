@@ -10,6 +10,7 @@ import { playSound } from './audio.js';
 import { getRig, makeKeyLight, setShadow } from './lighting.js';
 import { bakeStatic } from './bake.js';
 import { buildTrim } from './trim.js';
+import { buildWindows, buildExterior } from './exterior.js';
 
 const WALL_TYPE = {
     '#': CELL.BRICK, 'W': CELL.WOOD, 'B': CELL.STONE,
@@ -100,6 +101,19 @@ export class World {
         const wallType = WALL_TYPE[lvl.wallChar] ?? CELL.OFFICE;
 
         const geosByType = {};
+        // MODERN windows: which wall cells become glass, and over what height band
+        const winSpec = getRig(this.levelIndex).windows || [];
+        const windowBand = (x, y, ch) => {
+            for (const ws of winSpec) {
+                if (ws.cellType) { if (ch === ws.cellType) return ws; continue; }
+                const onSide = ws.side === 'top' ? y === 0 : ws.side === 'bottom' ? y === h - 1
+                    : ws.side === 'left' ? x === 0 : x === w - 1;
+                const along = (ws.side === 'top' || ws.side === 'bottom') ? x : y;
+                if (onSide && along >= ws.from && along <= ws.to) return ws;
+            }
+            return null;
+        };
+        const windowCells = [];
         const wallBox = (type, x, y, y0, y1) => {
             // metal carries a hazard stripe in its lower band: split tall metal
             // walls so the stripe stays at floor level and the rest is plain plate
@@ -128,7 +142,20 @@ export class World {
 
                 if (WALL_TYPE[ch] !== undefined) {
                     type = WALL_TYPE[ch];
-                    wallBox(type, x, y, 0, H);
+                    const ws = windowBand(x, y, ch);
+                    if (ws) {
+                        // glass band: the cell stays solid in the grid; only its look changes
+                        const y0 = Math.max(0, ws.y0), y1 = Math.min(H, ws.y1);
+                        if (y0 > 0.01) wallBox(type, x, y, 0, y0);
+                        if (y1 < H - 0.01) wallBox(type, x, y, y1, H);
+                        const rowStr = (rows[y] || '').padEnd(w, lvl.wallChar);
+                        const lr = WALL_TYPE[rowStr[x - 1]] !== undefined && WALL_TYPE[rowStr[x + 1]] !== undefined;
+                        const axis = ws.side === 'top' || ws.side === 'bottom' ? 'x'
+                            : ws.side === 'left' || ws.side === 'right' ? 'z' : (lr ? 'x' : 'z');
+                        windowCells.push({ x, y, y0, y1, axis });
+                    } else {
+                        wallBox(type, x, y, 0, H);
+                    }
                 } else if (ch === '+') {
                     type = CELL.DOOR;
                     this.makeDoor(x, y, rows, w, h, lvl);
@@ -194,6 +221,18 @@ export class World {
         this.group.add(buildTrim(this, this.H, DOOR_H, getRig(this.levelIndex).trim || {
             base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28,
         }));
+        // MODERN: glass + what lies beyond it
+        const rig = getRig(this.levelIndex);
+        if (windowCells.length) {
+            this.windows = buildWindows(windowCells, rig.trim);
+            this.group.add(this.windows);
+        }
+        if (rig.exterior) {
+            this.exterior = buildExterior(w, h, rig.exterior);
+            this.group.add(this.exterior);
+            if (this.exterior.userData.rainMat && this.windows?.userData.pane)
+                this.windows.userData.pane.material = this.exterior.userData.rainMat;
+        }
     }
 
     // ------------------------------------------------------------ PROPS
@@ -812,6 +851,7 @@ export class World {
                 }
             }
         }
+        if (this.exterior) this.exterior.update(dt);
         // elevator light pulse
         if (this.elevatorLight) {
             this.elevatorLight.intensity = 7 + Math.sin(performance.now() * 0.004) * 2.5;
