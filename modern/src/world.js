@@ -857,10 +857,24 @@ export class World {
             }
         }
         if (this.exterior) this.exterior.update(dt);
+        if (this.rage) { // MODERN M4.4: uneasy strobe on the fixtures while he rages
+            const a = getRig(this.levelIndex).accents.intensity * 1.4;
+            for (const l of this.fixtureLights || []) l.intensity = a * (0.75 + 0.25 * Math.sin(performance.now() * 0.02 + l.position.x));
+        }
         // elevator light pulse
         if (this.elevatorLight) {
             this.elevatorLight.intensity = 7 + Math.sin(performance.now() * 0.004) * 2.5;
         }
+    }
+
+    /** MODERN M4.4: the Head Designer's rage — key light and fixtures go hot red, fog deepens */
+    rageShift(on = true) {
+        if (!this.keyLight) return;
+        this.rage = on;
+        this.keyLight.color.set(on ? 0xff6a4a : getRig(this.levelIndex).key.color);
+        this.keyLight.intensity = (getRig(this.levelIndex).key.intensity) * (on ? 1.25 : 1);
+        for (const l of this.fixtureLights || []) { l.color.set(on ? 0xff3a2a : getRig(this.levelIndex).accents.color); l.intensity = getRig(this.levelIndex).accents.intensity * (on ? 1.4 : 1); }
+        if (this.scene.fog) this.scene.fog.color.set(on ? 0x2a0606 : this.level.fogColor);
     }
 
     dispose() {

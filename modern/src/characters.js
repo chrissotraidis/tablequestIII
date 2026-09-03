@@ -188,6 +188,13 @@ export function buildEnemy(variant) {
         headG.add(at(box(0.152, 0.02, 0.142, mat(isBoss ? 0xffd700 : 0x3a3a44)), 0, 0.225, 0)); // band
     }
     if (variant === 2) headG.add(at(box(0.11, 0.024, 0.012, mat(0x0a0a0a, { roughness: 0.2, metalness: 0.5 })), 0, 0.105, 0.09)); // executive shades
+    let eyes = null;
+    if (isBoss) { // rage eyes: emissive off until phase 2 (kept out of the bake)
+        const eyeMat = mat(0xff2a1a, { emissive: 0xff2a1a, emissiveIntensity: 0.0, roughness: 0.3, transparent: true, opacity: 0.95 });
+        eyes = [-1, 1].map(s => at(sph(0.012, eyeMat, 8, 6), s * 0.04, 0.104, 0.086));
+        eyes.forEach(e => headG.add(e));
+        torso.add(at(box(0.34, 0.012, 0.19, mat(0xffd700, { roughness: 0.3, metalness: 0.7 })), 0, 0.36, 0)); // gold epaulette line
+    }
     torso.add(headG);
 
     g.add(legL, legR, torso);
@@ -209,7 +216,9 @@ export function buildEnemy(variant) {
     // pain flash: every baked (vertex-coloured) material on this character
     const flashMats = [];
     g.traverse(o => { if (o.isMesh && o.material.vertexColors) flashMats.push(o.material); });
-    return { group: g, legL: bakedLegL, legR: bakedLegR, armL: bakedArmL, armR: bakedArmR, torso, headG: bakedHead, flashMats, height: 0.87 * scale };
+    // rage eyes survive the bake (emissive materials are kept as-is); find them again
+    const eyeMats = []; bakedHead.traverse(o => { if (o.isMesh && o.material.emissive && o.material.emissive.getHex() === 0xff2a1a) eyeMats.push(o.material); });
+    return { group: g, legL: bakedLegL, legR: bakedLegR, armL: bakedArmL, armR: bakedArmR, torso, headG: bakedHead, flashMats, height: 0.87 * scale, eyeMats };
 }
 
 /** bake a limb group in place: same pivot transform, merged children, fresh (per-character) materials */

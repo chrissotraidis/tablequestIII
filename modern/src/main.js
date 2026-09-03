@@ -105,6 +105,9 @@ const game = new Game(scene, camera, {
             }
         }, 2400);
     },
+    onBossRage: () => { // MODERN M4.4: hotter, redder grade while he rages
+        postfx.applyGrade({ ...(game.world?.rig?.grade || {}), tint: [1.12, 0.92, 0.9], contrast: 1.14, saturation: 0.95, vignette: 0.6, grain: 0.08, bloom: { strength: 0.6, threshold: 0.84 } });
+    },
     onBossDefeated: () => {
         playSound('fanfare');
         stopMusic();
@@ -858,6 +861,7 @@ window.TQ = {
     get player() { return game.player; },
     setState,
     startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
+    deploy() { finishLoading(); return state; },                   // harness: dismiss a loading card
     skipBoot() { setState('menu'); initAudio(); },
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {

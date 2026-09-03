@@ -245,7 +245,7 @@ export class Game {
         return best;
     }
 
-    spawnEntity({ char, x, y }) {
+    spawnEntity({ char, x, y, drop = false }) {
         if (ENEMY_CHAR[char] !== undefined) {
             let variant = ENEMY_CHAR[char];
             if (variant === -1) variant = Math.floor(Math.random() * 3);
@@ -298,7 +298,9 @@ export class Game {
         mesh.position.set(x, 0, y);
         this.scene.add(mesh);
         if (kind === 'table') this.requiredTables++;
-        this.pickups.push({ kind, x, y, mesh, active: true, bobOff: Math.random() * 6 });
+        const item = { kind, x, y, mesh, active: true, bobOff: Math.random() * 6 };
+        if (drop) { item.dropT = 0; item.dropFrom = (this.world.H || 1.35) - 0.25; mesh.position.y = item.dropFrom; }
+        this.pickups.push(item);
     }
 
     // ------------------------------------------------------------ UPDATE
@@ -910,10 +912,17 @@ export class Game {
             playSound('boss_roar');
             this.barks.bark(e, 'rage', {}, this.time); // MODERN M4.3
             hud.toast('THE HEAD DESIGNER IS FURIOUS', 2600, 'red');
-            // his rampage knocks supply crates open — comeback resources
+            // MODERN M4.4: visual escalation — eyes ignite, arena goes hot, cape flares
+            for (const em of e.model.eyeMats || []) em.emissiveIntensity = 2.5;
+            this.world.rageShift(true);
+            this.cb.onBossRage?.();
+            this.effects.burst(new THREE.Vector3(e.x, 0.9, e.y), new THREE.Color(0xff3a2a), 40, 4.5, 0.8, { additive: true, size: 0.05, gravity: 2 });
+            this.shake = Math.max(this.shake, 0.5);
+            // his rampage knocks supply crates open — comeback resources (classic spots),
+            // now dropped from the ceiling with a bounce and a dust puff (M4.4)
             for (const [ch, x, y] of [['H', 12.5, 14.5], ['H', 18.5, 14.5], ['A', 14.5, 12.5], ['A', 16.5, 16.5]]) {
                 if (!this.world.isSolidCell(Math.floor(x), Math.floor(y)))
-                    this.spawnEntity({ char: ch, x, y });
+                    this.spawnEntity({ char: ch, x, y, drop: true });
             }
         }
     }
@@ -1146,6 +1155,19 @@ export class Game {
             if (!item.active) continue;
             const bob = Math.sin(time * 2.2 + item.bobOff) * 0.04;
             item.mesh.position.y = 0.06 + bob + 0.04;
+            if (item.dropT !== undefined) { // MODERN M4.4: ceiling drop with a bounce, dust on landing
+                item.dropT += dt;
+                const rest = 0.1, fallT = 0.55;
+                if (item.dropT < fallT) {
+                    const k = item.dropT / fallT;
+                    item.mesh.position.y = item.dropFrom + (rest - item.dropFrom) * (k * k);
+                } else {
+                    const k = item.dropT - fallT;
+                    if (!item.landed) { item.landed = true; this.effects.burst(new THREE.Vector3(item.x, 0.05, item.y), new THREE.Color(0xc8c4b8), 10, 1.2, 0.5, { size: 0.06, gravity: 1.5, drag: 2 }); playSound('land'); }
+                    if (k < 0.5) item.mesh.position.y = rest + Math.sin(k / 0.5 * Math.PI) * 0.12 * (1 - k / 0.5);
+                    else delete item.dropT;
+                }
+            }
             item.mesh.rotation.y += dt * (item.kind === 'table' ? 0.6 : 1.6);
             if (item.mesh.userData.halo) {
                 item.mesh.userData.halo.rotation.z += dt * 2;
