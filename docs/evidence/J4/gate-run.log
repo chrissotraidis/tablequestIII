@@ -1,0 +1,13 @@
+== smoke
+[smoke:modern] OK
+== campaign
+{"won":true,"state":"victory","deaths":19,"gameTime":1015.8,"score":33535,"wallMinutes":7.9,"floors":["1:48.2s/0d","2:175.2s/0d","3:70s/0d","4:121.3s/0d","5:488.6s/18d","6:112.5s/1d"],"errors":[]}
+
+== weapons
+meshes per viewmodel {"paintbrush":24,"tableLeg":16,"sprayer":18,"nailgun":19,"roller":18}
+ERRORS []
+== hud
+ERRORS []
+== collision
+3f530ff5608a24789c6cf8cc91ac4f1c  -
+3f530ff5608a24789c6cf8cc91ac4f1c  -

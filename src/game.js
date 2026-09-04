@@ -1492,6 +1492,16 @@ export class Game {
             const parts = vm.userData.parts || {};
             const r = this.recoil;
             if (parts.trigger) parts.trigger.rotation.x = parts.trigger.userData.rest.x + Math.min(1, r * 1.5) * 0.5;
+            // J2.1: morph targets on the subdivision hands — trigger squeeze, relax, fidget, thumb lift
+            const hands = vm.userData.hands || [];
+            if (hands.length) {
+                const hm = this.handMorph || (this.handMorph = { sq: 0, relax: 0, fid: 0, fidT: 2 + Math.random() * 3, fidPhase: 0 });
+                hm.sq += (Math.min(1, r * 1.6) - hm.sq) * Math.min(1, dt * 30);
+                hm.relax += (((this.sprinting && this.moving) || this.vmAnim.swapPhase !== 'idle' ? 1 : 0) - hm.relax) * Math.min(1, dt * 6);
+                hm.fidT -= dt; if (hm.fidT <= 0 && !this.moving) { hm.fidT = 3 + Math.random() * 4; hm.fidPhase = 1.2; }
+                if (hm.fidPhase > 0) { hm.fidPhase = Math.max(0, hm.fidPhase - dt); hm.fid = Math.sin((1 - hm.fidPhase / 1.2) * Math.PI) * 0.6; } else hm.fid = 0;
+                for (const hmesh of hands) { const inf = hmesh.morphTargetInfluences; inf[0] = hmesh.userData.side === 'R' ? hm.sq : hm.sq * 0.2; inf[1] = hm.relax * 0.8; inf[2] = hm.fid * (hmesh.userData.side === 'L' ? 1 : 0.5); inf[3] = sp.grip * 0.7; }
+            }
             if (parts.head) parts.head.rotation.x = parts.head.userData.rest.x - r * 0.6 * rvm;
             if (parts.offHand) {
                 const rest = parts.offHand.userData.rest;

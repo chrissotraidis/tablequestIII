@@ -166,9 +166,11 @@ function finish(g, name, baseRotX, muzzle, ads = null, parts = {}) {
         bp.userData.rest = { x: bp.rotation.x, y: bp.rotation.y, z: bp.rotation.z, px: bp.position.x, py: bp.position.y, pz: bp.position.z };
         bakedParts[k] = bp;
     }
+    shadeGroup(g, V(0.35, 1, 0.55), 0.7); // J3.1: baked directional shading on the tool's flat-colour parts
     const baked = bakeStatic(g, { quantize: 0.5 });
     for (const bp of Object.values(bakedParts)) baked.add(bp);
-    baked.userData = { name, baseRotX, muzzle, ads, parts: bakedParts };
+    const hands = []; baked.traverse(o => { if (o.isMesh && o.userData.isHand) { o.morphTargetInfluences = o.morphTargetInfluences ? [...o.morphTargetInfluences] : [0, 0, 0, 0]; hands.push(o); } });
+    baked.userData = { name, baseRotX, muzzle, ads, parts: bakedParts, hands };
     baked.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; o.renderOrder = 10; o.layers.enable(1); } });
     return baked;
 }

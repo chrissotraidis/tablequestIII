@@ -677,3 +677,34 @@ A second-order spring (back, up, pitch, roll) on the tool with per-tool stiffnes
 
 Delivered: the generation list now tells the truth (the original raycaster is a card; 2.0, 2.1 and 3 are playable); a living, tweened portrait; five studio critique passes on hands and tools with a new studio harness; spring-based recoil with arm lag and idle grip life. Honest state: the hands and tools are markedly better than round 3 but not yet at the standard the user asked for — fingers still read as smooth tubes up close, and the procedural approach limits surface detail. The next round should consider a different technique (skinned hand mesh with a proper bind pose, or authored geometry) rather than more passes of the same.
 Owed on hardware: motion of the spring recoil, the face at bench size, the Generation switch from the built files. Owed from the user: `gh auth login` then `git push origin main modern-preview --tags`; the original game's repository if gen 1 is to be bundled.
+
+
+---
+
+## Round 5 — hands and weapons, a new technique (docs/modern/GOAL_LOOP_5.md)
+
+| Milestone | Status | Notes |
+|:--|:--|:--|
+| J1 Subdivision hand mesh | DONE (4 passes) | cage + Loop subdivision, AO, glove region, per-weapon poses |
+| J2 Morph animation | DONE | trigger, relax, fidget, thumb-lift morphs driven from play |
+| J3 Tools, third pass | DONE | baked directional shading on flat parts |
+| J4 Gate | DONE | campaign clear; main fast-forwarded, v3.2-modern; push owed |
+
+### J1.1–J1.4 — Subdivision hand   (2026-09-03)
+`src/handmesh.js`: a quad cage built in code — a lattice palm block with a narrower wrist, a heel, an arched back, a knuckle face split into four columns — with each finger as three chained **extrusions** of its column (taper, per-joint bend about the joint axis) and the thumb as three extrusions from the lower thumb-side face along an outward-under-forward metacarpal. Because fingers are extruded from the palm, the surface is one manifold: after two levels of **Loop subdivision** (implemented in the module, tags follow faces) the webbing between fingers and the knuckles emerge from the surface itself. Per-vertex ambient occlusion from concavity darkens creases and the webbing; knuckles and tips are warmed. Faces are tagged skin or leather so the fingerless glove (palm block + proximal segments) is a second material group on the same mesh. Nails are flattened ellipsoids at fingertip sites computed from the same joint chain. `gripPose(radius)` derives the per-joint curl from the handle radius and finger length (never dead straight; the index straightens onto the trigger). `hands.js` builds the hand in a frame from the grip (back of the hand away from the handle, fingers across it) and keeps the lofted sleeve, forearm, strap and watch, meeting the hand at its wrist cap.
+**Passes:** 1 — fingers curled toward the back (axis sign); 2 — fixed, grips wrap; open hands dead straight, fingers long and thin; 3 — proportions (index 4.1/2.7/2.1 cm), minimum curl, tool shading; 4 — thumb metacarpal angle and wrap so it closes over the fingers.
+**Evidence:** `docs/evidence/J1/pass1..4/`, `docs/evidence/J1/ingame/`.
+
+### J2.1 / J2.2 — Morph animation   (2026-09-03)
+Each hand carries four morph targets built from the same cage with different curls (identical topology): `trigger` (index squeezed), `relax` (all joints at 55 %, thumb at 70 %), `fidget` (ring and little finger curl), `thumbLift`. `finish()` collects the baked hand meshes; `game.js` drives them every frame: trigger from the recoil spring (right hand fully, off hand a fifth), relax during sprint and swaps, fidget on a 3–7 s idle timer with a sine envelope (off hand fully, right hand half), thumb lift from the grip-adjustment envelope. Wrist flex rides the round-4 arm lag.
+
+### J3.1 — Tools   (2026-09-03)
+`finish()` bakes directional shading into every flat-colour tool part before merging (`shadeGroup`, low 0.7), so grips, rails, and clamps read their form under flat light. Hoses, caps, and layouts from round 4 kept.
+
+### J4 — Gate   (2026-09-03)
+Frozen guard OK; validator OK; syntax sweep clean; `npm run smoke` green; build `dist/index.html` 14.5 MB. Campaign (`docs/evidence/J4/campaign.json`): **victory**, 6/6, boss defeated, score 33,535, 19 deaths (Factory 18, Penthouse 1). Collision signatures identical to the classic (md5 equal). Sheets: `docs/evidence/J4/` (five tools at hip/ADS/fire, bench, face sheet), studio passes `docs/evidence/J1/pass1..4`. `main` fast-forwarded and tagged `v3.2-modern`; push owed (credentials).
+
+### Round 5 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: hands are one subdivision surface per weapon pose instead of tubes — webbing, knuckles, a glove region and nails on a single mesh — with four morph targets animated from play; tools carry baked directional shading. Four studio passes fixed the curl direction, proportions, minimum curl, and the thumb wrap. Honest state: this is the largest single jump in hand quality of any round, and the in-game views now read as hands gripping tools; what remains is skin surface detail (pores, knuckle folds would need a normal map or a finer cage), bone-driven finger animation instead of morphs, and per-tool silhouette work at the studio scale.
+Owed on hardware: the hands in motion (morph squeeze on fire, fidgets, relax on sprint). Owed from the user: `gh auth login` then `git push origin main modern-preview --tags`.
