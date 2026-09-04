@@ -873,3 +873,12 @@ Checked against the §1.3 preservation inventory by running the game rather than
 - **New tools**: `tools/state_shots.mjs` (transition, game over, victory), `tools/vm_crops.mjs` (round 11).
 - **Gate**: frozen guard OK; levels valid; build 15.0 MB; collision hashes identical to the classic; smoke on the built file below.
 Smoke green on the built file. Committed; `main` fast-forwarded; tagged `v3.7-modern`. Push to GitHub still owed.
+
+---
+
+## Round 14 — hands and arms parked; floating weapons   (2026-09-04)
+
+User verdict: the hands and arms are still bizarre at a glance; remove them, float the weapons, keep the assets and document the way back.
+- **S1**: `SHOW_HANDS = false` in `src/handrig.js` gates the hand load in `game.js`; nothing deleted (models, rig, sleeves, lab, crop and studio tools all stay and still build). Weapons keep bob, sway, recoil, ADS, sprint lowering and swap. Every tool lowered so its grip runs behind the bench (Doom/Quake presentation): nailer −0.075, spray gun −0.105, launcher −0.075, leg (0.13, −0.13), brush −0.09. Verdict on `docs/evidence/S1/crops2`: clean, nothing floating mid-air, nothing awkward.
+- **Doc**: `docs/modern/HANDS_REINTRODUCTION.md` — where every piece lives, the grip convention that took ten rounds, why they were parked, and what a good reintroduction needs (a better rigged arms asset, authored poses, painted skin).
+- **Gate**: frozen guard OK; levels valid; build 14.7 MB (the parked hand models leave the bundle); smoke green on the built file; collision hashes identical to the classic. Committed; `main` fast-forwarded; tagged `v3.8-modern`. Push still owed.

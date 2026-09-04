@@ -13,7 +13,7 @@ import { World } from './world.js';
 import { input, fireHeld } from './input.js';
 import { playSound, startSong, setMix, musicSwell, resetMix } from './audio.js';
 import { bakeStatic } from './bake.js';
-import { loadHandModels, makeHand, applyPose } from './handrig.js';
+import { loadHandModels, makeHand, applyPose, SHOW_HANDS } from './handrig.js';
 import { hud } from './hud.js';
 import { buildEnemy } from './characters.js'; // MODERN M4.1
 import { poseEnemy, poseDeath } from './enemyanim.js'; // MODERN M4.2
@@ -122,7 +122,7 @@ export class Game {
         this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0, topT: 0, topPuff: false };
         this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
         // L2/L3: real skinned hands arrive asynchronously and are posed into each tool's grip frames
-        loadHandModels().then(() => {
+        if (SHOW_HANDS) loadHandModels().then(() => {
             // O3: shoulder anchors live in camera space (below and beside the eye, a little behind the lens) and are
             // converted into each tool's local frame, so sleeves leave the frame downward whatever the tool's pose
             const SHOULDER = { R: new THREE.Vector3(0.15, -0.46, 0.12), L: new THREE.Vector3(-0.15, -0.46, 0.12) };
@@ -137,6 +137,7 @@ export class Game {
             }
             this.handsReady = true;
         }).catch(e => console.error('hand models failed to load', e));
+        else this.handsReady = true; // floating weapons: nothing to wait for
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
         this.vmKey = new THREE.PointLight(0xffffff, 0.15, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
         this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);

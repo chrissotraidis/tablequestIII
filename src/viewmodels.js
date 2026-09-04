@@ -252,7 +252,7 @@ export function buildBrushViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, -0.003, 0.035), elbow: V(0.16, -0.31, 0.32), radius: 0.015, axis: V(0, 0, -1), curl: 0.95, forearm: V(0, 0.2, 0.98) }); // hammer hold, thumb toward the head; the brush is raked up 43° below and the wrist flexes so the forearm stays level
     inner.add(R.group);
     const off = new THREE.Group(); inner.add(off); // Q2: the brush is one-handed; the can and off hand are gone (empty part kept for the animator)
-    g.position.set(0.03, -0.04, -0.02); g.scale.setScalar(0.92);
+    g.position.set(0.05, -0.09, -0.02); g.scale.setScalar(0.92); // S1: handle end behind the bench
     return finish(g, 'paintbrush', 0.0, V(0, 0.0, -0.24), { pos: V(0.04, -0.1, -0.5), rotX: 0.2, rotY: -0.05 }, { head, offHand: off });
 }
 
@@ -274,7 +274,7 @@ export function buildLegViewmodel() {
     legG.add(at(cyl(0.041, 0.041, 0.018, metal(BRASS, 0.35), 16), 0, 0.005, 0));
     legG.add(buildHand({ side: 'R', grip: V(0, 0.075, 0), radius: 0.04, axis: V(0, 1, 0), out: V(-0.37, 0, 0.93), curl: 0.9, forearm: V(0.415, -0.49, -0.77) }).group); // right hand on the tape, knuckles toward the lens, thumb up the shaft, forearm down the shaft's line
     g.add(inner);
-    g.scale.setScalar(0.62); g.position.set(0.1, -0.04, 0.02); // the hand low-right, the leg rising to the upper left
+    g.scale.setScalar(0.62); g.position.set(0.13, -0.13, 0.02); // S1: floating leg — the taped grip rises from behind the bench
     return finish(g, 'tableLeg', 0, V(0, 0.2, -0.3));
 }
 
@@ -341,7 +341,7 @@ export function buildNailgunViewmodel() {
     off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.11, -0.15), radius: 0.026, axis: V(0, 0, -1), watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.02, -0.03, -0.02); g.rotation.y = 0.26; g.rotation.z = -0.12; g.rotation.x = 0.06; // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
+    g.scale.setScalar(0.9); g.position.set(0.02, -0.075, -0.02); g.rotation.y = 0.26; g.rotation.z = -0.12; g.rotation.x = 0.06; // S1: floating weapon — the grip sits behind the bench // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
     return finish(g, 'nailgun', -0.1, V(0, 0.0, -0.26), { pos: V(0.0, -0.13, -0.5), rotX: 0.0, rotY: -0.18 }, { trigger: R.trigger, offHand: off });
 }
 
@@ -406,7 +406,7 @@ export function buildRollerViewmodel() {
     off.add(buildHand({ side: 'L', grip: V(0, TY - 0.088, -0.12), radius: 0.018, axis: V(0, 1, 0), curl: 0.95, watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.04, -0.04, -0.02); g.rotation.y = 0.2; g.rotation.z = -0.08;
+    g.scale.setScalar(0.9); g.position.set(0.04, -0.075, -0.02); g.rotation.y = 0.2; g.rotation.z = -0.08; // S1: grip behind the bench
     return finish(g, 'roller', -0.08, V(0, 0.08, -0.31), { pos: V(0.0, -0.14, -0.5), rotX: 0.0, rotY: -0.2 }, { trigger: R.trigger, offHand: off });
 }
 
@@ -455,7 +455,7 @@ export function buildSprayerViewmodel() {
     off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.028, -0.07), radius: 0.024, axis: V(0, 0, -1), watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.1, -0.07, -0.03); g.rotation.y = 0.24;
+    g.scale.setScalar(0.9); g.position.set(0.1, -0.105, -0.03); g.rotation.y = 0.24; // S1: grip behind the bench
     return finish(g, 'sprayer', -0.08, V(0, 0.0, -0.14), { pos: V(0.05, -0.08, -0.45), rotX: 0.0, rotY: -0.24 }, { trigger: R.trigger, offHand: off });
 }
 
