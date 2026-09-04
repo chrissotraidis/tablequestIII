@@ -118,13 +118,24 @@ Staff alert nearby allies when they spot Sandy, strafe during firefights, and ca
 
 The pre-built game is a single self-contained HTML file.
 
-> **Preview build: Sandy's Table Quest MODERN.** A work-in-progress fork that re-presents the same game in a mid-2000s shooter style (lit and shadowed rooms, modern HUD, cinematic front-end, re-orchestrated score) while keeping every floor, weapon, enemy, and line of story identical. It lives in [`modern/`](modern/) and builds to `dist/modern/index.html`. The plan and progress log are in [`docs/modern/GOAL_LOOP.md`](docs/modern/GOAL_LOOP.md) and [`modern/PROGRESS.md`](modern/PROGRESS.md). The classic build below is unchanged.
+> **Preview build: Sandy's Table Quest MODERN.** A work-in-progress fork that re-presents the same game in a mid-2000s shooter style (lit and shadowed rooms, modern HUD, cinematic front-end, re-orchestrated score) while keeping every floor, weapon, enemy, and line of story identical. It lives in the repository root (`classic/` holds generation 2) and builds to `dist/index.html`. The plan and progress log are in [`docs/modern/GOAL_LOOP.md`](docs/modern/GOAL_LOOP.md) and [`docs/modern/PROGRESS.md`](docs/modern/PROGRESS.md). The classic build below is unchanged.
 
 | Lobby | Office | Factory | Penthouse |
 |:-:|:-:|:-:|:-:|
-| ![Modern Lobby](modern/docs/M5.1/lobby-reception.jpg) | ![Modern Office](modern/docs/M5.2/office-conference.jpg) | ![Modern Factory](modern/docs/M5.5/factory-line.jpg) | ![Modern Penthouse](modern/docs/M5.6/penthouse-arena.jpg) |
+| ![Modern Lobby](docs/evidence/M5.1/lobby-reception.jpg) | ![Modern Office](docs/evidence/M5.2/office-conference.jpg) | ![Modern Factory](docs/evidence/M5.5/factory-line.jpg) | ![Modern Penthouse](docs/evidence/M5.6/penthouse-arena.jpg) |
 
-Polish round 2 (workbench menu and crawl restored, bench HUD with Sandy's portrait, new hands and tools, controls pass) is logged in [`docs/modern/GOAL_LOOP_2.md`](docs/modern/GOAL_LOOP_2.md) with sheets under `modern/docs/R*`. Every screen and floor side by side with the classic: [`modern/docs/comparison.md`](modern/docs/comparison.md). Design notes: [`docs/modern/design.md`](docs/modern/design.md). Score previews: [`modern/docs/M6/`](modern/docs/M6/).
+Polish round 2 (workbench menu and crawl restored, bench HUD with Sandy's portrait, new hands and tools, controls pass) is logged in [`docs/modern/GOAL_LOOP_2.md`](docs/modern/GOAL_LOOP_2.md) with sheets under `docs/evidence/R*`. Every screen and floor side by side with the classic: [`docs/evidence/comparison.md`](docs/evidence/comparison.md). Design notes: [`docs/modern/design.md`](docs/modern/design.md). Score previews: [`docs/evidence/M6/`](docs/evidence/M6/).
+
+### Three generations
+
+The game has been built three times, each generation on top of the last, and all three ship together so you can see how far AI-built games have come. Pick one under **Options → Generation** (Enter plays it), or open the file directly.
+
+| Generation | What it is | Where |
+|:-:|:--|:--|
+| 1 | *Sandy's Table Quest 3D* 1.0 — the first WebGL remaster of the 199X raycaster | `generations/v1/index.html` beside the main build |
+| 2 | 2.1 — Fritos, five weapons, destructible furniture, zone-designed floors, the workbench presentation | `generations/v2/index.html` (also the classic source under `classic/`) |
+| 3 | MODERN — lit and shadowed world, modern gunplay, animated staff, re-orchestrated score, the workbench charm restored | the main build |
+
 
 
 1. [Download the repository as a ZIP](https://github.com/chrissotraidis/tablequestIII/archive/refs/heads/main.zip) and extract it.

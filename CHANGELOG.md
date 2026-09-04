@@ -1,6 +1,13 @@
 # Changelog
 
-## 2026-09-03 — Modern preview build (fork)
+## 2026-09-03 — 3.0: MODERN becomes the main version
+
+### Changed
+
+- The modern build is now the main game: sources at the repository root, built to `dist/index.html`. The classic 2.1 generation moved byte-for-byte to `classic/` (`npm run dev:classic`, `dist/classic/index.html`), and generation 1 (the first 3D remaster, from the first commit) and generation 2 ship beside the main build under `generations/`, selectable under Options → Generation.
+- Sandy's portrait redrawn as a painted portrait from the cover art; hands rebuilt as lofted organic meshes with skin and leather maps; the five tools rebuilt on real-world references; the bench no longer fades.
+
+## 2026-09-03 — Modern preview build (fork, rounds 1–2)
 
 ### Changed (polish round 2)
 

@@ -2,11 +2,16 @@
  * MAIN — boot sequence, menus, state machine, render loop.
  */
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LEVELS } from './levels.js';
+import { getSurfaces } from './textures.js';
+import { PostFX } from './postfx.js';
+import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
 import { hud } from './hud.js';
+import { drawFace as paintFace, FACE_DEFAULTS, FACE_STATES } from './face.js';
 import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
-import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug } from './audio.js';
+import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug, stopAmbience, getMeter, renderDemo, renderSong, renderSfx, songData, setMix } from './audio.js';
 
 // original artwork, preserved from the 199X release
 import memoryScreenUrl from './assets/memory_screen.png'; // DOS boot/memory screen
@@ -26,16 +31,39 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
+// MODERN: shadow maps on (one directional key per floor, see lighting.js)
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
 scene.add(camera);
 
+// MODERN: a procedural room environment (three's RoomEnvironment, no files)
+// gives StandardMaterials something to reflect so roughness maps read.
+// Kept faint so each floor's own lighting palette still sets the mood.
+{
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.18;
+    pmrem.dispose();
+}
+
+// MODERN: post-processing stack (bloom, grade, vignette, grain, motion blur)
+const postfx = new PostFX(renderer, scene, camera);
+postfx.enabled = localStorage.getItem('tq3d-postfx') !== 'off';
+
 window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    postfx.setSize(window.innerWidth, window.innerHeight);
 });
+
+function applyFloorLook() {
+    renderer.toneMappingExposure = game.world?.rig?.exposure ?? 1.1;
+    postfx.applyGrade(game.world?.rig?.grade || {});
+}
 
 // ------------------------------------------------------------------ STATE
 
@@ -48,6 +76,11 @@ let introTimer = null;
 let introFrame = null;
 let introStartedAt = 0;
 let levelSnapshot = null;
+let menuBackdrop = false; // MODERN: Floor 1 loaded as the menu's live scene
+let audioMeterOn = false;  // MODERN M6.3: on-screen audio debug meter (harness)
+let turbo = 1;             // MODERN M7.1: simulation steps per frame in test mode (harness only)
+let menuCamT = 0;
+const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let highScore = Number(localStorage.getItem('tq3d-highscore') || 0);
 
 const game = new Game(scene, camera, {
@@ -65,18 +98,24 @@ const game = new Game(scene, camera, {
         $('transition-bonus').textContent = `FLOOR BONUS +${stats.bonus}`;
         setTimeout(() => {
             const next = game.levelIndex + 1;
+            noteFloorReached(next + 1);
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
-                game.loadLevel(next);
+                game.loadLevel(next, { keepStats: true, silent: true });
+                applyFloorLook();
                 renderer.compile(scene, camera); // pre-warm shaders behind the card
                 snapshotLevel();
-                setState('play');
+                showLoading(next, () => { setState('play'); startSong(LEVELS[next].music); hud.floorCard(next + 1, LEVELS[next].name, LEVELS[next].subtitle); });
             }
-        }, 2600);
+        }, 2400);
+    },
+    onBossRage: () => { // MODERN M4.4: hotter, redder grade while he rages
+        postfx.applyGrade({ ...(game.world?.rig?.grade || {}), tint: [1.12, 0.92, 0.9], contrast: 1.14, saturation: 0.95, vignette: 0.6, grain: 0.08, bloom: { strength: 0.6, threshold: 0.84 } });
     },
     onBossDefeated: () => {
         playSound('fanfare');
         stopMusic();
+        stopAmbience(1.5);
         setTimeout(() => {
             game.player.score += 5000; // masterpiece bonus
             saveHighScore();
@@ -102,7 +141,7 @@ function saveHighScore() {
     }
 }
 
-const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels',
+const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'screen-loading',
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
@@ -126,10 +165,14 @@ function setState(next) {
             hud.hide();
             exitPointerLock();
             menuSub = null;
+            // MODERN: the Lobby is the live backdrop (loaded silently: no music, no card)
+            if (!menuBackdrop) { game.player = null; game.loadLevel(0, { keepStats: false, silent: true }); applyFloorLook(); renderer.compile(scene, camera); menuBackdrop = true; }
+            menuCamT = 0;
             $('menu-highscore').textContent = String(highScore || 0).padStart(6, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             renderMenu();
             break;
         case 'intro': showOnly('intro-screen'); break;
+        case 'loading': showOnly('screen-loading'); hud.hide(); exitPointerLock(); break;
         case 'play':
             showOnly();
             hud.show();
@@ -139,6 +182,7 @@ function setState(next) {
             showOnly('screen-pause');
             exitPointerLock();
             pauseIdx = 0;
+            $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
             renderPause();
             break;
         case 'transition': showOnly('screen-transition'); break;
@@ -148,6 +192,7 @@ function setState(next) {
             showOnly('screen-gameover');
             exitPointerLock();
             stopMusic();
+            stopAmbience(1.0);
             break;
         case 'victory':
             showOnly('screen-victory');
@@ -159,13 +204,76 @@ function setState(next) {
 
 // ------------------------------------------------------------------ MENU
 
-const MENU_ITEMS = ['New Game', 'Level Select', 'Instructions', 'Toggle Sound'];
+const MENU_ITEMS = ['New Game', 'Level Select', 'Options', 'Instructions', 'Toggle Sound'];
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
     ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
+    ['FIELD SETTINGS', 'OPTIONS', 'Pick a generation of the game (three so far), post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
     ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
 ];
+
+// ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
+const OPTIONS = ['generation', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
+// G5: the three generations of the game, each a single-file build served beside this one
+const GENERATIONS = [
+    { key: 'v3', label: 'GEN 3 · MODERN', url: null },
+    { key: 'v2', label: 'GEN 2 · CLASSIC 3D', url: 'generations/v2/index.html' },
+    { key: 'v1', label: 'GEN 1 · ORIGINAL 3D', url: 'generations/v1/index.html' },
+];
+let genIdx = 0;
+let optIdx = 0;
+function renderOptions() {
+    document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => el.classList.toggle('selected', i === optIdx));
+    $('opt-generation').textContent = GENERATIONS[genIdx].label;
+    $('opt-postfx').textContent = postfx.enabled ? 'ON' : 'OFF';
+    $('opt-fov').textContent = String(Math.round(game.baseFov));
+    $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
+    $('opt-invert').textContent = game.invertY ? 'ON' : 'OFF';
+    $('opt-smooth').textContent = ['RAW', 'LIGHT', 'MEDIUM', 'HEAVY'][Math.round(game.lookSmooth * 3)];
+    $('opt-adssens').textContent = Math.round(game.adsSens * 100) + '%';
+    $('opt-adstoggle').textContent = game.adsToggle ? 'TOGGLE' : 'HOLD';
+    $('opt-sprinttoggle').textContent = game.sprintToggle ? 'TOGGLE' : 'HOLD';
+    $('opt-bob').textContent = ['OFF', 'LOW', 'FULL'][Math.round(game.bobAmount * 2)];
+    $('opt-sound').textContent = isMuted() ? 'OFF' : 'ON';
+}
+function adjustOption(dir) {
+    const key = OPTIONS[optIdx];
+    if (key === 'generation') { genIdx = (genIdx + (dir || 1) + GENERATIONS.length) % GENERATIONS.length; }
+    else if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
+    else if (key === 'fov') {
+        game.baseFov = Math.max(60, Math.min(100, game.baseFov + (dir || 1) * 2));
+        camera.fov = game.baseFov; camera.updateProjectionMatrix();
+        localStorage.setItem('tq3d-fov', String(game.baseFov));
+    }
+    else if (key === 'sens') game.adjustSensitivity((dir || 1) * 0.0002);
+    else if (key === 'invert') { game.invertY = !game.invertY; localStorage.setItem('tq3d-invert', game.invertY ? '1' : '0'); }
+    else if (key === 'smooth') { game.lookSmooth = Math.max(0, Math.min(1, Math.round(game.lookSmooth * 3 + (dir || 1)) / 3)); localStorage.setItem('tq3d-smooth', String(game.lookSmooth)); }
+    else if (key === 'adssens') { game.adsSens = Math.max(0.3, Math.min(1.2, +(game.adsSens + (dir || 1) * 0.1).toFixed(2))); localStorage.setItem('tq3d-adssens', String(game.adsSens)); }
+    else if (key === 'adstoggle') { game.adsToggle = !game.adsToggle; localStorage.setItem('tq3d-adstoggle', game.adsToggle ? '1' : '0'); }
+    else if (key === 'sprinttoggle') { game.sprintToggle = !game.sprintToggle; localStorage.setItem('tq3d-sprinttoggle', game.sprintToggle ? '1' : '0'); }
+    else if (key === 'bob') { game.bobAmount = Math.max(0, Math.min(1, Math.round(game.bobAmount * 2 + (dir || 1)) / 2)); localStorage.setItem('tq3d-bob', String(game.bobAmount)); }
+    else if (key === 'sound') updateMute(toggleMute());
+    playSound('menu_move');
+    renderOptions();
+}
+/** G5.2: play the selected generation — each is a single-file build served beside this one */
+function launchGeneration() {
+    const g = GENERATIONS[genIdx];
+    if (!g.url) { playSound('menu_select'); return; }
+    playSound('menu_select');
+    window.location.href = g.url;
+}
+document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => {
+    el.addEventListener('mouseenter', () => { optIdx = i; renderOptions(); });
+    el.addEventListener('click', (e) => {
+        optIdx = i;
+        const arrows = [...el.querySelectorAll('.opt-arrow')];
+        const which = arrows.indexOf(e.target);
+        if (which < 0 && OPTIONS[i] === 'generation') { launchGeneration(); return; }
+        adjustOption(which === 0 ? -1 : 1);
+    });
+});
 
 function renderMenu() {
     const items = document.querySelectorAll('#menu-items .menu-item');
@@ -180,7 +288,7 @@ function renderMenu() {
     $('menu-detail-title').textContent = title;
     $('menu-detail-copy').textContent = copy;
     $('menu-sound-value').textContent = isMuted() ? 'OFF' : 'ON';
-    items[3].setAttribute('aria-pressed', String(isMuted()));
+    items[4].setAttribute('aria-pressed', String(isMuted()));
 }
 
 function renderPause() {
@@ -189,38 +297,77 @@ function renderPause() {
     });
 }
 
+// MODERN M3.4: floor facts read straight from the canonical maps
+const WEAPON_CHAR = { L: 'TABLE LEG', N: 'NAIL GUN', R: 'ROLLER LAUNCHER', P: 'PAINT SPRAYER' };
+function floorFacts(lvl) {
+    const count = {};
+    for (const row of lvl.map) for (const ch of row) count[ch] = (count[ch] || 0) + 1;
+    const tables = count.T || 0;
+    const staff = (count.g || 0) + (count.m || 0) + (count.x || 0) + (count.D || 0) + (count.G || 0);
+    const menace = (count.g || 0) * 1 + (count.m || 0) * 2 + (count.x || 0) * 3.5 + (count.D || 0) * 2;
+    const threat = lvl.boss ? ['BOSS', 't-boss'] : menace < 9 ? ['LOW', 't-low'] : menace < 16 ? ['MEDIUM', 't-med'] : ['HIGH', 't-high'];
+    const finds = Object.keys(WEAPON_CHAR).filter(c => count[c]).map(c => WEAPON_CHAR[c]);
+    return { tables, staff, threat, finds };
+}
+const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+const bestFloor = () => Number(localStorage.getItem('tq3d-best') || 1);
+function noteFloorReached(n) { if (n > bestFloor()) localStorage.setItem('tq3d-best', String(n)); }
+
 function buildLevelList() {
     const list = $('level-list');
     list.innerHTML = '';
-    LEVELS.forEach((lvl, i) => {
+    const best = bestFloor();
+    // the elevation stacks top floor first; DOM order is still floor 1..6 for the key handler
+    [...LEVELS].forEach((lvl, i) => {
         const el = document.createElement('div');
-        el.className = 'level-item' + (i === levelIdx ? ' selected' : '');
-        el.textContent = `Floor ${i + 1}: ${lvl.name}`;
+        el.className = 'level-item' + (i === levelIdx ? ' selected' : '') + (i + 1 > best ? ' uncharted' : '') + (lvl.boss ? ' boss' : '');
+        el.style.order = String(LEVELS.length - i); // flex order draws floor 6 at the top
+        el.innerHTML = `<span class="fs-num">FLOOR ${i + 1}</span><span class="fs-name">${lvl.name}</span>${i + 1 > best ? '<span class="fs-tag">UNCHARTED</span>' : ''}<span class="fs-windows"></span>`;
         el.addEventListener('click', () => { levelIdx = i; startGameAt(i); });
         el.addEventListener('mouseenter', () => { levelIdx = i; renderLevelList(); });
         list.appendChild(el);
     });
+    const shaft = $('fs-shaft');
+    shaft.innerHTML = LEVELS.map((_, i) => `<span>${LEVELS.length - i}</span>`).join('');
+    renderLevelList();
 }
 
 function renderLevelList() {
-    document.querySelectorAll('#level-list .level-item').forEach((el, i) => {
-        el.classList.toggle('selected', i === levelIdx);
-    });
+    document.querySelectorAll('#level-list .level-item').forEach((el, i) => el.classList.toggle('selected', i === levelIdx));
+    document.querySelectorAll('#fs-shaft span').forEach((el, i) => el.classList.toggle('lit', LEVELS.length - i === levelIdx + 1));
+    const lvl = LEVELS[levelIdx];
+    const f = floorFacts(lvl);
+    const uncharted = levelIdx + 1 > bestFloor();
+    $('fs-detail').innerHTML = `
+        <div class="fd-eyebrow">OPERATION ${String(levelIdx + 1).padStart(2, '0')} · ${uncharted ? 'UNCHARTED' : 'CLEARED FOR ENTRY'}</div>
+        <div class="fd-name">${lvl.name}</div>
+        <div class="fd-sub">${lvl.subtitle}</div>
+        <div class="fd-stats">
+            <div class="fd-stat"><span>TABLES</span><b>${lvl.boss ? '—' : f.tables}</b></div>
+            <div class="fd-stat"><span>STAFF</span><b>${f.staff}</b></div>
+            <div class="fd-stat"><span>THREAT</span><b class="${f.threat[1]}">${f.threat[0]}</b></div>
+        </div>
+        <div class="fd-row">FIELD FIND <b>${f.finds.length ? f.finds.join(' · ') : (lvl.boss ? 'THE HEAD DESIGNER' : 'NONE')}</b></div>
+        <div class="fd-row">PALETTE <span class="fd-palette"><i style="background:${hex(lvl.fogColor)}"></i><i style="background:${hex(lvl.ambient)}"></i><i style="background:${hex(lvl.accent)}"></i><i style="background:${hex(lvl.decor?.rugColor ?? 0x333333)}"></i></span></div>
+        <div class="fd-row">SCORE <b>${lvl.music.toUpperCase()}</b></div>
+        <div class="fd-note">FLOOR SELECT GRANTS THE ARSENAL A RUN WOULD HAVE FOUND BY NOW. HIGH SCORES COUNT.</div>`;
 }
 
 function menuSelect() {
     playSound('menu_select');
     const item = MENU_ITEMS[menuIdx];
     if (item === 'New Game') startIntro();
-    else if (item === 'Level Select') { menuSub = 'levels'; levelIdx = 0; buildLevelList(); showOnly('menu-screen', 'menu-levels'); }
-    else if (item === 'Instructions') { menuSub = 'instructions'; showOnly('menu-screen', 'menu-instructions'); }
+    else if (item === 'Level Select') { menuSub = 'levels'; levelIdx = 0; buildLevelList(); showOnly('menu-levels'); }
+    else if (item === 'Options') { menuSub = 'options'; optIdx = 0; renderOptions(); showOnly('menu-options'); }
+    else if (item === 'Instructions') { menuSub = 'instructions'; showOnly('menu-instructions'); }
     else if (item === 'Toggle Sound') updateMute(toggleMute());
 }
 
 function updateMute(m) {
     $('mute-indicator').classList.toggle('hidden', !m);
     $('menu-sound-value').textContent = m ? 'OFF' : 'ON';
-    document.querySelectorAll('#menu-items .menu-item')[3].setAttribute('aria-pressed', String(m));
+    document.querySelectorAll('#menu-items .menu-item')[4].setAttribute('aria-pressed', String(m));
+    if ($('opt-sound')) $('opt-sound').textContent = m ? 'OFF' : 'ON';
 }
 
 // menu mouse support
@@ -239,37 +386,114 @@ document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
 function startIntro() {
     setState('intro');
     startSong('intro');
+    // R1.2: the classic six-beat crawl. The container scrolls from below the screen to above it
+    // over 56 s, driven by wall-clock JS (deterministic under any frame rate). Words get
+    // wrapped once so each beat can reveal kinetically when it takes focus.
     const container = document.querySelector('.intro-container');
-    document.querySelectorAll('.intro-beat').forEach((beat) => beat.classList.remove('is-focus'));
-    container.style.transition = 'none';
+    const beats = [...document.querySelectorAll('.intro-beat')];
+    if (!container.dataset.wrapped) {
+        container.dataset.wrapped = '1';
+        let i = 0;
+        for (const el of container.querySelectorAll('p, h1, h2')) {
+            i = 0;
+            for (const node of [...el.childNodes]) {
+                if (node.nodeType === 3) {
+                    const frag = document.createDocumentFragment();
+                    node.textContent.split(/(\s+)/).forEach(tok => {
+                        if (!tok) return;
+                        if (/^\s+$/.test(tok)) { frag.appendChild(document.createTextNode(' ')); return; }
+                        const w = document.createElement('span'); w.className = 'w'; w.style.setProperty('--i', String(i++)); w.textContent = tok; frag.appendChild(w);
+                    });
+                    node.replaceWith(frag);
+                } else if (node.nodeType === 1 && node.tagName !== 'BR') { node.classList.add('w'); node.style.setProperty('--i', String(i++)); }
+            }
+        }
+    }
+    beats.forEach((beat) => beat.classList.remove('is-focus', 'was-focus'));
     container.style.top = '105%';
-    // force reflow then start the crawl
-    container.offsetHeight;
-    container.style.transition = 'top 56s linear';
-    container.style.top = '-360%';
+    $('intro-cut').classList.remove('go');
+    $('intro-splat').classList.remove('go');
+    brief.focus = -1; brief.satFloor = -1; brief.cut = false;
     introStartedAt = performance.now();
     if (introFrame) cancelAnimationFrame(introFrame);
     updateIntroPresentation();
-    introTimer = setTimeout(finishIntro, 56500);
+    if (introTimer) clearTimeout(introTimer);
+    introTimer = setTimeout(finishIntro, CRAWL_SECONDS * 1000 + 700);
 }
+
+const CRAWL_SECONDS = 56;
+const brief = { focus: -1, satFloor: -1, satT0: 0, cut: false };
 
 function updateIntroPresentation() {
     if (state !== 'intro') return;
+    const T = (performance.now() - introStartedAt) / 1000;
+    const container = document.querySelector('.intro-container');
+    const progress = Math.min(1, T / CRAWL_SECONDS);
+    container.style.top = `${105 - progress * 465}%`;
+    // beat focus: whichever beat is nearest the screen centre
     const beats = [...document.querySelectorAll('.intro-beat')];
     const focusLine = window.innerHeight * 0.5;
-    let nearest = null;
-    let nearestDistance = Infinity;
-
-    beats.forEach((beat) => {
+    let nearest = -1, nearestDistance = Infinity;
+    beats.forEach((beat, i) => {
         const rect = beat.getBoundingClientRect();
-        const distance = Math.abs(rect.top + rect.height / 2 - focusLine);
-        if (distance < nearestDistance) { nearest = beat; nearestDistance = distance; }
+        // a beat that covers the centre line wins outright; otherwise the nearest edge decides
+        const distance = rect.top <= focusLine && rect.bottom >= focusLine ? 0
+            : Math.min(Math.abs(rect.top - focusLine), Math.abs(rect.bottom - focusLine));
+        if (distance < nearestDistance) { nearest = i; nearestDistance = distance; }
     });
-    beats.forEach((beat) => beat.classList.toggle('is-focus', beat === nearest));
-
-    const progress = Math.min(1, (performance.now() - introStartedAt) / 56000);
+    if (nearest !== brief.focus) {
+        beats.forEach((beat, i) => { beat.classList.toggle('is-focus', i === nearest); beat.classList.toggle('was-focus', i < nearest); });
+        if (brief.focus >= 0) { const sp = $('intro-splat'); sp.classList.remove('go'); void sp.offsetWidth; sp.classList.add('go'); }
+        brief.focus = nearest;
+    }
     $('intro-screen').style.setProperty('--intro-progress', `${(progress * 100).toFixed(2)}%`);
+    // satellite inset scans the floor named by the beat (one floor per beat)
+    drawSatPlan(Math.max(0, Math.min(LEVELS.length - 1, nearest)), T);
+    // smash cut into the loading card just before the crawl leaves the screen
+    if (!brief.cut && T > CRAWL_SECONDS - 0.5) { brief.cut = true; $('intro-cut').classList.add('go'); }
     introFrame = requestAnimationFrame(updateIntroPresentation);
+}
+
+const SAT_WALLS = new Set(['#', 'W', 'B', 'M', 'O', 'C']);
+function drawSatPlan(floor, t) {
+    if (brief.satFloor !== floor) { brief.satFloor = floor; brief.satT0 = t; $('mb-sat-floor').textContent = `FLOOR ${floor + 1} · ${LEVELS[floor].name.toUpperCase()}`; }
+    drawSatPlanTo($('briefing-sat'), floor, Math.min(1, (t - brief.satT0) / 2.2), $('mb-sat-scan'));
+}
+/** blueprint scan of a floor into any canvas; reveal 0..1 draws it in from the top */
+function drawSatPlanTo(c, floor, reveal, scanEl = null) {
+    const ctx = c.getContext('2d');
+    const lvl = LEVELS[floor];
+    const rows = lvl.map, w = Math.max(...rows.map(r => r.length)), h = rows.length;
+    const k = Math.min((c.width - 20) / w, (c.height - 20) / h);
+    const ox = (c.width - w * k) / 2, oy = (c.height - h * k) / 2;
+    ctx.fillStyle = '#0a1a30'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.strokeStyle = 'rgba(120,160,210,0.10)'; ctx.lineWidth = 1;
+    for (let gx = 0; gx < c.width; gx += 18) { ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, c.height); ctx.stroke(); }
+    for (let gy = 0; gy < c.height; gy += 18) { ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(c.width, gy); ctx.stroke(); }
+    if (scanEl) scanEl.textContent = `${Math.round(reveal * 100).toString().padStart(2, '0')}%`;
+    for (let y = 0; y < h; y++) {
+        if (y / h > reveal) break;
+        const row = rows[y].padEnd(w, lvl.wallChar);
+        for (let x = 0; x < w; x++) {
+            const ch = row[x];
+            if (SAT_WALLS.has(ch)) ctx.fillStyle = '#a8c8e8';
+            else if (ch === '+') ctx.fillStyle = '#c9a227';
+            else if (ch === 'X') ctx.fillStyle = '#cc4433';
+            else if (ch === 'E') ctx.fillStyle = '#3ae07a';
+            else if (ch === 'T') ctx.fillStyle = '#ffd35a';
+            else if (ch === 'G') ctx.fillStyle = '#ff3322';
+            else continue;
+            ctx.fillRect(ox + x * k, oy + y * k, Math.ceil(k), Math.ceil(k));
+        }
+    }
+    // scan line + reticle
+    const sy = oy + Math.min(1, reveal) * h * k;
+    ctx.fillStyle = 'rgba(125,255,154,0.35)'; ctx.fillRect(0, sy - 1, c.width, 2);
+    ctx.strokeStyle = 'rgba(255,211,90,0.8)'; ctx.lineWidth = 1;
+    ctx.strokeRect(ox - 4, oy - 4, w * k + 8, h * k + 8);
+    for (const [cx, cy] of [[ox - 4, oy - 4], [ox + w * k + 4, oy - 4], [ox - 4, oy + h * k + 4], [ox + w * k + 4, oy + h * k + 4]]) {
+        ctx.beginPath(); ctx.moveTo(cx - 8, cy); ctx.lineTo(cx + 8, cy); ctx.moveTo(cx, cy - 8); ctx.lineTo(cx, cy + 8); ctx.stroke();
+    }
 }
 
 function finishIntro() {
@@ -278,19 +502,64 @@ function finishIntro() {
     startGameAt(0);
 }
 
+// ------------------------------------------------------------------ LOADING CARD (MODERN M3.6)
+const FLOOR_TIPS = [
+    'Break rooms hide Fritos. Cabinets hide cash. Everything hides splinters.',
+    'Cubicle walls stop staff, not paint. Aim over them with the nail gun from the supply room.',
+    'The reading rooms are dark. Let the compass bearings lead you to the tables.',
+    'Display pods are glass: you can see the tables, but you still have to walk in.',
+    'Fifteen staff on the line. The sprayer at the top of the floor pays for itself.',
+    'The Head Designer rages under half health and knocks supplies loose. Keep moving.',
+];
+let loadingTimer = null, loadingNext = null, loadingStart = 0, loadingDur = 0;
+const WEAPON_LABEL = { paintbrush: 'BRUSH', tableLeg: 'LEG', nailgun: 'NAILS', roller: 'ROLLER', sprayer: 'SPRAYER' };
+function showLoading(idx, then, dur = 3400) {
+    const lvl = LEVELS[idx];
+    const facts = floorFacts(lvl);
+    $('ml-num').textContent = idx + 1;
+    $('ml-name').textContent = lvl.name;
+    $('ml-sub').textContent = lvl.subtitle;
+    $('ml-objective').textContent = lvl.boss ? 'DEFEAT THE HEAD DESIGNER' : `COLLECT ${facts.tables} TABLES · REACH THE ELEVATOR`;
+    $('ml-tip').textContent = FLOOR_TIPS[idx] || '';
+    $('ml-sat-label').textContent = `FLOOR ${idx + 1} · ${facts.staff} STAFF`;
+    const owned = game.player?.weapons || ['paintbrush'];
+    $('ml-arsenal').innerHTML = Object.entries(WEAPON_LABEL).map(([k, l]) => `<span class="${owned.includes(k) ? 'have' : ''}">${l}</span>`).join('');
+    loadingNext = then; loadingStart = performance.now(); loadingDur = dur;
+    setState('loading');
+    if (loadingTimer) clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(finishLoading, dur);
+    drawSatPlanTo($('loading-sat'), idx, 0);
+    const tick = () => {
+        if (state !== 'loading') return;
+        const t = (performance.now() - loadingStart) / 1000;
+        $('screen-loading').style.setProperty('--ml-progress', `${Math.min(100, t / (loadingDur / 1000) * 100).toFixed(1)}%`);
+        drawSatPlanTo($('loading-sat'), idx, Math.min(1, t / 2.0));
+        requestAnimationFrame(tick);
+    };
+    tick();
+}
+function finishLoading() {
+    if (loadingTimer) { clearTimeout(loadingTimer); loadingTimer = null; }
+    const fn = loadingNext; loadingNext = null;
+    if (fn) fn();
+}
+
 function startGameAt(idx) {
     initAudio();
     window.TQ?.botCancel?.();
+    menuBackdrop = false;
     game.player = null; // fresh run
-    game.loadLevel(idx, { keepStats: false });
+    game.loadLevel(idx, { keepStats: false, silent: true });
     // floor-select fairness: grant the weapons a player would have found by now
     if (idx >= 2 && !game.player.weapons.includes('tableLeg')) game.player.weapons.push('tableLeg');
     if (idx >= 3 && !game.player.weapons.includes('nailgun')) game.player.weapons.push('nailgun');
     if (idx >= 4 && !game.player.weapons.includes('roller')) game.player.weapons.push('roller');
     if (idx >= 5 && !game.player.weapons.includes('sprayer')) game.player.weapons.push('sprayer');
+    applyFloorLook();
     renderer.compile(scene, camera); // pre-warm shaders so play starts hitch-free
     snapshotLevel();
-    setState('play');
+    // MODERN M3.6: floor card first, then deploy (Enter skips)
+    showLoading(idx, () => { setState('play'); startSong(LEVELS[idx].music); hud.floorCard(idx + 1, LEVELS[idx].name, LEVELS[idx].subtitle); });
 }
 
 function retryFloor() {
@@ -301,18 +570,24 @@ function retryFloor() {
         game.player.health = Math.max(game.player.health, 75);
         game.player.ammo = Math.max(game.player.ammo, 20);
     }
-    game.loadLevel(game.levelIndex, { keepStats: true });
+    game.loadLevel(game.levelIndex, { keepStats: true, silent: true });
+    applyFloorLook();
     renderer.compile(scene, camera);
-    setState('play');
+    showLoading(game.levelIndex, () => { setState('play'); startSong(game.level.music); hud.floorCard(game.levelIndex + 1, game.level.name, game.level.subtitle); }, 1800);
 }
 
 function pauseSelect() {
     playSound('menu_select');
-    const items = ['Resume', 'Restart Floor', 'Toggle Sound', 'Quit to Menu'];
+    const items = ['Resume', 'Restart Floor', 'Toggle Sound', 'Post FX', 'Quit to Menu'];
     const item = items[pauseIdx];
     if (item === 'Resume') { setState('play'); requestPointerLock(); }
     else if (item === 'Restart Floor') retryFloor();
     else if (item === 'Toggle Sound') updateMute(toggleMute());
+    else if (item === 'Post FX') {
+        postfx.enabled = !postfx.enabled;
+        localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off');
+        $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
+    }
     else if (item === 'Quit to Menu') { stopMusic(); setState('menu'); startSong('menu'); }
 }
 
@@ -330,13 +605,22 @@ onKeyPress((e) => {
             setState('boot-title');
             initAudio();
             startSong('menu');
+            armTitleTimer();
             break;
         case 'boot-title':
+            clearTimeout(bootTimer);
             setState('menu');
             break;
         case 'menu':
             if (menuSub === 'instructions') {
                 if (['Enter', 'Escape', 'Space'].includes(e.code)) { menuSub = null; showOnly('menu-screen'); }
+            } else if (menuSub === 'options') {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') { optIdx = (optIdx + OPTIONS.length - 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
+                else if (e.code === 'ArrowDown' || e.code === 'KeyS') { optIdx = (optIdx + 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
+                else if (e.code === 'ArrowLeft' || e.code === 'KeyA') adjustOption(-1);
+                else if (e.code === 'ArrowRight' || e.code === 'KeyD') adjustOption(1);
+                else if (e.code === 'Enter' || e.code === 'Space') { if (OPTIONS[optIdx] === 'generation') launchGeneration(); else adjustOption(1); }
+                else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
             } else if (menuSub === 'levels') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { levelIdx = (levelIdx + LEVELS.length - 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { levelIdx = (levelIdx + 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
@@ -350,6 +634,9 @@ onKeyPress((e) => {
             break;
         case 'intro':
             if (e.code === 'Enter' || e.code === 'Escape' || e.code === 'Space') finishIntro();
+            break;
+        case 'loading':
+            if (e.code === 'Enter' || e.code === 'Space') finishLoading();
             break;
         case 'play':
             if (e.code === 'Escape') setState('pause');
@@ -365,8 +652,8 @@ onKeyPress((e) => {
             break;
         case 'pause':
             if (e.code === 'Escape') setState('play');
-            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 3) % 4; playSound('menu_move'); renderPause(); }
-            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 4; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 4) % 5; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 5; playSound('menu_move'); renderPause(); }
             else if (e.code === 'Enter') pauseSelect();
             break;
         case 'gameover':
@@ -380,10 +667,10 @@ onKeyPress((e) => {
 
 // click anywhere advances boot screens; click canvas during play locks pointer
 $('boot-memory').addEventListener('click', () => {
-    if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); }
+    if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); armTitleTimer(); }
 });
 $('boot-title').addEventListener('click', () => {
-    if (state === 'boot-title') setState('menu');
+    if (state === 'boot-title') { clearTimeout(bootTimer); setState('menu'); }
 });
 canvas.addEventListener('click', () => {
     if (state === 'play') requestPointerLock();
@@ -404,13 +691,18 @@ window.addEventListener('blur', () => {
 
 // ------------------------------------------------------------------ BOOT VISUALS
 
-$('boot-memory').style.backgroundImage = `url(${memoryScreenUrl})`;
-$('boot-title').style.backgroundImage = `url(${titleScreenUrl})`;
+// MODERN M3.7: the untouched 199X screens go on the CRT tubes
+$('tube-memory').style.backgroundImage = `url(${memoryScreenUrl})`;
+$('tube-title').style.backgroundImage = `url(${titleScreenUrl})`;
+// legacy boot auto-advances (any key or click still skips; §5-E default: once per session)
+let bootTimer = setTimeout(() => { if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); armTitleTimer(); } }, 4500);
+function armTitleTimer() { clearTimeout(bootTimer); bootTimer = setTimeout(() => { if (state === 'boot-title') setState('menu'); }, 5000); }
 $('menu-boxart').src = boxArtUrl;
 $('menu-screen').style.setProperty('--menu-workbench-bg', `url(${menuWorkbenchUrl})`);
 $('menu-screen').style.setProperty('--menu-brush-cursor', `url(${menuBrushUrl})`);
 $('intro-screen').style.setProperty('--intro-backdrop', `url(${menuWorkbenchUrl})`);
 $('intro-screen').style.setProperty('--intro-brush', `url(${menuBrushUrl})`);
+// (MODERN: the briefing renders over the live Lobby; the workbench backdrop is no longer used here)
 
 const menuScreen = $('menu-screen');
 menuScreen.addEventListener('pointermove', (e) => {
@@ -438,20 +730,37 @@ function step(now, render = true) {
 
     // game-time sleep for test scripts (DOM timers throttle in hidden tabs)
     if (bot.sleep > 0) {
-        bot.sleep -= dt;
+        bot.sleep -= dt * (testMode && turbo > 1 && state === 'play' ? turbo : 1);
         if (bot.sleep <= 0 && bot.sleepResolve) { bot.sleepResolve(); bot.sleepResolve = null; }
     }
+    if ((state === 'menu' || state === 'intro') && menuBackdrop) {
+        // slow dolly along the Lobby entry hall toward the reception, gentle yaw sway
+        if (!reducedMotion()) menuCamT += dt;
+        const t = menuCamT;
+        const x = 3.2 + ((Math.sin(t * 0.045) + 1) / 2) * 5.5;
+        camera.position.set(x, 0.86 + Math.sin(t * 0.3) * 0.015, 2.6 + Math.sin(t * 0.11) * 0.4);
+        camera.rotation.order = 'YXZ';
+        camera.rotation.set(0.02 + Math.sin(t * 0.17) * 0.01, -Math.PI / 2 + 0.35 + Math.sin(t * 0.13) * 0.09, 0);
+        game.vmRoot.visible = false;
+    } else game.vmRoot.visible = true;
     if (state === 'play') {
-        elapsed += dt;
-        if (testMode) botStep(dt);
-        game.update(dt, elapsed);
+        // harness turbo (M7.1): several fixed-dt simulation steps per rendered frame so the
+        // software-rendered autopilot campaign runs in minutes; each step is a normal game step
+        const steps = testMode && turbo > 1 ? turbo : 1;
+        for (let i = 0; i < steps && state === 'play'; i++) {
+            elapsed += dt;
+            if (testMode) botStep(dt);
+            game.update(dt, elapsed);
+        }
         hud.update(game.player, game);
-        hud.drawFace(game.player, elapsed);
+        hud.drawFace(game.player, elapsed, game); // portrait lives on the pause panel now; cheap when hidden
         hud.drawMinimap(game, game.player);
         hud.setLockHint(!input.pointerLocked);
     }
-    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover')) {
-        renderer.render(scene, camera);
+    if (audioMeterOn) hud.audioMeter(audioDebug(), getMeter());
+    if (state === 'pause') hud.drawFace(game.player, elapsed, game);
+    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || ((state === 'menu' || state === 'intro') && menuBackdrop))) {
+        postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
     }
     clearFrameInput();
 }
@@ -576,9 +885,35 @@ function botStep(dt) {
 window.TQ = {
     get state() { return state; },
     get game() { return game; },
+    get renderer() { return renderer; },
+    get postfx() { return postfx; },
+    get hud() { return hud; },
+    openOptions() { setState('menu'); menuIdx = 2; renderMenu(); menuSelect(); return 'options'; },
+    setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
+    get scene() { return scene; },
     get player() { return game.player; },
+    get input() { return input; }, // R5 harness: drive look/move directly
     setState,
-    startGameAt,
+    startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
+    deploy() { finishLoading(); return state; },                   // harness: dismiss a loading card
+    get propBuilders() { return PROP_BUILDERS; },
+    /** MODERN M5.7 harness: lay every prop out in three rows (intact / damaged / wreck) */
+    propSheetLayout(builders = PROP_BUILDERS) {
+        const w = game.world;
+        for (const rec of w.props.values()) w.propStore.remove(rec.mesh);
+        w.props.clear(); w.propCells.clear(); w.tallProps.clear();
+        for (const m of w.wrecks) w.propStore.remove(m); w.wrecks = [];
+        const names = Object.keys(builders);
+        names.forEach((name, i) => {
+            ['intact', 'damaged', 'wreck'].forEach((st, row) => {
+                const g = builders[name].build(st);
+                g.position.set(2.5 + i * 1.5, 0, 2.0 + row * 2.2);
+                w.propStore.add(g);
+            });
+        });
+        w.rebuildPropBatch();
+        return { placed: names.length * 3, drawCalls: w.propDrawCalls };
+    },
     skipBoot() { setState('menu'); initAudio(); },
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {
@@ -608,7 +943,29 @@ window.TQ = {
         return [x, y];
     },
     audioDebug,
+    renderDemo, renderSong, renderSfx, songData, setMix, // MODERN M6: offline evidence renders + mix control
+    showAudioMeter(on = true) { audioMeterOn = on; $('audio-meter').classList.toggle('hidden', !on); return on; },
     setTestMode(on = true) { testMode = on; return 'testMode ' + on; },
+    /** R2.2 harness: every portrait state on one sheet (overlay); pass false to remove */
+    faceSheet(show = true) {
+        let el = document.getElementById('tq-facesheet');
+        if (!show) { el?.remove(); return 'hidden'; }
+        if (el) return 'shown';
+        el = document.createElement('div'); el.id = 'tq-facesheet';
+        el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#1a1410;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:16px;font:11px monospace;color:#e8dcc0;align-content:start';
+        for (const [name, st] of Object.entries(FACE_STATES)) {
+            const cell = document.createElement('div'); cell.style.textAlign = 'center';
+            const c = document.createElement('canvas'); c.width = 192; c.height = 192; c.style.cssText = 'width:160px;height:160px;border:4px solid #5a3414;background:#26262b';
+            const { time = 1.0, ...rest } = st;
+            paintFace(c.getContext('2d'), { ...FACE_DEFAULTS, ...rest }, time);
+            cell.appendChild(c); cell.appendChild(document.createTextNode(name)); el.appendChild(cell);
+        }
+        document.body.appendChild(el);
+        return 'shown';
+    },
+    introT() { return state === 'intro' ? (performance.now() - introStartedAt) / 1000 : -1; }, // R1.2 harness: crawl clock
+    setTurbo(n = 1) { turbo = Math.max(1, Math.min(16, n | 0)); return 'turbo ' + turbo; },
+    retry() { retryFloor(); return state; },
     botGoto(x, y, timeout = 25) {
         if (state !== 'play') return Promise.resolve(state);
         return new Promise(res => {
@@ -634,6 +991,31 @@ window.TQ = {
             bot.fightResolve = res;
             bot.levelIndex = game.levelIndex;
         });
+    },
+    /** MODERN debug: overlay a sheet of every surface's colour / normal / roughness maps. */
+    textureSheet(show = true) {
+        let el = document.getElementById('tq-texsheet');
+        if (!show) { el?.remove(); return 'hidden'; }
+        if (el) return 'shown';
+        el = document.createElement('div');
+        el.id = 'tq-texsheet';
+        el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#111;overflow:auto;padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px;font:11px monospace;color:#ddd';
+        for (const [k, s] of Object.entries(getSurfaces())) {
+            const cell = document.createElement('div');
+            cell.innerHTML = `<div style="margin-bottom:2px">${k} ${s.canvases.color.width}px · rough ${s.cfg.rough} · metal ${s.cfg.metal}</div>`;
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:2px';
+            for (const c of [s.canvases.color, s.canvases.normal, s.canvases.roughness]) {
+                const img = document.createElement('canvas');
+                img.width = img.height = 96;
+                img.getContext('2d').drawImage(c, 0, 0, 96, 96);
+                row.appendChild(img);
+            }
+            cell.appendChild(row);
+            el.appendChild(cell);
+        }
+        document.body.appendChild(el);
+        return 'shown';
     },
     snapshot() {
         const p = game.player;

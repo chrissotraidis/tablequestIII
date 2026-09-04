@@ -8,6 +8,12 @@ export const input = {
     jump: false,            // one-shot, consumed each frame
     fireKeyHeld: false, mouseHeld: false,
     interact: false, sprint: false,
+    inspect: false,         // MODERN: hold F to look the weapon over
+    aimHeld: false,         // MODERN: right mouse = aim down sights
+    melee: false,           // MODERN: V = quick melee (one-shot)
+    aimToggled: false,      // R5.3: C toggles aim (used when the ADS toggle option is on)
+    sprintToggled: false,   // R5.3: Alt toggles sprint (used when the sprint toggle option is on)
+    regrip: false,          // R5.3: R re-grips the tool (one-shot, cosmetic)
     cycleWeapon: 0,         // +1 / -1 per frame (wheel or Q)
     mouseDX: 0, mouseDY: 0,
     pointerLocked: false,
@@ -28,7 +34,7 @@ export function initInput(canvasEl) {
         if (e.repeat) { setKey(e.code, true); return; }
         for (const fn of pressCallbacks) fn(e);
         setKey(e.code, true);
-        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.code))
+        if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'AltLeft', 'AltRight'].includes(e.code))
             e.preventDefault();
     });
     window.addEventListener('keyup', (e) => setKey(e.code, false));
@@ -48,10 +54,13 @@ export function initInput(canvasEl) {
     });
     canvas.addEventListener('mousedown', (e) => {
         if (e.button === 0) { input.fire = true; input.mouseHeld = true; }
+        if (e.button === 2) input.aimHeld = true;
     });
     window.addEventListener('mouseup', (e) => {
         if (e.button === 0) input.mouseHeld = false;
+        if (e.button === 2) input.aimHeld = false;
     });
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => {
         input.cycleWeapon += e.deltaY > 0 ? 1 : -1;
         e.preventDefault();
@@ -60,8 +69,11 @@ export function initInput(canvasEl) {
 
 export function releaseAllKeys() {
     input.forward = input.back = input.strafeL = input.strafeR = false;
+    input.inspect = false;
     input.turnL = input.turnR = input.sprint = false;
     input.fireKeyHeld = input.mouseHeld = false;
+    input.aimHeld = false;
+    input.aimToggled = false; input.sprintToggled = false;
 }
 
 export function requestPointerLock() {
@@ -87,6 +99,11 @@ function setKey(code, down) {
             input.fireKeyHeld = down;
             break;
         case 'KeyE': if (down) input.interact = true; break;
+        case 'KeyF': input.inspect = down; break;
+        case 'KeyV': if (down) input.melee = true; break;
+        case 'KeyC': if (down) input.aimToggled = !input.aimToggled; break;
+        case 'AltLeft': case 'AltRight': if (down) input.sprintToggled = !input.sprintToggled; break;
+        case 'KeyR': if (down) input.regrip = true; break;
         case 'KeyQ': if (down) input.cycleWeapon += 1; break;
         case 'ShiftLeft': case 'ShiftRight': input.sprint = down; break;
     }
@@ -95,6 +112,8 @@ function setKey(code, down) {
 /** consume one-shot flags after each frame */
 export function clearFrameInput() {
     input.fire = false;
+    input.melee = false;
+    input.regrip = false;
     input.jump = false;
     input.interact = false;
     input.cycleWeapon = 0;

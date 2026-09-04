@@ -4,9 +4,15 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL, WALL_HEIGHT } from './config.js';
-import { getTextures } from './textures.js';
-import { PROP_BUILDERS, buildPainting, buildRug } from './models.js';
+import { getTextures, surfaceMaterial } from './textures.js';
+import { buildPainting, buildRug } from './models.js';
+import { PROP_BUILDERS } from './props.js'; // MODERN M5.7: prop library with damage states
 import { playSound } from './audio.js';
+import { getRig, makeKeyLight, setShadow } from './lighting.js';
+import { bakeStatic } from './bake.js';
+import { buildTrim } from './trim.js';
+import { buildWindows, buildExterior } from './exterior.js';
+import { dressFloor } from './dressing.js'; // MODERN M5.1–M5.6
 
 const WALL_TYPE = {
     '#': CELL.BRICK, 'W': CELL.WOOD, 'B': CELL.STONE,
@@ -16,6 +22,11 @@ const TEX_FOR_TYPE = {
     [CELL.BRICK]: 'brick', [CELL.WOOD]: 'wood', [CELL.STONE]: 'stone',
     [CELL.CONCRETE]: 'concrete', [CELL.OFFICE]: 'office', [CELL.METAL]: 'metal',
 };
+// MODERN: walls are taller per floor. Tileable surfaces repeat vertically at
+// the classic 1.35-unit scale (bricks stay brick-sized); the office panel has
+// a wainscot band, so it stretches like classic did.
+const VERTICAL_TILE = new Set([CELL.BRICK, CELL.WOOD, CELL.STONE, CELL.CONCRETE, CELL.METAL]);
+const DOOR_H = WALL_HEIGHT; // door/gate/elevator panels keep the classic height
 
 /** deterministic RNG so prop placement is stable per level */
 function mulberry32(seed) {
@@ -75,6 +86,9 @@ export class World {
         this.propCells = new Set();  // cells blocked by furniture
         this.tallProps = new Set();  // furniture tall enough to stop shots
         this.props = new Map();      // "x,y" -> { x, y, type, def, hp, mesh }
+        this.propStore = new THREE.Group(); // MODERN M5.7: prop groups live here (not in the scene) and are batched
+        this.wrecks = [];
+        this.batchDirty = false;
 
         this.build();
     }
@@ -88,8 +102,44 @@ export class World {
         const w = this.w = Math.max(...rows.map(r => r.length));
         const h = this.h = rows.length;
         const grid = this.grid = new Int8Array(w * h);
+        const H = this.H = getRig(this.levelIndex).height ?? WALL_HEIGHT;
+        const wallType = WALL_TYPE[lvl.wallChar] ?? CELL.OFFICE;
 
         const geosByType = {};
+        // MODERN windows: which wall cells become glass, and over what height band
+        const winSpec = getRig(this.levelIndex).windows || [];
+        const windowBand = (x, y, ch) => {
+            for (const ws of winSpec) {
+                if (ws.cellType) { if (ch === ws.cellType) return ws; continue; }
+                if (ws.rect) { const [rx, ry, rw, rh] = ws.rect; if (x >= rx && x < rx + rw && y >= ry && y < ry + rh && WALL_TYPE[ch] !== undefined) return ws; continue; }
+                const onSide = ws.side === 'top' ? y === 0 : ws.side === 'bottom' ? y === h - 1
+                    : ws.side === 'left' ? x === 0 : x === w - 1;
+                const along = (ws.side === 'top' || ws.side === 'bottom') ? x : y;
+                if (onSide && along >= ws.from && along <= ws.to) return ws;
+            }
+            return null;
+        };
+        const windowCells = [];
+        this.windowSet = new Set();
+        const wallBox = (type, x, y, y0, y1) => {
+            // metal carries a hazard stripe in its lower band: split tall metal
+            // walls so the stripe stays at floor level and the rest is plain plate
+            if (type === CELL.METAL && y0 < DOOR_H && y1 > DOOR_H + 0.01) {
+                wallBox(type, x, y, y0, DOOR_H);
+                wallBox('metalPlain', x, y, DOOR_H, y1);
+                return;
+            }
+            const g = new THREE.BoxGeometry(1, y1 - y0, 1);
+            const tile = VERTICAL_TILE.has(type) || type === 'metalPlain';
+            if (tile) {
+                const uv = g.attributes.uv;
+                const k = (y1 - y0) / WALL_HEIGHT;
+                for (let i = 0; i < uv.count; i++) uv.setY(i, uv.getY(i) * k + y0 / WALL_HEIGHT);
+            }
+            g.translate(x + 0.5, (y0 + y1) / 2, y + 0.5);
+            const surf = type === 'metalPlain' ? 'metalPlain' : TEX_FOR_TYPE[type];
+            (geosByType[surf] = geosByType[surf] || []).push(g);
+        };
 
         for (let y = 0; y < h; y++) {
             const row = rows[y].padEnd(w, lvl.wallChar);
@@ -99,15 +149,29 @@ export class World {
 
                 if (WALL_TYPE[ch] !== undefined) {
                     type = WALL_TYPE[ch];
-                    const g = new THREE.BoxGeometry(1, WALL_HEIGHT, 1);
-                    g.translate(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
-                    (geosByType[type] = geosByType[type] || []).push(g);
+                    const ws = windowBand(x, y, ch);
+                    if (ws) {
+                        // glass band: the cell stays solid in the grid; only its look changes
+                        const y0 = Math.max(0, ws.y0), y1 = Math.min(H, ws.y1);
+                        if (y0 > 0.01) wallBox(type, x, y, 0, y0);
+                        if (y1 < H - 0.01) wallBox(type, x, y, y1, H);
+                        const rowStr = (rows[y] || '').padEnd(w, lvl.wallChar);
+                        const lr = WALL_TYPE[rowStr[x - 1]] !== undefined && WALL_TYPE[rowStr[x + 1]] !== undefined;
+                        const axis = ws.side === 'top' || ws.side === 'bottom' ? 'x'
+                            : ws.side === 'left' || ws.side === 'right' ? 'z' : (lr ? 'x' : 'z');
+                        windowCells.push({ x, y, y0, y1, axis });
+                        this.windowSet.add(this.key(x, y));
+                    } else {
+                        wallBox(type, x, y, 0, H);
+                    }
                 } else if (ch === '+') {
                     type = CELL.DOOR;
                     this.makeDoor(x, y, rows, w, h, lvl);
+                    if (H > DOOR_H + 0.01) wallBox(wallType === CELL.METAL ? 'metalPlain' : wallType, x, y, DOOR_H, H); // transom above the door
                 } else if (ch === 'X') {
                     type = CELL.GATE;
                     this.makeGate(x, y);
+                    if (H > DOOR_H + 0.01) wallBox(wallType === CELL.METAL ? 'metalPlain' : wallType, x, y, DOOR_H, H);
                 } else if (ch === 'E') {
                     type = CELL.ELEVATOR;
                     this.elevatorCells.push([x, y]);
@@ -121,35 +185,35 @@ export class World {
         }
 
         // merged wall meshes (one draw call per material)
-        for (const [type, geos] of Object.entries(geosByType)) {
+        for (const [surf, geos] of Object.entries(geosByType)) {
             const merged = BufferGeometryUtils.mergeGeometries(geos);
-            const m = new THREE.MeshLambertMaterial({ map: tex[TEX_FOR_TYPE[type]] });
+            const m = surfaceMaterial(surf);
             const mesh = new THREE.Mesh(merged, m);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
             this.group.add(mesh);
             geos.forEach(g => g.dispose());
         }
 
         // floor & ceiling
-        const floorTex = tex[lvl.floorTex].clone();
-        floorTex.repeat.set(w, h);
-        floorTex.needsUpdate = true;
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(w, h),
-            new THREE.MeshLambertMaterial({ map: floorTex })
+            surfaceMaterial(lvl.floorTex, { repeat: [w, h] })
         );
         floor.rotation.x = -Math.PI / 2;
         floor.position.set(w / 2, 0, h / 2);
+        floor.receiveShadow = true;
         this.group.add(floor);
 
-        const ceilTex = tex[lvl.ceilTex].clone();
-        ceilTex.repeat.set(w, h);
-        ceilTex.needsUpdate = true;
         const ceil = new THREE.Mesh(
             new THREE.PlaneGeometry(w, h),
-            new THREE.MeshLambertMaterial({ map: ceilTex })
+            surfaceMaterial(lvl.ceilTex, { repeat: [w, h] })
         );
         ceil.rotation.x = Math.PI / 2;
-        ceil.position.set(w / 2, WALL_HEIGHT, h / 2);
+        ceil.position.set(w / 2, H, h / 2);
+        // the ceiling never casts: the key light is "the overhead lighting"
+        ceil.castShadow = false;
+        ceil.receiveShadow = false;
         this.group.add(ceil);
 
         this.addLighting();
@@ -162,6 +226,25 @@ export class World {
         this.addZones();
         this.addProps();
         this.addWallDecor();
+        this.rebuildPropBatch();
+        this.group.add(buildTrim(this, this.H, DOOR_H, getRig(this.levelIndex).trim || {
+            base: 0x4a3120, crown: 0xe8e2d4, frame: 0x5a3d28,
+        }));
+        // MODERN M5.1–M5.6: per-floor set dressing (non-colliding, batched)
+        this.dressing = dressFloor(this);
+        this.group.add(this.dressing.group);
+        // MODERN: glass + what lies beyond it
+        const rig = getRig(this.levelIndex);
+        if (windowCells.length) {
+            this.windows = buildWindows(windowCells, rig.trim);
+            this.group.add(this.windows);
+        }
+        if (rig.exterior) {
+            this.exterior = buildExterior(w, h, rig.exterior);
+            this.group.add(this.exterior);
+            if (this.exterior.userData.rainMat && this.windows?.userData.pane)
+                this.windows.userData.pane.material = this.exterior.userData.rainMat;
+        }
     }
 
     // ------------------------------------------------------------ PROPS
@@ -220,14 +303,48 @@ export class World {
             return false;
         }
         this._reachable = after;
-        const mesh = def.build();
+        // props are static: flatten to one vertex-coloured mesh per finish (draw-call budget)
+        // MODERN M5.7: props are built in their intact state into the prop store and
+        // batched per level (rebuildPropBatch) instead of being drawn one by one
+        const mesh = def.build('intact');
         mesh.position.set(x + 0.5, 0, y + 0.5);
         mesh.rotation.y = rotY;
-        this.group.add(mesh);
+        this.propStore.add(mesh);
+        this.batchDirty = true;
         if (def.tall) this.tallProps.add(k);
-        this.props.set(k, { x, y, type, def, hp: def.hp, mesh });
+        this.props.set(k, { x, y, type, def, hp: def.hp, mesh, state: 'intact', rotY });
         return true;
     }
+
+    /** MODERN M5.7: replace a prop's group with another state's build, keeping its transform */
+    swapPropMesh(rec, state) {
+        const old = rec.mesh;
+        const fresh = rec.def.build(state);
+        fresh.position.copy(old.position); fresh.rotation.copy(old.rotation);
+        this.propStore.remove(old);
+        old.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
+        this.propStore.add(fresh);
+        rec.mesh = fresh; rec.state = state;
+        this.batchDirty = true;
+    }
+
+    /** MODERN M5.7: bake every prop group in the store into a few merged meshes */
+    rebuildPropBatch() {
+        this.batchDirty = false;
+        if (this.propBatch) {
+            this.group.remove(this.propBatch);
+            this.propBatch.traverse(o => { if (o.isMesh && !o.userData.cloneOf) { o.geometry.dispose(); if (!o.material.userData.shared) o.material.dispose(); } });
+        }
+        this.propStore.updateMatrixWorld(true);
+        const batch = bakeStatic(this.propStore, { quantize: 0.25 });
+        setShadow(batch);
+        this.propBatch = batch;
+        this.group.add(batch);
+        this.propDrawCalls = 0; batch.traverse(o => { if (o.isMesh) this.propDrawCalls++; });
+    }
+
+    /** MODERN: is this wall cell drawn as glass? (impact FX) */
+    isWindowCell(x, y) { return this.windowSet?.has(this.key(x, y)) || false; }
 
     /** The prop record at a cell, or null. */
     propAt(x, y) {
@@ -255,18 +372,15 @@ export class World {
         const info = { destroyed: false, type: rec.type, x: rec.x + 0.5, y: rec.y + 0.5 };
         if (rec.hp <= 0) {
             info.destroyed = true;
-            this.group.remove(rec.mesh);
-            rec.mesh.traverse(o => {
-                if (o.geometry) o.geometry.dispose();
-                if (o.material) {
-                    const ms = Array.isArray(o.material) ? o.material : [o.material];
-                    ms.forEach(m => m.dispose());
-                }
-            });
+            // MODERN M5.7: leave the wreck (non-blocking remains) and re-batch
+            this.swapPropMesh(rec, 'wreck');
+            this.wrecks.push(rec.mesh);
             this.props.delete(k);
             this.propCells.delete(k);
             this.tallProps.delete(k);
             this.propsVersion = (this.propsVersion || 0) + 1; // minimap cache bust
+        } else if (rec.state === 'intact' && rec.hp < rec.def.hp * 0.5) {
+            this.swapPropMesh(rec, 'damaged'); // MODERN M5.7: dented / knocked about
         }
         return info;
     }
@@ -428,7 +542,7 @@ export class World {
                 const art = buildPainting(Math.floor(rng() * 3));
                 art.position.set(
                     x + 0.5 + dx * 0.51,
-                    WALL_HEIGHT * 0.58,
+                    WALL_HEIGHT * 0.58 + (this.H - WALL_HEIGHT) * 0.25,
                     y + 0.5 + dy * 0.51);
                 art.rotation.y = rotY;
                 this.group.add(art);
@@ -472,10 +586,12 @@ export class World {
         // panel spans X if walls left+right, else spans Z
         const spanX = isWallAt(x - 1, y) && isWallAt(x + 1, y);
         const geo = spanX
-            ? new THREE.BoxGeometry(1, WALL_HEIGHT, 0.14)
-            : new THREE.BoxGeometry(0.14, WALL_HEIGHT, 1);
-        const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex.door }));
-        mesh.position.set(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
+            ? new THREE.BoxGeometry(1, DOOR_H, 0.14)
+            : new THREE.BoxGeometry(0.14, DOOR_H, 1);
+        const mesh = new THREE.Mesh(geo, surfaceMaterial('door'));
+        mesh.position.set(x + 0.5, DOOR_H / 2, y + 0.5);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
         this.group.add(mesh);
         this.doors.set(this.key(x, y), {
             x, y, mesh, spanX,
@@ -487,25 +603,34 @@ export class World {
     makeGate(x, y) {
         const tex = getTextures();
         const mesh = new THREE.Mesh(
-            new THREE.BoxGeometry(1, WALL_HEIGHT, 0.1),
-            new THREE.MeshLambertMaterial({ map: tex.gate, transparent: true })
+            new THREE.BoxGeometry(1, DOOR_H, 0.1),
+            surfaceMaterial('gate', { transparent: true })
         );
-        mesh.position.set(x + 0.5, WALL_HEIGHT / 2, y + 0.5);
+        mesh.position.set(x + 0.5, DOOR_H / 2, y + 0.5);
         this.group.add(mesh);
         this.gates.push({ x, y, mesh, t: 0 });
     }
 
     addLighting() {
         const lvl = this.level;
+        const rig = getRig(this.levelIndex);
+        this.rig = rig;
         this.scene.fog = new THREE.FogExp2(lvl.fogColor, lvl.fogDensity);
 
-        // dimmer ambient + stronger accent lights = more depth and contrast
-        const amb = new THREE.AmbientLight(lvl.ambient, lvl.ambientIntensity * 0.72);
+        // MODERN rig: low flat fill, a hemisphere for sky/ground tint, and ONE
+        // shadow-casting key light. Contrast comes from the key + fixture pools.
+        const amb = new THREE.AmbientLight(rig.ambient.color, rig.ambient.intensity);
         this.group.add(amb);
-        const hemi = new THREE.HemisphereLight(0xffffff, 0x282830, 0.22);
+        const hemi = new THREE.HemisphereLight(rig.hemi.sky, rig.hemi.ground, rig.hemi.intensity);
         this.group.add(hemi);
 
-        // accent point lights spread through the floor (nearest empty cell)
+        const key = makeKeyLight(rig, this.w, this.h, this.H);
+        this.group.add(key);
+        this.group.add(key.target);
+        this.keyLight = key;
+
+        // accent fixtures on the classic 9-point grid (nearest empty cell):
+        // a real housing, an emissive lens, and an unshadowed point light
         const spots = [
             [this.w * 0.25, this.h * 0.25], [this.w * 0.75, this.h * 0.25],
             [this.w * 0.25, this.h * 0.75], [this.w * 0.75, this.h * 0.75],
@@ -513,33 +638,61 @@ export class World {
             [this.w * 0.5, this.h * 0.15], [this.w * 0.5, this.h * 0.85],
             [this.w * 0.12, this.h * 0.5], [this.w * 0.88, this.h * 0.5],
         ];
-        const fixtureGeo = new THREE.BoxGeometry(0.4, 0.04, 0.4);
-        const fixtureMat = new THREE.MeshBasicMaterial({ color: 0xfff6dd });
+        // fixture housings + lenses + ceiling panels are static: build them as
+        // three merged meshes (3 draw calls instead of ~70)
+        const housingGeos = [], lensGeos = [];
+        this.fixtureLights = [];
         for (const [sx, sy] of spots) {
             const cell = this.findEmptyNear(Math.floor(sx), Math.floor(sy));
             if (!cell) continue;
             const [cx, cy] = cell;
-            const light = new THREE.PointLight(lvl.accent, 11, 12, 1.55);
-            light.position.set(cx + 0.5, WALL_HEIGHT - 0.12, cy + 0.5);
+            const a = rig.accents;
+            const light = new THREE.PointLight(a.color, a.intensity, a.distance, a.decay);
+            light.position.set(cx + 0.5, this.H - 0.14, cy + 0.5);
             this.group.add(light);
-            const fixture = new THREE.Mesh(fixtureGeo, fixtureMat);
-            fixture.position.set(cx + 0.5, WALL_HEIGHT - 0.025, cy + 0.5);
-            this.group.add(fixture);
+            this.fixtureLights.push(light);
+            const hg = new THREE.BoxGeometry(0.46, 0.06, 0.46);
+            hg.translate(cx + 0.5, this.H - 0.03, cy + 0.5);
+            housingGeos.push(hg);
+            const lg = new THREE.BoxGeometry(0.36, 0.02, 0.36);
+            lg.translate(cx + 0.5, this.H - 0.065, cy + 0.5);
+            lensGeos.push(lg);
+        }
+        if (housingGeos.length) {
+            const housing = new THREE.Mesh(
+                BufferGeometryUtils.mergeGeometries(housingGeos),
+                new THREE.MeshStandardMaterial({ color: 0x3a3a3c, roughness: 0.5, metalness: 0.6 }));
+            this.group.add(housing);
+            const lens = new THREE.Mesh(
+                BufferGeometryUtils.mergeGeometries(lensGeos),
+                new THREE.MeshStandardMaterial({
+                    color: rig.fixture, emissive: rig.fixture, emissiveIntensity: 2.2, roughness: 0.3,
+                }));
+            this.group.add(lens);
+            housingGeos.forEach(g => g.dispose()); lensGeos.forEach(g => g.dispose());
         }
 
-        // emissive (non-light) ceiling panels for visual rhythm
-        const panelGeo = new THREE.PlaneGeometry(0.5, 0.5);
-        const panelMat = new THREE.MeshBasicMaterial({ color: 0xe8e2cc });
-        const panels = [];
+        // emissive ceiling panels for visual rhythm (no light of their own;
+        // bloom in M1.3 makes them glow)
+        const panelGeos = [];
         for (let y = 2; y < this.h - 2; y += 4)
             for (let x = 2; x < this.w - 2; x += 4)
                 if (this.grid[y * this.w + x] === CELL.EMPTY) {
-                    const p = new THREE.Mesh(panelGeo, panelMat);
-                    p.rotation.x = Math.PI / 2;
-                    p.position.set(x + 0.5, WALL_HEIGHT - 0.01, y + 0.5);
-                    panels.push(p);
+                    const pg = new THREE.PlaneGeometry(0.5, 0.5);
+                    pg.rotateX(Math.PI / 2);
+                    pg.translate(x + 0.5, this.H - 0.01, y + 0.5);
+                    panelGeos.push(pg);
                 }
-        panels.forEach(p => this.group.add(p));
+        if (panelGeos.length) {
+            const panels = new THREE.Mesh(
+                BufferGeometryUtils.mergeGeometries(panelGeos),
+                new THREE.MeshStandardMaterial({
+                    color: rig.panels.color, emissive: rig.panels.color,
+                    emissiveIntensity: rig.panels.intensity, roughness: 0.6,
+                }));
+            this.group.add(panels);
+            panelGeos.forEach(g => g.dispose());
+        }
     }
 
     addElevatorDressing() {
@@ -552,13 +705,14 @@ export class World {
         cy /= this.elevatorCells.length;
 
         const light = new THREE.PointLight(0x55ff88, 8, 7, 1.4);
-        light.position.set(cx, WALL_HEIGHT - 0.2, cy);
+        light.position.set(cx, this.H - 0.2, cy);
         this.group.add(light);
         this.elevatorLight = light;
 
         const padGeo = new THREE.PlaneGeometry(1, 1);
-        const padMat = new THREE.MeshBasicMaterial({
-            color: 0x33ff77, transparent: true, opacity: 0.28,
+        const padMat = new THREE.MeshStandardMaterial({
+            color: 0x33ff77, emissive: 0x33ff77, emissiveIntensity: 0.9,
+            transparent: true, opacity: 0.32, roughness: 0.4,
         });
         for (const [x, y] of this.elevatorCells) {
             const pad = new THREE.Mesh(padGeo, padMat);
@@ -574,10 +728,10 @@ export class World {
             const t = this.cellRaw(nx, ny);
             if (t >= CELL.BRICK && t !== CELL.DOOR && t !== CELL.GATE && t !== CELL.ELEVATOR && t !== CELL.EMPTY) {
                 const plane = new THREE.Mesh(
-                    new THREE.PlaneGeometry(this.elevatorCells.length, WALL_HEIGHT),
-                    new THREE.MeshLambertMaterial({ map: tex.elevator })
+                    new THREE.PlaneGeometry(this.elevatorCells.length, DOOR_H),
+                    surfaceMaterial('elevator')
                 );
-                plane.position.set(cx - dx * 0 + (dx === 0 ? 0 : 0), WALL_HEIGHT / 2, cy - dy * 0);
+                plane.position.set(cx - dx * 0 + (dx === 0 ? 0 : 0), DOOR_H / 2, cy - dy * 0);
                 // place flush against the wall face
                 plane.position.x = dx !== 0 ? nx + (dx > 0 ? -0.01 : 1.01) : cx;
                 plane.position.z = dy !== 0 ? ny + (dy > 0 ? -0.01 : 1.01) : cy;
@@ -734,10 +888,17 @@ export class World {
             for (const g of this.gates) {
                 if (g.t < 1) {
                     g.t = Math.min(1, g.t + dt * 0.7);
-                    g.mesh.position.y = WALL_HEIGHT / 2 - g.t * WALL_HEIGHT;
+                    g.mesh.position.y = DOOR_H / 2 - g.t * DOOR_H;
                     g.mesh.material.opacity = 1 - g.t * 0.6;
                 }
             }
+        }
+        if (this.batchDirty) this.rebuildPropBatch();
+        if (this.dressing) this.dressing.update(dt, performance.now() / 1000, this.effects);
+        if (this.exterior) this.exterior.update(dt);
+        if (this.rage) { // MODERN M4.4: uneasy strobe on the fixtures while he rages
+            const a = getRig(this.levelIndex).accents.intensity * 1.4;
+            for (const l of this.fixtureLights || []) l.intensity = a * (0.75 + 0.25 * Math.sin(performance.now() * 0.02 + l.position.x));
         }
         // elevator light pulse
         if (this.elevatorLight) {
@@ -745,13 +906,31 @@ export class World {
         }
     }
 
+    /** MODERN M4.4: the Head Designer's rage — key light and fixtures go hot red, fog deepens */
+    rageShift(on = true) {
+        if (!this.keyLight) return;
+        this.rage = on;
+        this.keyLight.color.set(on ? 0xff6a4a : getRig(this.levelIndex).key.color);
+        this.keyLight.intensity = (getRig(this.levelIndex).key.intensity) * (on ? 1.25 : 1);
+        for (const l of this.fixtureLights || []) { l.color.set(on ? 0xff3a2a : getRig(this.levelIndex).accents.color); l.intensity = getRig(this.levelIndex).accents.intensity * (on ? 1.4 : 1); }
+        if (this.scene.fog) this.scene.fog.color.set(on ? 0x2a0606 : this.level.fogColor);
+    }
+
     dispose() {
+        if (this.dressing) this.dressing.dispose();
+        this.propStore.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
         this.scene.remove(this.group);
         this.group.traverse(o => {
             if (o.geometry) o.geometry.dispose();
             if (o.material) {
                 const ms = Array.isArray(o.material) ? o.material : [o.material];
-                ms.forEach(m => m.dispose());
+                ms.forEach(m => {
+                    if (m.userData.shared) return;
+                    // cloned (per-mesh repeat) textures are ours to free
+                    for (const t of [m.map, m.normalMap, m.roughnessMap])
+                        if (t && t.userData.clone) t.dispose();
+                    m.dispose();
+                });
             }
         });
         this.scene.fog = null;

@@ -1,0 +1,18 @@
+== collision modern
+[{"floor":1,"size":"32x22","solid":285,"props":59,"tall":11,"spawn":[1.5,1.5],"hash":"bbd9de57"},{"floor":2,"size":"40x27","solid":441,"props":156,"tall":21,"spawn":[1.5,1.5],"hash":"e5dd0df8"},{"floor":3,"size":"41x30","solid":507,"props":98,"tall":69,"spawn":[1.5,1.5],"hash":"473211ec"},{"floor":4,"size":"40x26","solid":397,"props":100,"tall":0,"spawn":[1.5,1.5],"hash":"892d4d6b"},{"floor":5,"size":"48x29","solid":391,"props":57,"tall":15,"spawn":[1.5,1.5],"hash":"c4ae3547"},{"floor":6,"size":"32x23","solid":175,"props":23,"tall":0,"spawn":[1.5,1.5],"hash":"66dc2900"}]
+== collision classic
+[{"floor":1,"size":"32x22","solid":285,"props":59,"tall":11,"spawn":[1.5,1.5],"hash":"bbd9de57"},{"floor":2,"size":"40x27","solid":441,"props":156,"tall":21,"spawn":[1.5,1.5],"hash":"e5dd0df8"},{"floor":3,"size":"41x30","solid":507,"props":98,"tall":69,"spawn":[1.5,1.5],"hash":"473211ec"},{"floor":4,"size":"40x26","solid":397,"props":100,"tall":0,"spawn":[1.5,1.5],"hash":"892d4d6b"},{"floor":5,"size":"48x29","solid":391,"props":57,"tall":15,"spawn":[1.5,1.5],"hash":"c4ae3547"},{"floor":6,"size":"32x23","solid":175,"props":23,"tall":0,"spawn":[1.5,1.5],"hash":"66dc2900"}]
+== campaign
+{"won":false,"state":"play","deaths":1,"gameTime":1385,"score":6275,"wallMinutes":10,"floors":["1:64.9s/0d","2:1320.1s/1d"],"errors":[]}
+
+== frontend
+shot loading-card
+ERRORS []
+== hud
+shot face-sheet
+ERRORS []
+== weapons
+meshes per viewmodel {"paintbrush":22,"tableLeg":14,"sprayer":19,"nailgun":20,"roller":19}
+ERRORS []
+== idle bench
+{"idle":false,"benchOpacity":"1","topOpacity":"1"}
