@@ -860,3 +860,16 @@ Verdict on the round-11 crops, written before touching anything: everything too 
 - **Q3** (`crops8`–`crops10`): leg made a one-handed club hold; then the real fault found — the shaft, the taped grip, the plate and the hand were placed on **two perpendicular axes** (the lathe tilted one way, everything else along a vector 90° off), so the leg had floated apart from its own handle since round 3. Rebuilt on one axis (`legG`), tilted once.
 - **Q4** (`crops11`–`crops12`): the leg's hand was **half the size of the other hands** — hands inherited each tool's group scale (0.62 for the leg, 0.9 elsewhere). Hands are now sized in real units (`parentScale`), sleeve radii and arm lengths scale with them (`unit`). Leg hand turned with its knuckles toward the lens and the forearm worked back from camera space into the leg's frame so it exits down-right. Verdict: a fist around the taped end, shaft rising away, sleeve dropping — reads as a club.
 - **Gate**: frozen guard OK; levels valid; build 15.0 MB; smoke green on the built file; collision hashes identical to the classic. Committed; `main` fast-forwarded; tagged `v3.6-modern`.
+
+---
+
+## Round 13 — whole-game pass   (2026-09-04, goal: "iterate once more on the entire app")
+
+Checked against the §1.3 preservation inventory by running the game rather than reading it.
+- **Campaign** (`docs/evidence/R1/campaign.json`, bot on the built file): **won** — six floors, 11 deaths (0/0/0/1/8/2; the Factory is the hard floor by design), 33,695 points, 17 min game time, no page errors. Two Floor-2 weapon pickups were unreachable for the straight-line bot (same as earlier rounds; the maps are byte-identical to the classic).
+- **Flow** (`R1/frontend`, `R1/menus`, `R1/states`, `docs/smoke/modern`): boot memory → title → workbench menu (case file, high score) → floor select (operations board) → options (generation wrap Gen 3 → Gen 1 card → Gen 2.0 → Gen 2.1, launch on Enter) → How to Play → story crawl (all beats, skip) → loading card → play → pause → **floor transition card** ("FLOOR CLEARED · Cartel staff splattered: 6/6 · Time"; it lives 2.4 s so it was verified through the DOM) → next loading card → game over ("FIRED!", retry/menu) → victory + credits (masterpiece bonus, new record).
+- **Floors** (`docs/smoke/modern/floor-1..6.png`): all six render with their palettes, music keys, objective markers and staff counts; the bench HUD with Sandy's reacting face on every floor (`R1/hud/face-sheet`: 16 states).
+- **Fix**: the loading card's "SAT-LINK · FLOOR PLAN" heading ran into the floor label (no layout rule on `.mb-sat-head`); now a spaced two-column heading.
+- **New tools**: `tools/state_shots.mjs` (transition, game over, victory), `tools/vm_crops.mjs` (round 11).
+- **Gate**: frozen guard OK; levels valid; build 15.0 MB; collision hashes identical to the classic; smoke on the built file below.
+Smoke green on the built file. Committed; `main` fast-forwarded; tagged `v3.7-modern`. Push to GitHub still owed.
