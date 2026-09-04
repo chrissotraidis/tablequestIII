@@ -121,8 +121,8 @@ export class Game {
         this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0, topT: 0, topPuff: false };
         this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
-        this.vmKey = new THREE.PointLight(0xfff1dc, 1.6, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
-        this.vmRim = new THREE.PointLight(0xc8d8ff, 0.9, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
+        this.vmKey = new THREE.PointLight(0xfff1dc, 0.9, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
+        this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
         camera.layers.enable(1);
         // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
         // spring that fully recovers, so aim is never displaced (balance §2.2).

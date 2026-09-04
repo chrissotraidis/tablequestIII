@@ -117,22 +117,35 @@ function skinMaps() {
 }
 function leatherMaps() {
     if (_leather) return [_leather, _leatherR];
+    // tan work-glove leather: grain cells, wear, and dashed seam stitching on a grid that matches the finger columns
     _leather = canvasTex(256, 256, (ctx, w, h) => {
-        ctx.fillStyle = '#5b4632'; ctx.fillRect(0, 0, w, h);
-        for (let i = 0; i < 900; i++) { const x = Math.random() * w, y = Math.random() * h, r = 2 + Math.random() * 5; ctx.strokeStyle = `rgba(${Math.random() < 0.5 ? '30,20,12' : '120,95,70'},0.25)`; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(x, y, r, Math.random() * 6, Math.random() * 6 + 2); ctx.stroke(); } // grain cells
-        for (let i = 0; i < 40; i++) { ctx.strokeStyle = 'rgba(30,20,12,0.18)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(Math.random() * w, Math.random() * h); ctx.lineTo(Math.random() * w, Math.random() * h); ctx.stroke(); } // scuffs
+        ctx.fillStyle = '#9a7248'; ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i < 1400; i++) { const x = Math.random() * w, y = Math.random() * h, r = 1.5 + Math.random() * 4; ctx.strokeStyle = `rgba(${Math.random() < 0.5 ? '60,38,18' : '190,150,100'},0.22)`; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.arc(x, y, r, Math.random() * 6, Math.random() * 6 + 2); ctx.stroke(); }
+        for (let i = 0; i < 70; i++) { ctx.strokeStyle = 'rgba(50,30,12,0.16)'; ctx.lineWidth = 1 + Math.random() * 1.5; ctx.beginPath(); const x = Math.random() * w, y = Math.random() * h; ctx.moveTo(x, y); ctx.lineTo(x + (Math.random() - 0.5) * 40, y + (Math.random() - 0.5) * 40); ctx.stroke(); } // scuffs
+        const g = ctx.createRadialGradient(w * 0.4, h * 0.4, 10, w * 0.5, h * 0.5, w * 0.7); g.addColorStop(0, 'rgba(255,230,190,0.08)'); g.addColorStop(1, 'rgba(40,20,5,0.18)'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); // wear
+        ctx.strokeStyle = 'rgba(240,220,180,0.75)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]);
+        for (let x = 30; x < w; x += 61) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); } // seams between finger columns
+        for (const y of [96, 160]) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); } // knuckle and cuff seams
+        ctx.setLineDash([]);
     }, [2, 2]);
     _leather.colorSpace = THREE.SRGBColorSpace;
-    _leatherR = canvasTex(128, 128, (ctx, w, h) => { ctx.fillStyle = '#d0d0d0'; ctx.fillRect(0, 0, w, h); for (let i = 0; i < 2500; i++) { ctx.fillStyle = `rgba(80,80,80,${0.12})`; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); } }, [2, 2]);
+    _leatherR = canvasTex(128, 128, (ctx, w, h) => { ctx.fillStyle = '#c4c4c4'; ctx.fillRect(0, 0, w, h); for (let i = 0; i < 3000; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '60,60,60' : '230,230,230'},${0.14})`; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); } }, [2, 2]);
     return [_leather, _leatherR];
 }
+let _knit = null;
+function knitMap() {
+    if (_knit) return _knit;
+    _knit = canvasTex(64, 64, (ctx, w, h) => { ctx.fillStyle = '#2a2320'; ctx.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 4) { ctx.fillStyle = 'rgba(255,240,220,0.14)'; ctx.fillRect(x, 0, 2, h); } for (let y = 0; y < h; y += 3) { ctx.fillStyle = 'rgba(0,0,0,0.18)'; ctx.fillRect(0, y, w, 1); } }, [12, 2]);
+    _knit.colorSpace = THREE.SRGBColorSpace; return _knit;
+}
+export function knitMaterial() { return new THREE.MeshStandardMaterial({ map: knitMap(), roughness: 0.95, metalness: 0, color: 0xffffff, vertexColors: true }); }
 function clothMap() {
     if (_cloth) return _cloth;
     _cloth = canvasTex(128, 128, (ctx, w, h) => {
-        ctx.fillStyle = '#8f7a56'; ctx.fillRect(0, 0, w, h);
-        for (let y = 0; y < h; y += 3) { ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(0, y, w, 1); }
-        for (let x = 0; x < w; x += 3) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x, 0, 1, h); }
-        for (let i = 0; i < 400; i++) { ctx.fillStyle = 'rgba(60,40,20,0.15)'; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+        ctx.fillStyle = '#8f7a55'; ctx.fillRect(0, 0, w, h); // khaki work shirt
+        for (let y = 0; y < h; y += 3) { ctx.fillStyle = 'rgba(40,28,12,0.2)'; ctx.fillRect(0, y, w, 1); }
+        for (let x = 0; x < w; x += 3) { ctx.fillStyle = 'rgba(255,240,210,0.12)'; ctx.fillRect(x, 0, 1, h); }
+        for (let i = 0; i < 500; i++) { ctx.fillStyle = 'rgba(90,70,40,0.12)'; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
     }, [3, 3]);
     _cloth.colorSpace = THREE.SRGBColorSpace;
     return _cloth;
@@ -172,8 +185,8 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
     const pose = mode === 'support'
         ? { curl: [[0.5, 0.55, 0.4], [0.55, 0.6, 0.45], [0.5, 0.55, 0.4], [0.45, 0.5, 0.35]].map(f => f.map(a => Math.min(1.3, a * (0.6 + radius * 12)))), spread: 0.15, thumb: [0.15, 0.25, 0.2] }
         : gripPose(radius / HAND_SCALE, { curlScale: 0.85 + curl * 0.35, spread, trigger: !!trigger });
-    const built = buildHandMesh(pose, s);
-    const mesh = new THREE.Mesh(built.geometry, [skinMaterial(), leatherMaterial()]);
+    const built = buildHandMesh(pose, s, { fullGlove: true });
+    const mesh = new THREE.Mesh(built.geometry, [leatherMaterial(), leatherMaterial()]);
     mesh.userData.isHand = true; mesh.userData.side = side;
     hand.add(mesh);
     const nailMat = new THREE.MeshStandardMaterial({ color: 0xf3d6c2, roughness: 0.28, metalness: 0 });
@@ -187,7 +200,7 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
 
     // ---- arm: shoulder anchored at the lower corner of the view; elbow from two-bone IK bending down and outward
     const wrist = origin.clone().addScaledVector(Z, -0.045 * HAND_SCALE);
-    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.08 : -0.5, -0.36, 0.5);
+    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.16 : -0.58, -0.44, 0.42);
     const LU = 0.28, LF = 0.25;
     const sw = V().subVectors(wrist, shoulder); let d = sw.length(); const dirSW = sw.clone().normalize();
     if (d > LU + LF - 0.01) { d = LU + LF - 0.01; }
@@ -198,30 +211,29 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
     const elbowP = elbow ? elbow.clone() : shoulder.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
     const toWrist = V().subVectors(wrist, elbowP), dir = toWrist.clone().normalize();
     const armUp = Y.clone();
-    const skinGeos = [], leatherGeos = [], clothGeos = [];
-    // upper arm (sleeve) shoulder → elbow, then the sleeve continues to the cuff with ripples and a rolled cuff
-    const cuffEnd = V().copy(elbowP).addScaledVector(toWrist, 0.45);
-    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.046, 0.044, 0.042, 0.039, 0.036], [0.044, 0.042, 0.04, 0.037, 0.034], 26);
-    sleeveSt.forEach((st, i) => { const t = i / 26; const rip = t > 0.55 ? 1 + 0.04 * Math.sin(t * 46) : 1; st.rx *= rip; st.ry *= rip; if (t > 0.92) { st.rx *= 1.16; st.ry *= 1.16; } });
+    const skinGeos = [], leatherGeos = [], clothGeos = [], knitGeos = [];
+    // sleeve: shoulder → elbow → wrist, cream shirt with fold ripples and a rolled cuff just behind the glove
+    const cuffEnd = V().copy(wrist).addScaledVector(dir, -0.03);
+    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.04, 0.038, 0.036, 0.032, 0.029], [0.038, 0.036, 0.034, 0.03, 0.027], 26);
+    sleeveSt.forEach((st, i) => { const t = i / 26; const fold = t > 0.5 ? 0.018 * Math.sin(t * 23 + 1.3) + 0.012 * Math.sin(t * 41 + 0.4) : 0; st.rx *= 1 + fold; st.ry *= 1 + fold * 0.8; st.shade = 0.92 + 3 * fold; if (t > 0.93) { st.rx *= 1.18; st.ry *= 1.18; st.shade = 0.9; } }); // soft irregular folds near the cuff
     clothGeos.push(loft(sleeveSt, 16, { up: armUp }));
-    const foreSt = tubeStations([cuffEnd, V().lerpVectors(cuffEnd, wrist, 0.5), V().copy(wrist).addScaledVector(dir, -0.006), V().copy(wrist).addScaledVector(dir, 0.008)], [0.029, 0.027, 0.024, 0.022], [0.024, 0.022, 0.019, 0.015], 12);
-    skinGeos.push(loft(foreSt, 16, { up: armUp }));
-    const strapSt = [{ p: V().copy(wrist).addScaledVector(dir, -0.014), rx: 0.027, ry: 0.021 }, { p: V().copy(wrist).addScaledVector(dir, -0.01), rx: 0.0285, ry: 0.0225 }, { p: V().copy(wrist).addScaledVector(dir, 0.002), rx: 0.0285, ry: 0.0225 }, { p: V().copy(wrist).addScaledVector(dir, 0.006), rx: 0.027, ry: 0.021 }];
-    leatherGeos.push(loft(strapSt, 16, { up: armUp }));
-    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.005, 0.013), new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.4, metalness: 0.75 }));
-    buckle.position.copy(wrist).addScaledVector(dir, -0.004).addScaledVector(armUp, 0.023); buckle.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(buckle);
+    // knit glove cuff from the sleeve end to the wrist cap
+    const knitSt = tubeStations([V().copy(cuffEnd).addScaledVector(dir, 0.004), V().copy(wrist).addScaledVector(dir, 0.008)], [0.029, 0.027], [0.023, 0.021], 6);
+    knitGeos.push(loft(knitSt, 16, { up: armUp }));
+    const tag = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.003, 0.02), new THREE.MeshStandardMaterial({ color: 0xe8dcc3, roughness: 0.9 }));
+    tag.position.copy(wrist).addScaledVector(dir, -0.008).addScaledVector(armUp, 0.023); tag.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(tag);
     if (watch) {
-        const wp = V().copy(cuffEnd).addScaledVector(toWrist, 0.3);
+        const wp = V().copy(wrist).addScaledVector(dir, -0.006);
         leatherGeos.push(loft([{ p: V().copy(wp).addScaledVector(dir, -0.006), rx: 0.027, ry: 0.021 }, { p: V().copy(wp).addScaledVector(dir, 0.006), rx: 0.027, ry: 0.021 }], 16, { up: armUp }));
         const face = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.006, 16), new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.25, metalness: 0.7 }));
         face.position.copy(wp).addScaledVector(armUp, 0.023); face.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(face);
         const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.002, 16), new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.1, metalness: 0.2 }));
         glass.position.copy(face.position).addScaledVector(armUp, 0.004); glass.quaternion.copy(face.quaternion); g.add(glass);
     }
-    const mergedSkin = BufferGeometryUtils.mergeGeometries(skinGeos, false); skinGeos.forEach(x => x.dispose());
-    g.add(new THREE.Mesh(mergedSkin, skinMaterial()));
-    const ml = BufferGeometryUtils.mergeGeometries(leatherGeos, false); leatherGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(ml, leatherMaterial()));
+    if (skinGeos.length) { const mergedSkin = BufferGeometryUtils.mergeGeometries(skinGeos, false); skinGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mergedSkin, skinMaterial())); }
+    if (leatherGeos.length) { const ml = BufferGeometryUtils.mergeGeometries(leatherGeos, false); leatherGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(ml, leatherMaterial())); }
     const mc = BufferGeometryUtils.mergeGeometries(clothGeos, false); clothGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mc, clothMaterial()));
+    const mk = BufferGeometryUtils.mergeGeometries(knitGeos, false); knitGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mk, knitMaterial()));
     return { group: g, trigger: null, hand: mesh, handGroup: hand };
 }
 

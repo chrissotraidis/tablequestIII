@@ -720,6 +720,7 @@ Owed on hardware: the hands in motion (morph squeeze on fire, fidgets, relax on 
 | K2 Hand size and closure | DONE | 88 % hands, fingers together, support pose |
 | K3 Tools on the grips | DONE | support contacts, tools 90 %, rig 90 % and re-seated |
 | K4 Usage animation | DONE | round-5 morphs + spring lag kept; wrist rides the arm lag |
+| K6 Gloves and sleeves (the zoom-out) | DONE | full leather work gloves, khaki shirt sleeves to the wrist, knit cuffs |
 | K5 Gate | TODO | |
 
 ### K1 — Anchored arms   (2026-09-03)
@@ -731,3 +732,8 @@ Hands at 88 %; grip poses with fingers together (spread 0.25) and the thumb clos
 ### K3 — Tools on the grips   (2026-09-03)
 Off hands placed as support contacts: nailer under the nose housing, launcher under the tube ahead of the tank, spray gun under the body. Tools scaled to 90 % and pushed back 3 cm; the whole viewmodel renders at 90 % scale (wide-FOV distortion) and the rig re-seated (0.17 / −0.055 / −0.45) so hands show above the bench at hip. Launcher ADS lowered so the eye looks along the top rail and ring sight instead of into the breech disc.
 **Evidence:** `docs/evidence/K1/pass1` (in-game, before the re-seat), `docs/evidence/K1/studio1`, gate sheets in `docs/evidence/K5`.
+
+### K6 — The zoom-out: gloves and sleeves   (2026-09-03)
+The user's verdict after K1–K4 was still "super bad". Stepping back: the failing target was convincing bare skin and forearms built procedurally, which at first-person scale reads as mannequin plastic no matter how the geometry is tuned. Shooters of the era showed gloved hands and rolled sleeves with the weapon dominating; Sandy is a furniture maker, so **full leather work gloves** are in character. Changes: the subdivision hand is now entirely leather (tan work-glove map with grain, wear, and dashed seam stitching along the finger columns and knuckle line), with a darker padded back-of-hand patch, reinforced fingertips, and a lighter suede palm baked as vertex tint; nails gone; a **knit cuff** at the wrist with a tag; the **shirt sleeve** (khaki, woven) runs from the anchored shoulder to the wrist with soft irregular folds and a rolled cuff, so no bare forearm is ever in frame; viewmodel lights eased (key 0.9, rim 0.5) so cloth no longer blows out; sleeves slimmed.
+**Passes:** 1 — cream sleeves overexposed to white and read as corrugated tubes; 2 — khaki, lights eased, slimmer; 3 — irregular folds.
+**Evidence:** `docs/evidence/K6/pass1..3` (in-game), `docs/evidence/K6/studio1..3`.

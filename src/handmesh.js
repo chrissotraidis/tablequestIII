@@ -166,7 +166,7 @@ function buildCage(pose, s) {
 
 // ---------------------------------------------------------------- geometry assembly
 
-function toGeometry(base, morphs, levels = 2) {
+function toGeometry(base, morphs, levels = 2, { fullGlove = false } = {}) {
     let b = base; let ms = morphs.map(m => m);
     for (let l = 0; l < levels; l++) { b = loopSubdivide(b.pos, b.tris, b.tags); ms = ms.map(m => loopSubdivide(m.pos, m.tris, m.tags)); }
     const n = b.pos.length;
@@ -176,6 +176,7 @@ function toGeometry(base, morphs, levels = 2) {
     // sort triangles by tag into two material groups
     const order = b.tris.map((_, i) => i).sort((x, y) => b.tags[x] - b.tags[y]);
     const sortedIndex = new Uint32Array(index.length); order.forEach((ti, k) => { sortedIndex[k * 3] = index[ti * 3]; sortedIndex[k * 3 + 1] = index[ti * 3 + 1]; sortedIndex[k * 3 + 2] = index[ti * 3 + 2]; });
+    if (fullGlove) for (let i = 0; i < b.tags.length; i++) b.tags[i] = 1;
     const nSkin = b.tags.filter(t => t === 0).length;
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
@@ -191,9 +192,17 @@ function toGeometry(base, morphs, levels = 2) {
         tmp.set(0, 0, 0); for (const j of nb[i]) tmp.add(b.pos[j]); tmp.multiplyScalar(1 / Math.max(1, nb[i].size)).sub(b.pos[i]);
         nn.fromBufferAttribute(nrm, i);
         const concave = Math.max(0, tmp.normalize().dot(nn)); // neighbours ahead of the surface → crease
-        const warm = Math.max(0, b.pos[i].z * 6 + 0.2);         // knuckles and tips warmer
         const ao = 1 - concave * 0.55;
-        col[i * 3] = ao; col[i * 3 + 1] = ao * (1 - warm * 0.08); col[i * 3 + 2] = ao * (1 - warm * 0.14);
+        if (fullGlove) { // glove regions: padded back-of-hand patch (darker), reinforced fingertips (darker), palm suede (lighter, warmer)
+            const p = b.pos[i]; const back = p.y > 0.004 && p.z > -0.03 && p.z < 0.05 && Math.abs(p.x) < 0.04;
+            const tip = p.z > 0.1 || (p.x < -0.06 && p.z > 0.02);
+            const palm = p.y < -0.004 && p.z < 0.05;
+            const k = back ? 0.62 : tip ? 0.7 : palm ? 1.08 : 1;
+            col[i * 3] = ao * k; col[i * 3 + 1] = ao * k * (palm ? 0.98 : 1); col[i * 3 + 2] = ao * k * (palm ? 0.92 : 1);
+        } else {
+            const warm = Math.max(0, b.pos[i].z * 6 + 0.2);
+            col[i * 3] = ao; col[i * 3 + 1] = ao * (1 - warm * 0.08); col[i * 3 + 2] = ao * (1 - warm * 0.14);
+        }
     }
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     // morph targets (positions only; normals recomputed by three from the base)
@@ -223,7 +232,7 @@ function nailSites(pose, s) {
  * Build a posed hand with morph targets [trigger, relax, fidget, thumbLift].
  * side: +1 right, -1 left. Returns { geometry, nails }.
  */
-export function buildHandMesh(pose, side = 1) {
+export function buildHandMesh(pose, side = 1, opts = {}) {
     const base = buildCage(pose, side);
     const alt = (fn) => { const p = JSON.parse(JSON.stringify(pose)); fn(p); return buildCage(p, side); };
     const morphs = [
@@ -232,7 +241,7 @@ export function buildHandMesh(pose, side = 1) {
         alt(p => { p.curl[2] = p.curl[2].map(a => Math.min(1.5, a + 0.2)); p.curl[3] = p.curl[3].map(a => Math.min(1.5, a + 0.3)); }), // fidget
         alt(p => { p.thumb = p.thumb.map(a => a * 0.5); }),                                                   // thumb lift
     ];
-    return { geometry: toGeometry(base, morphs, 2), nails: nailSites(pose, side) };
+    return { geometry: toGeometry(base, morphs, 2, opts), nails: opts.fullGlove ? [] : nailSites(pose, side) };
 }
 
 /** a grip pose from a handle radius: fingers wrap so the three segments cover the arc; curlScale eases the wrap */

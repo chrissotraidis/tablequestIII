@@ -1,0 +1,28 @@
+== probe
+node:internal/modules/cjs/loader:1247
+  throw err;
+  ^
+
+Error: Cannot find module '/tmp/claude-1000/-home-chris-code-tablequestIII/5d4afaef-1de4-4b15-b80d-c54704745cf7/scratchpad/errprobe.mjs'
+    at Function._resolveFilename (node:internal/modules/cjs/loader:1244:15)
+    at Function._load (node:internal/modules/cjs/loader:1070:27)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:217:24)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:170:5)
+    at node:internal/main/run_main_module:36:49 {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: []
+}
+
+Node.js v22.13.1
+== smoke
+Node.js v22.13.1
+== campaign
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Target page, context or browser has been closed
+    at /home/chris/code/tablequestIII/tools/campaign.mjs:20:24
+
+Node.js v22.13.1

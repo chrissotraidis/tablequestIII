@@ -1,3 +1,41 @@
 == smoke
 Node.js v22.13.1
 == campaign
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.evaluate: ReferenceError: TQ is not defined
+    at eval (eval at evaluate (:290:30), <anonymous>:2:5)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /home/chris/code/tablequestIII/tools/campaign.mjs:20:24
+
+Node.js v22.13.1
+
+== hud
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.evaluate: ReferenceError: TQ is not defined
+    at eval (eval at evaluate (:290:30), <anonymous>:1:9)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /home/chris/code/tablequestIII/tools/hud_shots.mjs:17:9
+
+Node.js v22.13.1
+== collision
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.evaluate: ReferenceError: TQ is not defined
+    at eval (eval at evaluate (:290:30), <anonymous>:1:10)
+    at UtilityScript.evaluate (<anonymous>:292:16)
+    at UtilityScript.<anonymous> (<anonymous>:1:44)
+    at /home/chris/code/tablequestIII/tools/collision_sig.mjs:14:9
+
+Node.js v22.13.1
+d41d8cd98f00b204e9800998ecf8427e  -
+3f530ff5608a24789c6cf8cc91ac4f1c  -
