@@ -251,45 +251,30 @@ export function buildBrushViewmodel() {
     // right hand on the handle waist, index along; off hand holds the can
     const R = buildHand({ side: 'R', grip: V(0, -0.003, 0.035), elbow: V(0.16, -0.31, 0.32), radius: 0.015, axis: V(0, 0, -1), curl: 0.95, forearm: V(0, 0.2, 0.98) }); // hammer hold, thumb toward the head; the brush is raked up 43° below and the wrist flexes so the forearm stays level
     inner.add(R.group);
-    const off = new THREE.Group(); off.position.set(-0.17, -0.11, -0.08);
-    const can = new THREE.Group();
-    can.add(cyl(0.045, 0.045, 0.085, alu(), 18));
-    can.add(at(cyl(0.047, 0.047, 0.008, metal(0xb8bcc2, 0.35), 18), 0, 0.043, 0));
-    can.add(at(cyl(0.041, 0.041, 0.006, mat(0x2f62d8, { roughness: 0.12, emissive: 0x0f2a80, emissiveIntensity: 0.4 }), 18), 0, 0.045, 0));
-    can.add(at(cyl(0.0458, 0.0458, 0.05, texMat(labelTex(["SANDY'S", 'SOLID OAK STAIN'], '#e8dfc8', '#1a1a1a', '#2244aa'), { roughness: 0.7 }), 18), 0, -0.005, 0));
-    can.add(bar(V(-0.048, 0.048, 0), V(0.048, 0.048, 0), 0.0035, 0.0035, metal(0x9aa0a8, 0.4), 8));
-    off.add(can);
-    off.add(buildHand({ side: 'L', grip: V(0, 0.055, 0), elbow: V(-0.17, -0.17, 0.33), radius: 0.004, axis: V(1, 0, 0), out: V(0, 1, 0), curl: 1.0, watch: true }).group); // fingers hooked through the wire handle, back of the hand up
-    inner.add(off);
+    const off = new THREE.Group(); inner.add(off); // Q2: the brush is one-handed; the can and off hand are gone (empty part kept for the animator)
     g.position.set(0.03, -0.04, -0.02); g.scale.setScalar(0.92);
     return finish(g, 'paintbrush', 0.0, V(0, 0.0, -0.24), { pos: V(0.04, -0.1, -0.5), rotX: 0.2, rotY: -0.05 }, { head, offHand: off });
 }
 
 export function buildLegViewmodel() {
+    // Q3: the whole leg is built on one axis (legG local +Y from the taped grip up to the torn-off plate), then tilted once
     const g = new THREE.Group();
-    const inner = new THREE.Group(); inner.position.y = 0.07; inner.rotation.z = 0.55; inner.rotation.x = 0.35; // at the ready: the leg rises steeply across the view to the upper left
-    const wood = texMat(woodTex(), { roughness: 0.5 }), woodDark = texMat(woodTex(true), { roughness: 0.55 });
-    const tilt = -Math.PI / 3;
-    const along = V(0, Math.cos(tilt + Math.PI / 2) * -1, Math.sin(tilt + Math.PI / 2) * -1).normalize();
-    const leg = lathe([[0.0, -0.02], [0.03, -0.02], [0.036, 0.0], [0.03, 0.03], [0.026, 0.06], [0.034, 0.08], [0.026, 0.1], [0.02, 0.2], [0.024, 0.3], [0.03, 0.42], [0.036, 0.5], [0.036, 0.54], [0.0, 0.54]], wood, 20);
-    leg.rotation.x = tilt; leg.position.set(0, 0.1, -0.1).addScaledVector(along, -0.02); inner.add(leg);
-    // metal top plate with a hanger bolt where it tore off the table
-    const plate = cyl(0.04, 0.04, 0.006, alu(), 16); plate.rotation.x = tilt; plate.position.set(0, 0.1, -0.1).addScaledVector(along, 0.525); inner.add(plate);
-    const bolt = cyl(0.006, 0.006, 0.05, metal(0x8a929c, 0.45), 8); bolt.rotation.x = tilt; bolt.position.set(0, 0.1, -0.1).addScaledVector(along, 0.55); inner.add(bolt);
-    for (let i = 0; i < 4; i++) { const sc = sph(0.004, metal(0x6a7078, 0.5), 6, 5); const a = i / 4 * Math.PI * 2; sc.position.set(Math.cos(a) * 0.03, 0.1, -0.1).addScaledVector(along, 0.525).add(V(0, Math.sin(a) * 0.015, Math.sin(a) * 0.026)); inner.add(sc); }
-    for (let i = 0; i < 3; i++) { // bent nails near the plate
-        const base = V(0.02 - i * 0.02, 0.1, -0.1).addScaledVector(along, 0.46 + i * 0.012);
-        const n1 = V().copy(base).add(V(0.01 * (i % 2 ? 1 : -1), 0.02, -0.01)), n2 = V().copy(n1).add(V(0.012, 0.006, -0.008));
-        inner.add(bar(base, n1, 0.0025, 0.002, metal(0x9aa0a8, 0.5), 6)); inner.add(bar(n1, n2, 0.002, 0.0015, metal(0x8a929c, 0.5), 6));
-    }
-    for (let i = 0; i < 4; i++) { const sc = box(0.012, 0.004, 0.02, mat(0x4a2e14, { roughness: 0.9 })); sc.position.set(0.02 * Math.cos(i * 1.7), 0.1, -0.1).addScaledVector(along, 0.05 + i * 0.045); sc.rotation.x = tilt; inner.add(sc); }
-    const gripBand = cyl(0.041, 0.041, 0.11, texMat(tapeTex(), { roughness: 0.95 }), 16); gripBand.rotation.x = tilt; gripBand.position.set(0, -0.06, -0.005); inner.add(gripBand);
-    const ferrule = cyl(0.041, 0.041, 0.02, metal(BRASS, 0.35), 16); ferrule.rotation.x = tilt; ferrule.position.set(0, -0.12, 0.03); inner.add(ferrule);
-    const gripAxis = V(0, Math.sin(-tilt), -Math.cos(-tilt)).normalize();
-    inner.add(buildHand({ side: 'R', grip: V(0.0, -0.075, 0.01), elbow: V(0.17, -0.27, 0.22), radius: 0.04, axis: gripAxis, curl: 0.85 }).group);
-    inner.add(buildHand({ side: 'L', grip: V(0.0, -0.02, -0.02), elbow: V(-0.19, -0.25, 0.22), radius: 0.04, axis: gripAxis, curl: 0.85, watch: true }).group);
+    const inner = new THREE.Group(); inner.position.y = 0.07; inner.rotation.z = 0.5; inner.rotation.x = -0.15; // club hold: the leg rises to the upper left, foot end away from the lens
+    const legG = new THREE.Group(); legG.rotation.x = -Math.PI / 3 + 0.2; inner.add(legG);
+    const wood = texMat(woodTex(), { roughness: 0.5 });
+    const leg = lathe([[0.0, -0.02], [0.03, -0.02], [0.036, 0.0], [0.03, 0.03], [0.026, 0.06], [0.034, 0.08], [0.026, 0.1], [0.02, 0.2], [0.024, 0.3], [0.03, 0.42], [0.036, 0.5], [0.036, 0.54], [0.0, 0.54]], wood, 20); legG.add(leg);
+    // metal top plate with a hanger bolt and bent nails where it tore off the table
+    legG.add(at(cyl(0.04, 0.04, 0.006, alu(), 16), 0, 0.543, 0));
+    legG.add(at(cyl(0.006, 0.006, 0.05, metal(0x8a929c, 0.45), 8), 0, 0.57, 0));
+    for (let i = 0; i < 4; i++) { const sc = sph(0.004, metal(0x6a7078, 0.5), 6, 5); const a = i / 4 * Math.PI * 2; sc.position.set(Math.cos(a) * 0.03, 0.548, Math.sin(a) * 0.03); legG.add(sc); }
+    for (let i = 0; i < 3; i++) { const a = i * 2.1; const base = V(Math.cos(a) * 0.032, 0.5 + i * 0.012, Math.sin(a) * 0.032); const n1 = base.clone().add(V(Math.cos(a) * 0.015, 0.02, Math.sin(a) * 0.015)), n2 = n1.clone().add(V(Math.cos(a + 1) * 0.012, 0.008, Math.sin(a + 1) * 0.012)); legG.add(bar(base, n1, 0.0025, 0.002, metal(0x9aa0a8, 0.5), 6)); legG.add(bar(n1, n2, 0.002, 0.0015, metal(0x8a929c, 0.5), 6)); }
+    for (let i = 0; i < 4; i++) { const sc = box(0.012, 0.02, 0.004, mat(0x4a2e14, { roughness: 0.9 })); const a = i * 1.7; sc.position.set(Math.cos(a) * 0.024, 0.16 + i * 0.07, Math.sin(a) * 0.024); sc.rotation.y = -a; legG.add(sc); } // scuffs on the shaft
+    // taped grip at the foot end, brass ferrule at the tip
+    legG.add(at(cyl(0.04, 0.04, 0.11, texMat(tapeTex(), { roughness: 0.95 }), 16), 0, 0.075, 0));
+    legG.add(at(cyl(0.041, 0.041, 0.018, metal(BRASS, 0.35), 16), 0, 0.005, 0));
+    legG.add(buildHand({ side: 'R', grip: V(0, 0.075, 0), radius: 0.04, axis: V(0, 1, 0), out: V(-0.37, 0, 0.93), curl: 0.9, forearm: V(0.415, -0.49, -0.77) }).group); // right hand on the tape, knuckles toward the lens, thumb up the shaft, forearm down the shaft's line
     g.add(inner);
-    g.scale.setScalar(0.6); g.position.set(0.05, -0.07, 0.05); // P6: hands low-right just above the bench, the leg rising to the upper left
+    g.scale.setScalar(0.62); g.position.set(0.1, -0.04, 0.02); // the hand low-right, the leg rising to the upper left
     return finish(g, 'tableLeg', 0, V(0, 0.2, -0.3));
 }
 
@@ -306,10 +291,9 @@ export function buildNailgunViewmodel() {
     inner.add(at(rbox(0.076, 0.07, 0.25, 0.014, orange), 0, 0.045, -0.02));
     inner.add(at(rbox(0.07, 0.04, 0.23, 0.01, dark), 0, -0.005, -0.015));
     inner.add(at(rbox(0.05, 0.05, 0.03, 0.008, orangeD), 0, 0.04, -0.15)); // shell tapers into the nose
-    const cap = alongZ(cyl(0.034, 0.031, 0.03, darkL, 20)); cap.position.set(0, 0.04, 0.112); inner.add(cap);
-    const dome = sph(0.031, darkL, 20, 12); dome.scale.set(1, 1, 0.45); dome.position.set(0, 0.04, 0.127); inner.add(dome); // domed motor end, not a flat disc
-    for (let i = 0; i < 6; i++) inner.add(at(box(0.046, 0.0025, 0.006, plastic(0x14161a, 0.7)), 0, 0.058 - i * 0.0075, 0.128)); // motor vents
-    inner.add(at(alongZ(cyl(0.02, 0.02, 0.006, rubberM(), 14)), 0, 0.04, 0.135)); // rubber bumper
+    const shellEnd = sph(0.036, orange, 20, 12); shellEnd.scale.set(1.05, 0.95, 0.5); shellEnd.position.set(0, 0.045, 0.1); inner.add(shellEnd); // the orange shell rounds off the rear
+    const cap = alongZ(cyl(0.02, 0.018, 0.016, darkL, 16)); cap.position.set(0, 0.045, 0.118); inner.add(cap); // small vented motor cap
+    for (let i = 0; i < 4; i++) inner.add(at(box(0.026, 0.002, 0.004, plastic(0x14161a, 0.7)), 0, 0.052 - i * 0.005, 0.127)); // motor vents
     for (const sx of [-1, 1]) {
         inner.add(at(box(0.002, 0.03, 0.2, plastic(0x1a1c20, 0.7)), sx * 0.0385, 0.015, -0.02)); // shell/casting seam
         for (const [y, z] of [[0.055, 0.06], [0.055, -0.08], [0.01, 0.0], [0.01, -0.1]]) { const sc = cyl(0.0045, 0.0045, 0.003, metal(0x7a8088, 0.4), 6); sc.rotation.z = Math.PI / 2; sc.position.set(sx * 0.0385, y, z); inner.add(sc); }
@@ -357,7 +341,7 @@ export function buildNailgunViewmodel() {
     off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.11, -0.15), radius: 0.026, axis: V(0, 0, -1), watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.02, -0.03, -0.02); g.rotation.y = 0.18; g.rotation.z = -0.1; // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
+    g.scale.setScalar(0.9); g.position.set(0.02, -0.03, -0.02); g.rotation.y = 0.26; g.rotation.z = -0.12; g.rotation.x = 0.06; // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
     return finish(g, 'nailgun', -0.1, V(0, 0.0, -0.26), { pos: V(0.0, -0.13, -0.5), rotX: 0.0, rotY: -0.18 }, { trigger: R.trigger, offHand: off });
 }
 
@@ -395,9 +379,9 @@ export function buildRollerViewmodel() {
     const trig = new THREE.Mesh(loft([{ p: V(0, TY - 0.045, 0.04), rx: 0.006, ry: 0.004 }, { p: V(0, TY - 0.065, 0.036), rx: 0.006, ry: 0.004 }, { p: V(0, TY - 0.078, 0.042), rx: 0.005, ry: 0.003 }], 8, { up: V(0, 0, 1) }), metal(0x9aa0a8, 0.4)); inner.add(trig);
     inner.add(new THREE.Mesh(hose([V(0, TY - 0.05, 0.025), V(0, TY - 0.09, 0.02), V(0, TY - 0.105, 0.035), V(0, TY - 0.108, 0.055)], 0.0035, 16), metal(DARK, 0.5)));
     // ---- stock: back and right to the shoulder, rubber butt pad
-    const stock = rbox(0.05, 0.06, 0.2, 0.012, grained(0x2a2e34, 0.62)); stock.position.set(0.075, TY - 0.11, 0.24); stock.rotation.set(0.22, -0.28, 0.1); inner.add(stock);
-    inner.add(at(rbox(0.054, 0.07, 0.02, 0.006, rubberM()), 0.1, TY - 0.135, 0.33));
-    inner.add(at(rbox(0.03, 0.03, 0.12, 0.006, darkL), 0.02, TY - 0.02, 0.19)); // stock bar from the breech
+    const stock = rbox(0.05, 0.06, 0.16, 0.012, grained(0x2a2e34, 0.62)); stock.position.set(0.05, TY - 0.12, 0.23); stock.rotation.set(0.5, -0.12, 0.05); inner.add(stock);
+    inner.add(at(rbox(0.054, 0.07, 0.02, 0.006, rubberM()), 0.06, TY - 0.165, 0.3));
+    const sbar = rbox(0.028, 0.028, 0.1, 0.006, darkL); sbar.position.set(0.02, TY - 0.04, 0.185); sbar.rotation.set(0.5, -0.1, 0); inner.add(sbar); // stock bar down and back from the breech
     // ---- tank under the tube, straps, label, gauge, valve, hose
     inner.add(at(alongZ(cyl(0.034, 0.034, 0.12, plastic(0xcc3322, 0.35), 20)), 0, TY - 0.075, -0.01));
     for (const z of [-0.05, 0.03]) inner.add(at(alongZ(cyl(0.036, 0.036, 0.01, rubberM(), 20)), 0, TY - 0.075, z));
@@ -422,8 +406,8 @@ export function buildRollerViewmodel() {
     off.add(buildHand({ side: 'L', grip: V(0, TY - 0.088, -0.12), radius: 0.018, axis: V(0, 1, 0), curl: 0.95, watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.03, -0.03, -0.02); g.rotation.y = 0.15;
-    return finish(g, 'roller', -0.08, V(0, 0.08, -0.31), { pos: V(0.0, -0.14, -0.5), rotX: 0.0, rotY: -0.15 }, { trigger: R.trigger, offHand: off });
+    g.scale.setScalar(0.9); g.position.set(0.04, -0.04, -0.02); g.rotation.y = 0.2; g.rotation.z = -0.08;
+    return finish(g, 'roller', -0.08, V(0, 0.08, -0.31), { pos: V(0.0, -0.14, -0.5), rotX: 0.0, rotY: -0.2 }, { trigger: R.trigger, offHand: off });
 }
 
 /** O5: gravity-feed HVLP spray gun: cast aluminium body and grip, air cap with horns, knurled needle and fan knobs,
@@ -471,8 +455,8 @@ export function buildSprayerViewmodel() {
     off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.028, -0.07), radius: 0.024, axis: V(0, 0, -1), watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.06, -0.04, -0.03); g.rotation.y = 0.15;
-    return finish(g, 'sprayer', -0.08, V(0, 0.0, -0.14), { pos: V(0.06, -0.07, -0.45), rotX: 0.0, rotY: -0.15 }, { trigger: R.trigger, offHand: off });
+    g.scale.setScalar(0.9); g.position.set(0.1, -0.07, -0.03); g.rotation.y = 0.24;
+    return finish(g, 'sprayer', -0.08, V(0, 0.0, -0.14), { pos: V(0.05, -0.08, -0.45), rotX: 0.0, rotY: -0.24 }, { trigger: R.trigger, offHand: off });
 }
 
 export function buildViewmodels() {

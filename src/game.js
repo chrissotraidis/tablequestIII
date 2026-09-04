@@ -112,7 +112,7 @@ export class Game {
         // vmRoot carries the whole-arm motion (bob, sway, sprint lower, swap,
         // inspect); each weapon group carries only its own recoil.
         this.vmRoot = new THREE.Group();
-        this.vmRoot.position.set(0.12, -0.06, -0.40); // O4: tools low-right, hands in the lower third above the bench
+        this.vmRoot.position.set(0.14, -0.08, -0.47); // O4: tools low-right, hands in the lower third above the bench
         camera.add(this.vmRoot);
         this.viewmodels = buildViewmodels();
         for (const vm of Object.values(this.viewmodels)) {
@@ -132,7 +132,7 @@ export class Game {
                 const toLocal = new THREE.Matrix4().multiplyMatrices(this.vmRoot.matrix, vm.matrix).invert();
                 for (const spec of vm.userData.handSpecs || []) {
                     const shoulder = (spec.shoulderCam || SHOULDER[spec.side]).clone().applyMatrix4(toLocal);
-                    const hand = makeHand({ ...spec, shoulder }); vm.add(hand); vm.userData.rigs.push(hand.userData.rig);
+                    const hand = makeHand({ ...spec, shoulder, parentScale: vm.scale.x }); vm.add(hand); vm.userData.rigs.push(hand.userData.rig); // Q4: hands are sized in real units whatever the tool's group scale
                 }
             }
             this.handsReady = true;
@@ -1451,10 +1451,10 @@ export class Game {
             // mouse look lag: the arms trail the view a touch
             const lagX = -THREE.MathUtils.clamp(this.smDX * this.sens * 0.35, -0.03, 0.03);
             const lagY = THREE.MathUtils.clamp(this.smDY * this.sens * 0.25, -0.02, 0.02);
-            root.position.set( // O4: rest pose (0.12, -0.06, -0.40) — tools low-right, hands in the lower third
-                0.12 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
-                -0.06 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
-                -0.40 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
+            root.position.set( // Q1: rest pose (0.14, -0.08, -0.47) — tools low-right, further from the lens
+                0.14 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
+                -0.08 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
+                -0.47 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
             root.rotation.set(
                 anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2 + anim.top * 0.35,
                 -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5 + anim.top * 0.25,

@@ -207,15 +207,16 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
  * wrist ring of the hand mesh (half-widths ringX/ringY) plus a margin, placed just behind the joint so the
  * mesh's open cut sits inside it. Returns a Group of cloth + knit meshes (layer 1, shadows on).
  */
-export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = null, ringX = 0.029, ringY = 0.022, watch = false }) {
+export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = null, ringX = 0.029, ringY = 0.022, unit = 1, watch = false }) {
     const g = new THREE.Group();
+    const u = unit; // Q4: radii and lengths below are real-world metres × u (the tool's group scale compensation)
     const s = side === 'R' ? 1 : -1;
     const sh = shoulder ? shoulder.clone() : V(s > 0 ? 0.22 : -0.55, -0.48, 0.14);
     // forearm leaves the wrist along -Z (the wrist joint is inside the hand's 2 cm tail), then bends to the elbow
     const fd = foreDir ? foreDir.clone().normalize() : Z.clone().negate(); // wrist → elbow direction near the wrist
-    const cuff = wrist.clone().addScaledVector(Z, -0.004);
-    const fore = wrist.clone().addScaledVector(fd, 0.055);
-    const LU = 0.3, LF = 0.27;
+    const cuff = wrist.clone().addScaledVector(Z, -0.004 * u);
+    const fore = wrist.clone().addScaledVector(fd, 0.055 * u);
+    const LU = 0.3 * u, LF = 0.27 * u;
     const sw = V().subVectors(fore, sh); let d = sw.length(); const dirSW = sw.clone().normalize();
     if (d > LU + LF - 0.01) d = LU + LF - 0.01;
     const a = (LU * LU - LF * LF + d * d) / (2 * d);
@@ -224,7 +225,7 @@ export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = n
     const perp = hint.sub(dirSW.clone().multiplyScalar(hint.dot(dirSW))).normalize();
     const elbow = sh.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
     const pts = [sh, V().lerpVectors(sh, elbow, 0.5), elbow, V().lerpVectors(elbow, fore, 0.5), fore, cuff];
-    const rx = [0.04, 0.041, 0.04, 0.036, ringX + 0.007, ringX + 0.005], ry = [0.038, 0.039, 0.037, 0.032, ringY + 0.008, ringY + 0.006]; // upper arm, elbow, forearm belly, taper to the cuff
+    const rx = [0.04 * u, 0.041 * u, 0.04 * u, 0.036 * u, ringX + 0.007 * u, ringX + 0.005 * u], ry = [0.038 * u, 0.039 * u, 0.037 * u, 0.032 * u, ringY + 0.008 * u, ringY + 0.006 * u]; // upper arm, elbow, forearm belly, taper to the cuff
     const st = tubeStations(pts, rx, ry, 30);
     // the last stations keep the wrist ring's plane: their up is the hand's Y so the ellipse hugs the wrist
     st.forEach((o, i) => { const t = i / 30; if (t > 0.8) o.up = Y.clone(); const fold = t > 0.35 && t < 0.82 ? 0.02 * Math.sin(t * 29 + 1.1) + 0.012 * Math.sin(t * 47 + 0.4) : 0; o.rx *= 1 + fold; o.ry *= 1 + fold * 0.8; o.shade = 0.92 + 3 * fold; });
@@ -233,17 +234,17 @@ export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = n
         const pos = geo.attributes.position, nrm = geo.attributes.normal; const p = new THREE.Vector3(), n = new THREE.Vector3();
         for (let i = 0; i < pos.count; i++) {
             p.fromBufferAttribute(pos, i); n.fromBufferAttribute(nrm, i);
-            const dd = 0.003 * (Math.sin(p.x * 68 + p.z * 47 + p.y * 21) + 0.6 * Math.sin(p.y * 95 - p.x * 38 + 1.7) + 0.35 * Math.sin((p.x + p.y + p.z) * 160));
+            const dd = 0.003 * u * (Math.sin(p.x * 68 + p.z * 47 + p.y * 21) + 0.6 * Math.sin(p.y * 95 - p.x * 38 + 1.7) + 0.35 * Math.sin((p.x + p.y + p.z) * 160));
             p.addScaledVector(n, dd); pos.setXYZ(i, p.x, p.y, p.z);
         }
         geo.computeVertexNormals();
     }
     g.add(new THREE.Mesh(geo, clothMaterial()));
     // rolled cuff: a thicker turned-back band ending just behind the wrist (bulge, then a crease where it folds), plus the knit inner cuff
-    const rollSt = tubeStations([wrist.clone().addScaledVector(fd, 0.05).addScaledVector(Z, -0.003), wrist.clone().addScaledVector(fd, 0.03).addScaledVector(Z, -0.003), wrist.clone().addScaledVector(fd, 0.012).addScaledVector(Z, -0.004), wrist.clone().addScaledVector(fd, 0.004).addScaledVector(Z, -0.004)], [ringX + 0.006, ringX + 0.012, ringX + 0.011, ringX + 0.006], [ringY + 0.007, ringY + 0.013, ringY + 0.012, ringY + 0.007], 10, { crease: 0.8, creaseAt: [0.0, 1.0] });
+    const rollSt = tubeStations([wrist.clone().addScaledVector(fd, 0.05 * u).addScaledVector(Z, -0.003 * u), wrist.clone().addScaledVector(fd, 0.03 * u).addScaledVector(Z, -0.003 * u), wrist.clone().addScaledVector(fd, 0.012 * u).addScaledVector(Z, -0.004 * u), wrist.clone().addScaledVector(fd, 0.004 * u).addScaledVector(Z, -0.004 * u)], [ringX + 0.006 * u, ringX + 0.012 * u, ringX + 0.011 * u, ringX + 0.006 * u], [ringY + 0.007 * u, ringY + 0.013 * u, ringY + 0.012 * u, ringY + 0.007 * u], 10, { crease: 0.8, creaseAt: [0.0, 1.0] });
     rollSt.forEach((o, i) => { if (i > 5) o.up = Y.clone(); });
     g.add(new THREE.Mesh(loft(rollSt, 20, { up: Y }), clothMaterial()));
-    const kst = tubeStations([wrist.clone().addScaledVector(fd, 0.016).addScaledVector(Z, -0.004), wrist.clone().addScaledVector(Z, 0.004)], [ringX + 0.005, ringX + 0.003], [ringY + 0.006, ringY + 0.004], 6);
+    const kst = tubeStations([wrist.clone().addScaledVector(fd, 0.016 * u).addScaledVector(Z, -0.004 * u), wrist.clone().addScaledVector(Z, 0.004 * u)], [ringX + 0.005 * u, ringX + 0.003 * u], [ringY + 0.006 * u, ringY + 0.004 * u], 6);
     kst.forEach(o => { o.up = Y.clone(); });
     g.add(new THREE.Mesh(loft(kst, 18, { up: Y }), knitMaterial()));
     if (watch) {

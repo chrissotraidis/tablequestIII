@@ -131,7 +131,8 @@ export function makeHand(spec) {
     const origin = spec.grip.clone().addScaledVector(out, spec.radius + dOut).addScaledVector(Z, dz);
     root.position.copy(info.wrist).negate();               // wrist at the pivot origin
     pivot.add(root); pivot.position.copy(origin);
-    const scale = spec.scale ?? 0.92;
+    const scale = (spec.scale ?? 0.92) * 0.9 / (spec.parentScale ?? 0.9); // Q4: same real hand size on every tool (tool groups are scaled 0.6–0.92)
+    const unit = scale / 0.92;                                            // sleeve radii and arm lengths in the tool's units
     pivot.scale.setScalar(scale);
     // ---- rest quaternions and the pose
     const rest = {}; for (const n of Object.keys(J)) rest[n] = J[n].quaternion.clone();
@@ -144,7 +145,7 @@ export function makeHand(spec) {
     // ---- sleeve: from the shoulder anchor to the wrist ring (the mesh is open there; ring 0.052 × 0.037 × scale)
     // forearm direction (tool space): default straight off the back of the hand; a spec.forearm bends the wrist
     const foreDir = spec.forearm ? spec.forearm.clone().normalize() : Z.clone().negate().addScaledVector(V(0, -1, 0.45), 1.0).normalize(); // P2: the forearm drops from the wrist (elbow low) instead of running straight off the hand
-    if (!spec.noSleeve) hand.add(buildSleeve({ side: spec.side, wrist: origin, X, Y, Z, foreDir, shoulder: spec.shoulder || null, ringX: 0.026 * scale + 0.002, ringY: 0.0185 * scale + 0.002, watch: !!spec.watch }));
+    if (!spec.noSleeve) hand.add(buildSleeve({ side: spec.side, wrist: origin, X, Y, Z, foreDir, shoulder: spec.shoulder || null, ringX: (0.026 * 0.92 + 0.002) * unit, ringY: (0.0185 * 0.92 + 0.002) * unit, unit, watch: !!spec.watch }));
     return hand;
 }
 

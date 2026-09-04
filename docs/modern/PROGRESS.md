@@ -849,3 +849,14 @@ Swap probed frame by frame: raise drops 7 cm and pitches 0.18 rad mid-way and se
 ### P8 — Gate
 Frozen guard OK; levels valid; build 15.0 MB; collision hashes identical to the classic (bbd9de57 e5dd0df8 473211ec 892d4d6b c4ae3547 66dc2900); smoke on the built file below.
 Smoke green on the built file (`docs/smoke/modern`). Committed; `main` fast-forwarded; tagged `v3.5-modern`. Push still owed.
+
+---
+
+## Round 12 — "check your photos, then iterate on how awkward it is"   (2026-09-04)
+
+Verdict on the round-11 crops, written before touching anything: everything too close (the nailer filled half the frame, hands giant); the nailer's rear a dark disc at the viewer; the spray-gun cup dead centre and both arms symmetrical; the launcher's stock a bar sticking out sideways at mid-height; the leg's foot end pointed at the lens with the lower hand cut by the bench; the brush a thumbless fist and the can hand a skin blob with a watch.
+- **Q1** (`crops6`): viewmodel lens 48° → 56°, rest pose pushed back to (0.14, −0.08, −0.47); nailer rear rounded off by the orange shell with a small vented cap, yawed 0.26 and canted; spray gun moved right and lower with more yaw; launcher stock turned down and back to the shoulder; leg foot end away from the lens; brush can hand tucked. Verdict: nailer, spray gun, launcher acceptable at the hip; leg and brush still awkward.
+- **Q2** (`crops7`): brush made one-handed (the can and off hand removed); leg forearms sent to their own sides. Verdict: leg still a knot of skin, cloth and a watch at the bottom of the frame.
+- **Q3** (`crops8`–`crops10`): leg made a one-handed club hold; then the real fault found — the shaft, the taped grip, the plate and the hand were placed on **two perpendicular axes** (the lathe tilted one way, everything else along a vector 90° off), so the leg had floated apart from its own handle since round 3. Rebuilt on one axis (`legG`), tilted once.
+- **Q4** (`crops11`–`crops12`): the leg's hand was **half the size of the other hands** — hands inherited each tool's group scale (0.62 for the leg, 0.9 elsewhere). Hands are now sized in real units (`parentScale`), sleeve radii and arm lengths scale with them (`unit`). Leg hand turned with its knuckles toward the lens and the forearm worked back from camera space into the leg's frame so it exits down-right. Verdict: a fist around the taped end, shaft rising away, sleeve dropping — reads as a club.
+- **Gate**: frozen guard OK; levels valid; build 15.0 MB; smoke green on the built file; collision hashes identical to the classic. Committed; `main` fast-forwarded; tagged `v3.6-modern`.

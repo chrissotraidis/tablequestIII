@@ -98,7 +98,7 @@ export class PostFX {
         // K7: the hands and weapon are drawn by their own narrow camera (48°) on top of the world
         // (depth cleared), the way shooters of the era avoided wide-FOV distortion on the arms.
         // Layer 1 holds the viewmodel meshes, flashes, and their lights; the world camera draws layer 0.
-        this.vmCamera = new THREE.PerspectiveCamera(48, size.x / Math.max(1, size.y), 0.02, 20);
+        this.vmCamera = new THREE.PerspectiveCamera(56, size.x / Math.max(1, size.y), 0.02, 20); // Q1: wider lens so tools and hands stop filling the frame
         this.vmCamera.layers.set(1);
         camera.add(this.vmCamera);
         this.vmPass = new RenderPass(scene, this.vmCamera);
