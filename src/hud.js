@@ -15,7 +15,8 @@
  */
 import * as THREE from 'three';
 import { CELL } from './config.js';
-import { drawFace as paintFace, FACE_DEFAULTS } from './face.js';
+import { FaceAnim, FACE_DEFAULTS } from './face.js';
+const faceAnim = new FaceAnim(); let faceLast = 0;
 
 const $ = (id) => document.getElementById(id);
 
@@ -371,7 +372,8 @@ export const hud = {
             f.rage = !!(game.boss && game.boss.alive && game.boss.phase2);
             f.tint = game.level ? '#' + (game.level.accent ?? 0x5a6a80).toString(16).padStart(6, '0') : null;
         }
-        paintFace(c.getContext('2d'), f, time);
+        const dt = faceLast ? Math.min(0.1, now - faceLast) : 0.016; faceLast = now;
+        faceAnim.update(dt, f); faceAnim.draw(c.getContext('2d'));
         const pc = $('pause-face');
         if (pc && pc.offsetParent) { const pctx = pc.getContext('2d'); pctx.imageSmoothingEnabled = true; pctx.drawImage(c, 0, 0); }
     },

@@ -129,11 +129,11 @@ export class Game {
         //   pitch/yaw: peak camera kick (rad); roll: camera roll; vm: viewmodel
         //   recoil multiplier; climb: extra pitch that builds while auto-firing
         this.RECOIL = {
-            paintbrush: { pitch: 0.010, yaw: 0.006, roll: 0.012, vm: 0.8, climb: 0 },
-            tableLeg:   { pitch: 0.018, yaw: 0.010, roll: 0.03,  vm: 1.0, climb: 0 },
-            nailgun:    { pitch: 0.012, yaw: 0.005, roll: 0.004, vm: 0.7, climb: 0.004 },
-            roller:     { pitch: 0.055, yaw: 0.014, roll: 0.02,  vm: 1.6, climb: 0 },
-            sprayer:    { pitch: 0.007, yaw: 0.006, roll: 0.003, vm: 0.5, climb: 0.006 },
+            paintbrush: { pitch: 0.010, yaw: 0.006, roll: 0.012, vm: 0.8, climb: 0 , kin: { back: 0.06, up: 0.03, pitch: -0.9, roll: 0.35, stiff: 220, damp: 12 } },
+            tableLeg:   { pitch: 0.018, yaw: 0.010, roll: 0.03,  vm: 1.0, climb: 0 , kin: { back: 0.1, up: -0.06, pitch: 0.9, roll: 0.5, stiff: 140, damp: 11 } },
+            nailgun:    { pitch: 0.012, yaw: 0.005, roll: 0.004, vm: 0.7, climb: 0.004 , kin: { back: 0.22, up: 0.08, pitch: 1.3, roll: 0.18, stiff: 420, damp: 20 } },
+            roller:     { pitch: 0.055, yaw: 0.014, roll: 0.02,  vm: 1.6, climb: 0 , kin: { back: 0.4, up: 0.14, pitch: 1.8, roll: 0.45, stiff: 150, damp: 12 } },
+            sprayer:    { pitch: 0.007, yaw: 0.006, roll: 0.003, vm: 0.5, climb: 0.006 , kin: { back: 0.06, up: 0.02, pitch: 0.35, roll: 0.2, stiff: 500, damp: 18 } },
         };
         this.kick = { pitch: 0, yaw: 0, roll: 0, vPitch: 0, vYaw: 0, vRoll: 0, climb: 0 };
         this.aim = 0;               // MODERN: 0 hip … 1 down the sights
@@ -452,6 +452,10 @@ export class Game {
         p.cooldown = w.cooldown;
         p.ammo -= w.ammoCost;
         this.recoil = 1;
+        { // H4.1: spring impulse per tool
+            const ki = (this.RECOIL[p.weapons[p.currentWeapon]] || this.RECOIL.paintbrush).kin || {};
+            const sp = this.kin; if (sp) { sp.vz += ki.back ?? 1.2; sp.vy += ki.up ?? 0.4; sp.vpx += ki.pitch ?? 6; sp.vrz += (Math.random() < 0.5 ? -1 : 1) * (ki.roll ?? 1.5); }
+        }
         // MODERN M2.4: camera kick impulse (recovers via spring in updateCameraAndViewmodel)
         {
             const rc = this.RECOIL[p.weapons[p.currentWeapon]] || this.RECOIL.paintbrush;
@@ -1414,6 +1418,7 @@ export class Game {
         this.recoil = Math.max(0, this.recoil - dt * 6);
         const anim = this.updateViewmodelAnim(dt);
         const root = this.vmRoot;
+        const adsVm = this.viewmodels[p.weapons[p.currentWeapon]];
         {
             const walkSway = this.moving ? Math.sin(this.bobPhase * 0.5) * 0.014 : 0;
             const walkBob = this.moving ? Math.abs(Math.cos(this.bobPhase * 0.5)) * 0.014 : 0;
@@ -1430,7 +1435,6 @@ export class Game {
                 -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5 + anim.top * 0.25,
                 anim.lower * 0.12 - anim.inspect * 0.18 - anim.top * 0.3);
             // ADS: blend toward the weapon's sight pose, damp sway/bob/lag
-            const adsVm = this.viewmodels[p.weapons[p.currentWeapon]];
             const ads = adsVm?.userData.ads;
             if (ads && this.aim > 0) {
                 const k = this.aim * this.aim * (3 - 2 * this.aim);
@@ -1443,6 +1447,27 @@ export class Game {
                 root.rotation.z = THREE.MathUtils.lerp(root.rotation.z, 0, k);
             }
         }
+        // H4.1: kinematic recoil — a second-order spring on the tool (back, up, pitch, roll) with
+        // overshoot, and the arms lagging behind it; per-tool impulses live in RECOIL[key].kin
+        const sp = this.kin || (this.kin = { z: 0, vz: 0, y: 0, vy: 0, px: 0, vpx: 0, rz: 0, vrz: 0, lagZ: 0, lagY: 0, grip: 0, gripT: 3 + Math.random() * 4, gripPhase: 0 });
+        {
+            const kk = this.RECOIL[this.quick.t > 0 ? 'tableLeg' : p.weapons[p.currentWeapon]]?.kin || { stiff: 260, damp: 16 };
+            const step = (x, v, k, d, h) => { const a = -k * x - d * v; v += a * h; x += v * h; return [x, v]; };
+            const n = Math.max(1, Math.ceil(dt / 0.004)), h = dt / n;
+            for (let i = 0; i < n; i++) {
+                [sp.z, sp.vz] = step(sp.z, sp.vz, kk.stiff, kk.damp, h);
+                [sp.y, sp.vy] = step(sp.y, sp.vy, kk.stiff * 1.2, kk.damp, h);
+                [sp.px, sp.vpx] = step(sp.px, sp.vpx, kk.stiff * 0.9, kk.damp * 0.9, h);
+                [sp.rz, sp.vrz] = step(sp.rz, sp.vrz, kk.stiff, kk.damp, h);
+            }
+            sp.lagZ += (sp.z * 0.55 - sp.lagZ) * Math.min(1, dt * 14); sp.lagY += (sp.y * 0.5 - sp.lagY) * Math.min(1, dt * 14);
+            root.position.z += sp.lagZ; root.position.y += sp.lagY; root.rotation.x += sp.px * 0.35; root.rotation.z += sp.rz * 0.4;
+            // H4.2: idle life — a grip adjustment every few seconds (a small roll and re-seat of the tool)
+            sp.gripT -= dt;
+            if (sp.gripT <= 0 && !this.moving && this.recoil < 0.05) { sp.gripT = 4 + Math.random() * 5; sp.gripPhase = 0.6; }
+            if (sp.gripPhase > 0) { sp.gripPhase = Math.max(0, sp.gripPhase - dt); sp.grip = Math.sin((1 - sp.gripPhase / 0.6) * Math.PI); } else sp.grip = 0;
+            root.rotation.z += sp.grip * 0.03; root.position.y -= sp.grip * 0.004; root.rotation.x += sp.grip * 0.015;
+        }
         const shownKey = this.quick.t > 0 ? 'tableLeg' : p.weapons[p.currentWeapon];
         const vm = this.viewmodels[shownKey];
         if (vm) {
@@ -1451,13 +1476,17 @@ export class Game {
             const bp = vm.userData.basePos || (vm.userData.basePos = vm.position.clone());
             vm.position.copy(bp);
             const rvm = (this.RECOIL[shownKey] || this.RECOIL.paintbrush).vm;
-            if (w.type === 'melee') {
-                vm.rotation.x = base - this.recoil * 1.6 * rvm;
-                vm.rotation.z = this.recoil * 0.8 * rvm;
+            if (w.type === 'melee') { // swing: wrist-led arc with a forward lunge; the arms stay anchored
+                const k = this.recoil;
+                vm.rotation.x = base - k * 0.55 * rvm + sp.px * 0.6;
+                vm.rotation.z = k * 0.35 * rvm + sp.rz;
+                vm.rotation.y = -k * 0.25;
+                vm.position.z = bp.z - k * 0.1 + sp.z;
+                vm.position.y = bp.y - k * 0.03;
             } else {
-                vm.position.z = bp.z + this.recoil * 0.07 * rvm;
-                vm.rotation.x = base + this.recoil * 0.35 * rvm;
-                vm.rotation.z = 0;
+                vm.position.z = bp.z + sp.z; vm.position.y = bp.y + sp.y;
+                vm.rotation.x = base + sp.px;
+                vm.rotation.z = sp.rz;
             }
             // R3.3: hand parts — trigger squeeze, wrist flick, off-hand pump / fidget / hose sway
             const parts = vm.userData.parts || {};
@@ -1473,6 +1502,14 @@ export class Game {
                 parts.offHand.rotation.x = rest.x + (shownKey === 'paintbrush' ? anim.top * 0.6 : 0);
             }
         }
+        // H3.1 studio: pull the viewmodel to the centre, larger, and hold the requested pose
+        if (this.studioOn) {
+            const zoom = 1.45;
+            root.position.set(0.02, -0.02, -0.42); root.rotation.set(0.05, -0.15, 0); root.scale.setScalar(zoom);
+            if (this.studioPose === 'sprint') { root.position.y -= 0.12; root.rotation.x += 0.5; root.rotation.y -= 0.35; }
+            if (this.studioPose === 'inspect') { root.rotation.y += 1.0; root.rotation.x -= 0.2; root.position.x -= 0.05; }
+            if (this.studioPose === 'ads' && adsVm?.userData.ads) { const a = adsVm.userData.ads; root.position.set(a.pos.x, a.pos.y + 0.06, a.pos.z + 0.1); root.rotation.set(a.rotX, a.rotY, 0); root.scale.setScalar(1.15); }
+        } else if (root.scale.x !== 1) root.scale.setScalar(1);
         // R4.3: the tool pulls in and tilts down against a wall
         {
             const ahead = this.world.isSolidCell(Math.floor(p.x + Math.cos(p.rot) * 0.6), Math.floor(p.y + Math.sin(p.rot) * 0.6)) ? 1 : 0;

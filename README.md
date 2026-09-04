@@ -132,8 +132,9 @@ The game has been built three times, each generation on top of the last, and all
 
 | Generation | What it is | Where |
 |:-:|:--|:--|
-| 1 | *Sandy's Table Quest 3D* 1.0 — the first WebGL remaster of the 199X raycaster | `generations/v1/index.html` beside the main build |
-| 2 | 2.1 — Fritos, five weapons, destructible furniture, zone-designed floors, the workbench presentation | `generations/v2/index.html` (also the classic source under `classic/`) |
+| 1 | *Sandy's Table Quest* (199X) — the original browser raycaster: 320×200 CPU raycasting, four levels, paintbrush and table leg, billboard staff, four synth songs | its own repository; not bundled (Options shows a card) |
+| 2.0 | *Sandy's Table Quest 3D* — the first WebGL remaster (three weapons), the first commit of this repository | `generations/v1/index.html` beside the main build |
+| 2.1 | the classic 3D remaster — Fritos, five weapons, destructible furniture, zone-designed floors, the workbench presentation | `generations/v2/index.html` (source under `classic/`) |
 | 3 | MODERN — lit and shadowed world, modern gunplay, animated staff, re-orchestrated score, the workbench charm restored | the main build |
 
 

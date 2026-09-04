@@ -1215,7 +1215,10 @@
         .opt-value { display: flex; align-items: center; gap: 12px; min-width: 120px; justify-content: flex-end; }
         .opt-value b { color: #ffd35a; min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
         .opt-note { display: block; font-size: 9px; letter-spacing: 2px; color: rgba(242,240,232,.4); text-transform: uppercase; margin-top: 2px; }
-        .opt-row[data-opt="generation"] .opt-value { min-width: 220px; }
+        .opt-row[data-opt="generation"] .opt-value { min-width: 250px; }
+        .gc-p { font-family: Georgia, serif; font-size: 14px; line-height: 1.5; letter-spacing: .2px; color: rgba(242,240,232,.85); margin: 0 0 10px; max-width: 560px; }
+        .gc-p b { color: #ffd35a; }
+        .gc-dim { color: rgba(242,240,232,.5); font-style: italic; }
         .opt-arrow { font-style: normal; color: rgba(242,240,232,.45); cursor: pointer; padding: 0 4px; }
         .opt-row.selected .opt-arrow { color: #fff; }
         @media (prefers-reduced-motion: reduce) { .mmenu .menu-item, .mm-boxart img { transition: none; } }
@@ -1881,6 +1884,16 @@
                     <div class="opt-row" data-opt="sound"><span class="opt-label">Sound</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-sound">ON</b><i class="opt-arrow">›</i></span></div>
                 </div>
                 <div class="mm-panel-footer">↑↓ SELECT · ←→ ADJUST · ENTER TOGGLE · ESC BACK</div>
+            </div>
+        </div>
+
+        <div id="gen-card" class="overlay hidden mm-sub-overlay">
+            <div class="mm-panel">
+                <h2>GENERATION 1 <small>THE ORIGINAL · 199X</small></h2>
+                <p class="gc-p"><b>Sandy's Table Quest</b>, the original browser raycaster by Artisan Software: a 320×200 CPU raycaster with four levels, a paintbrush and a table leg, billboard-sprite staff, four synth songs, and a stat-heavy finale.</p>
+                <p class="gc-p">It lives in its own repository and is not bundled with this build, so it cannot be launched from here. Generation 2 (the 3D remaster, in its first 2.0 build and the classic 2.1) and Generation 3 (this build) are playable from the Generation row.</p>
+                <p class="gc-p gc-dim">Its boot screens, title card, box art, and story are the seven images this build still ships unchanged.</p>
+                <div class="mm-panel-footer">ENTER OR ESC TO RETURN</div>
             </div>
         </div>
 

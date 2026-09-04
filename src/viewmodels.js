@@ -19,7 +19,7 @@
  */
 import * as THREE from 'three';
 import { bakeStatic } from './bake.js';
-import { buildArm, loft } from './hands.js';
+import { buildArm, loft, hose } from './hands.js';
 
 const SKIN = 0xe9b993, SKIN_DARK = 0xd39f7a, SLEEVE = 0x9a8560, SLEEVE_DARK = 0x84714f, CUFF = 0x7d6b4d;
 const GLOVE = 0x5a4632, GLOVE_PAD = 0x3f3124, GLOVE_STRAP = 0x3b2d20, THREAD = 0xc8b48a, NAIL = 0xf6e0cc;
@@ -271,7 +271,12 @@ export function buildNailgunViewmodel() {
     inner.add(at(cyl(0.019, 0.019, 0.004, metal(0x2a3038, 0.5), 14), 0, 0.065, -0.03));
     const dial = cyl(0.011, 0.011, 0.01, metal(0x9aa0a8, 0.35), 12); dial.rotation.x = Math.PI / 2; dial.position.set(0.0, 0.03, -0.155); inner.add(dial);
     const led = sph(0.004, mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 2, roughness: 0.3 }), 8, 6); led.position.set(0.02, -0.02, -0.16); inner.add(led);
-    inner.add(bar(V(0.045, 0.02, 0.0), V(0.075, 0.05, -0.01), 0.004, 0.004, metal(0x6a7078, 0.4), 8)); inner.add(bar(V(0.075, 0.05, -0.01), V(0.09, 0.02, -0.02), 0.004, 0.004, metal(0x6a7078, 0.4), 8));
+    inner.add(new THREE.Mesh(hose([V(0.036, 0.03, 0.0), V(0.05, 0.05, -0.005), V(0.062, 0.045, -0.02), V(0.064, 0.02, -0.03)], 0.0035, 14), metal(0x6a7078, 0.4))); // rafter hook on the body
+    inner.add(body([[0.072, 0.028, 0.034], [0.082, 0.024, 0.03], [0.088, 0.012, 0.016]], plastic(0x2a2e34, 0.6), V(0, 1, 0), 16)); // rear motor cap
+    for (let i = 0; i < 5; i++) inner.add(at(box(0.05, 0.003, 0.006, plastic(0x14161a, 0.7)), 0, 0.012 - i * 0.008, 0.078)); // vents
+    inner.add(at(alongZ(cyl(0.02, 0.02, 0.006, rubberM(), 14)), 0, 0.0, 0.092)); // rubber bumper
+    inner.add(at(alongZ(cyl(0.008, 0.008, 0.02, metal(BRASS, 0.3), 10)), 0.02, -0.03, 0.09)); // air fitting + coiled hose
+    inner.add(new THREE.Mesh(hose([V(0.02, -0.03, 0.1), V(0.04, -0.05, 0.14), V(0.07, -0.08, 0.18), V(0.08, -0.13, 0.24), V(0.06, -0.18, 0.32)], 0.0075), rubberM()));
     const decal = box(0.002, 0.026, 0.07, texMat(labelTex(['CARTEL-PRO', 'FN-90 · 18V FRAMING'], '#1a1a1a', '#ffb060', '#e07820'), { roughness: 0.5 })); decal.position.set(0.041, 0.01, -0.06); decal.rotation.y = Math.PI / 2; inner.add(decal);
     // nose: cast housing, contact tip, no-mar pad
     inner.add(at(box(0.036, 0.11, 0.05, alu()), 0, -0.02, -0.185));
@@ -279,18 +284,18 @@ export function buildNailgunViewmodel() {
     inner.add(at(box(0.024, 0.03, 0.022, dark), 0, -0.07, -0.2));
     inner.add(at(box(0.03, 0.012, 0.03, rubberM()), 0, -0.088, -0.2));
     // angled magazine with the nail strip window
-    const mag = box(0.03, 0.05, 0.22, metal(0x39404a, 0.5)); mag.position.set(0, -0.085, -0.06); mag.rotation.x = -0.42; inner.add(mag);
-    const magRail = box(0.034, 0.008, 0.22, metal(0x2a3038, 0.5)); magRail.position.set(0, -0.11, -0.055); magRail.rotation.x = -0.42; inner.add(magRail);
-    for (let i = 0; i < 12; i++) { const h = cyl(0.0045, 0.0045, 0.002, metal(0xd8dce4, 0.3), 8); h.rotation.z = Math.PI / 2; h.position.set(0.0165, -0.075 - i * 0.0075, -0.15 + i * 0.016); inner.add(h); }
+    const mag = box(0.028, 0.044, 0.2, metal(0x39404a, 0.5)); mag.position.set(0, -0.105, -0.095); mag.rotation.x = -0.38; inner.add(mag);
+    const magRail = box(0.032, 0.008, 0.2, metal(0x2a3038, 0.5)); magRail.position.set(0, -0.128, -0.09); magRail.rotation.x = -0.38; inner.add(magRail);
+    for (let i = 0; i < 12; i++) { const h = cyl(0.0045, 0.0045, 0.002, metal(0xd8dce4, 0.3), 8); h.rotation.z = Math.PI / 2; h.position.set(0.0155, -0.098 - i * 0.006, -0.185 + i * 0.015); inner.add(h); }
     // grip with rubber overmould ridges, trigger, guard, battery pack under the grip
     const gripB = box(0.036, 0.1, 0.05, rubberM()); gripB.position.set(0, -0.06, 0.06); gripB.rotation.x = 0.28; inner.add(gripB);
     for (let i = 0; i < 6; i++) { const rd = box(0.038, 0.003, 0.052, mat(0x3a3e44, { roughness: 0.9 })); rd.position.set(0, -0.025 - i * 0.014, 0.05 + i * 0.004); rd.rotation.x = 0.28; inner.add(rd); }
     const trig = box(0.01, 0.03, 0.008, metal(0x9aa0a8, 0.4)); trig.position.set(0, -0.04, 0.02); trig.rotation.x = 0.3; inner.add(trig);
     inner.add(bar(V(0, -0.082, 0.0), V(0, -0.082, 0.05), 0.003, 0.003, metal(DARK, 0.5), 6));
-    const batt = box(0.056, 0.032, 0.085, plastic(0x1e2126, 0.55)); batt.position.set(0, -0.125, 0.085); inner.add(batt);
+    const batt = box(0.046, 0.026, 0.07, plastic(0x1e2126, 0.55)); batt.position.set(0, -0.118, 0.085); inner.add(batt);
     inner.add(at(box(0.05, 0.006, 0.02, plastic(0xe07820)), 0, -0.107, 0.12));
     const battLbl = box(0.002, 0.02, 0.05, texMat(labelTex(['18V', 'LITHIUM'], '#e07820', '#1a1a1a', '#1a1a1a'), { roughness: 0.5 })); battLbl.position.set(0.029, -0.125, 0.085); battLbl.rotation.y = Math.PI / 2; inner.add(battLbl);
-    const R = buildHand({ side: 'R', grip: V(0, -0.06, 0.065), elbow: V(0.17, -0.29, 0.3), radius: 0.02, axis: V(0, 1, 0.3).normalize(), curl: 0.95, trigger: V(0, -0.04, 0.02) });
+    const R = buildHand({ side: 'R', grip: V(0, -0.06, 0.072), elbow: V(0.17, -0.29, 0.3), radius: 0.027, axis: V(0, 1, 0.3).normalize(), curl: 0.95, trigger: V(0, -0.04, 0.02) });
     inner.add(R.group);
     const off = new THREE.Group();
     off.add(buildHand({ side: 'L', grip: V(-0.02, -0.06, -0.13), elbow: V(-0.27, -0.29, 0.22), radius: 0.03, axis: V(0, 0, 1), curl: 0.6, watch: true }).group);
@@ -319,14 +324,17 @@ export function buildRollerViewmodel() {
     const gface = cyl(0.012, 0.012, 0.002, mat(0xf4f0e0, { roughness: 0.4 }), 14); gface.rotation.z = Math.PI / 2; gface.position.set(0.046, -0.03, 0.0); inner.add(gface);
     const needle = box(0.002, 0.002, 0.016, mat(0xb02020)); needle.position.set(0.047, -0.03, 0.004); needle.rotation.x = 0.6; inner.add(needle);
     inner.add(at(cyl(0.006, 0.006, 0.014, metal(BRASS, 0.3), 8), 0, -0.002, 0.06));
-    inner.add(bar(V(0.0, -0.045, 0.08), V(0.07, -0.12, 0.22), 0.008, 0.008, rubberM(), 8));
+    inner.add(new THREE.Mesh(hose([V(0.0, -0.045, 0.08), V(0.03, -0.07, 0.13), V(0.06, -0.11, 0.2), V(0.08, -0.14, 0.28)], 0.008), rubberM()));
+    inner.add(at(alongZ(cyl(0.056, 0.05, 0.02, metal(0x363c44, 0.5), 20)), 0, 0.02, 0.15)); // breech cap
+    inner.add(at(box(0.012, 0.05, 0.02, metal(0x9aa0a8, 0.4)), 0.05, 0.03, 0.14)); // latch lever
+    inner.add(at(alongZ(cyl(0.058, 0.058, 0.012, rubberM(), 20)), 0, 0.02, 0.135)); // rubber ring
     // foregrip for the off hand, pistol grip, trigger, stock off-screen right
     const fore = cyl(0.014, 0.017, 0.06, rubberM(), 12); fore.position.set(0, -0.06, -0.13); inner.add(fore);
     const gripB = box(0.034, 0.09, 0.05, rubberM()); gripB.position.set(0, -0.06, 0.08); gripB.rotation.x = 0.3; inner.add(gripB);
     const trig = box(0.008, 0.026, 0.008, metal(0x9aa0a8, 0.4)); trig.position.set(0, -0.045, 0.045); trig.rotation.x = 0.3; inner.add(trig);
-    const stock = box(0.05, 0.06, 0.16, plastic(0x2a2e34, 0.6)); stock.position.set(0.02, -0.02, 0.2); stock.rotation.y = -0.1; inner.add(stock);
-    inner.add(at(box(0.054, 0.07, 0.02, rubberM()), 0.025, -0.02, 0.28));
-    const R = buildHand({ side: 'R', grip: V(0, -0.065, 0.085), elbow: V(0.17, -0.29, 0.31), radius: 0.02, axis: V(0, 1, 0.3).normalize(), curl: 0.95, trigger: V(0, -0.045, 0.045) });
+    const stock = box(0.05, 0.06, 0.16, plastic(0x2a2e34, 0.6)); stock.position.set(0.085, -0.11, 0.24); stock.rotation.set(0.25, -0.2, 0.1); inner.add(stock); // to the shoulder, below and right of the eye
+    inner.add(at(box(0.054, 0.07, 0.02, rubberM()), 0.1, -0.135, 0.32));
+    const R = buildHand({ side: 'R', grip: V(0, -0.065, 0.09), elbow: V(0.17, -0.29, 0.31), radius: 0.026, axis: V(0, 1, 0.3).normalize(), curl: 0.95, trigger: V(0, -0.045, 0.045) });
     inner.add(R.group);
     const off = new THREE.Group();
     off.add(buildHand({ side: 'L', grip: V(0, -0.062, -0.13), elbow: V(-0.27, -0.29, 0.22), radius: 0.015, axis: V(0, 1, 0), curl: 0.95, watch: true }).group);
@@ -359,8 +367,8 @@ export function buildSprayerViewmodel() {
     const gripB = box(0.03, 0.09, 0.04, aluM); gripB.position.set(0, -0.045, 0.045); gripB.rotation.x = 0.25; inner.add(gripB);
     for (let i = 0; i < 4; i++) { const rd = box(0.032, 0.003, 0.042, rubberM()); rd.position.set(0, -0.02 - i * 0.016, 0.037 + i * 0.004); rd.rotation.x = 0.25; inner.add(rd); }
     inner.add(at(cyl(0.008, 0.008, 0.02, metal(BRASS, 0.3), 10), 0, -0.098, 0.06));
-    for (let i = 0; i < 6; i++) inner.add(bar(V(0.005 + i * 0.008, -0.108 - i * 0.012, 0.06 + i * 0.02), V(0.012 + i * 0.008, -0.12 - i * 0.012, 0.075 + i * 0.02), 0.007, 0.007, rubberM(), 8));
-    const R = buildHand({ side: 'R', grip: V(0, -0.052, 0.05), elbow: V(0.17, -0.28, 0.3), radius: 0.018, axis: V(0, 1, 0.25).normalize(), curl: 0.95, trigger: V(0, -0.03, -0.005) });
+    inner.add(new THREE.Mesh(hose([V(0, -0.105, 0.06), V(0.01, -0.13, 0.09), V(0.04, -0.15, 0.13), V(0.06, -0.19, 0.2), V(0.05, -0.24, 0.28)], 0.007), rubberM()));
+    const R = buildHand({ side: 'R', grip: V(0, -0.052, 0.055), elbow: V(0.17, -0.28, 0.3), radius: 0.024, axis: V(0, 1, 0.25).normalize(), curl: 0.95, trigger: V(0, -0.03, -0.005) });
     inner.add(R.group);
     const off = new THREE.Group();
     off.add(buildHand({ side: 'L', grip: V(-0.02, -0.02, -0.06), elbow: V(-0.27, -0.28, 0.24), radius: 0.02, axis: V(0, 0, 1), curl: 0.85, watch: true }).group);

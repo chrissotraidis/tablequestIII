@@ -216,16 +216,20 @@ const MENU_DETAILS = [
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
 const OPTIONS = ['generation', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 // G5: the three generations of the game, each a single-file build served beside this one
+// H1: what each generation really is. Gen 1 is the original browser raycaster, which lives in
+// its own repository and is not bundled here; it gets a card instead of a wrong link.
 const GENERATIONS = [
-    { key: 'v3', label: 'GEN 3 · MODERN', url: null },
-    { key: 'v2', label: 'GEN 2 · CLASSIC 3D', url: 'generations/v2/index.html' },
-    { key: 'v1', label: 'GEN 1 · ORIGINAL 3D', url: 'generations/v1/index.html' },
+    { key: 'v3', label: 'GEN 3 · MODERN', note: 'THIS BUILD · 2026 · LIT 3D, MODERN GUNPLAY, WORKBENCH CHARM', url: null },
+    { key: 'v21', label: 'GEN 2.1 · 3D REMASTER', note: 'CLASSIC · FIVE WEAPONS, DESTRUCTIBLE FURNITURE, WORKBENCH UI', url: 'generations/v2/index.html' },
+    { key: 'v20', label: 'GEN 2.0 · FIRST 3D REMASTER', note: 'THE FIRST WEBGL BUILD · THREE WEAPONS · FIRST COMMIT', url: 'generations/v1/index.html' },
+    { key: 'v1', label: 'GEN 1 · ORIGINAL 199X', note: 'THE CPU RAYCASTER · FOUR LEVELS · NOT BUNDLED HERE', url: null, card: true },
 ];
 let genIdx = 0;
 let optIdx = 0;
 function renderOptions() {
     document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => el.classList.toggle('selected', i === optIdx));
     $('opt-generation').textContent = GENERATIONS[genIdx].label;
+    const gn = document.querySelector('.opt-row[data-opt="generation"] .opt-note'); if (gn) gn.textContent = GENERATIONS[genIdx].note + ' · ENTER';
     $('opt-postfx').textContent = postfx.enabled ? 'ON' : 'OFF';
     $('opt-fov').textContent = String(Math.round(game.baseFov));
     $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
@@ -260,8 +264,9 @@ function adjustOption(dir) {
 /** G5.2: play the selected generation — each is a single-file build served beside this one */
 function launchGeneration() {
     const g = GENERATIONS[genIdx];
-    if (!g.url) { playSound('menu_select'); return; }
     playSound('menu_select');
+    if (g.card) { showOnly('menu-options', 'gen-card'); return; }
+    if (!g.url) return;
     window.location.href = g.url;
 }
 document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => {
@@ -614,6 +619,8 @@ onKeyPress((e) => {
         case 'menu':
             if (menuSub === 'instructions') {
                 if (['Enter', 'Escape', 'Space'].includes(e.code)) { menuSub = null; showOnly('menu-screen'); }
+            } else if (menuSub === 'options' && !$('gen-card').classList.contains('hidden')) {
+                if (['Enter', 'Escape', 'Space'].includes(e.code)) showOnly('menu-options');
             } else if (menuSub === 'options') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { optIdx = (optIdx + OPTIONS.length - 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { optIdx = (optIdx + 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
@@ -946,6 +953,27 @@ window.TQ = {
     renderDemo, renderSong, renderSfx, songData, setMix, // MODERN M6: offline evidence renders + mix control
     showAudioMeter(on = true) { audioMeterOn = on; $('audio-meter').classList.toggle('hidden', !on); return on; },
     setTestMode(on = true) { testMode = on; return 'testMode ' + on; },
+    /** H3.1 harness: frame the viewmodel large against a neutral studio backdrop for critique shots.
+     *  pose: 'hip' | 'ads' | 'fire' | 'sprint' | 'inspect' | 'off' (restore). */
+    vmStudio(key = null, pose = 'hip') {
+        const g = game;
+        if (!g.studio) {
+            const back = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.95 }));
+            back.position.set(0, 0, -2.2); back.layers.set(1);
+            const fill = new THREE.PointLight(0xffffff, 2.2, 6, 2); fill.position.set(-0.8, 0.6, 0.4); fill.layers.set(1);
+            const key2 = new THREE.PointLight(0xfff0dc, 3.0, 6, 2); key2.position.set(0.9, 0.9, 0.6); key2.layers.set(1);
+            g.studio = new THREE.Group(); g.studio.add(back, fill, key2); g.studio.visible = false; camera.add(g.studio);
+            g.studioSaved = { pos: g.vmRoot.position.clone(), rot: g.vmRoot.rotation.clone(), scale: g.vmRoot.scale.clone(), postfx: postfx.enabled };
+        }
+        if (pose === 'off') { g.studio.visible = false; g.studioOn = false; postfx.enabled = g.studioSaved.postfx; g.vmRoot.scale.copy(g.studioSaved.scale); return 'off'; }
+        g.studio.visible = true; g.studioOn = true; postfx.enabled = false;
+        if (key) { const idx = g.player.weapons.indexOf(key); if (idx >= 0) { g.player.currentWeapon = idx; g.updateViewmodel(true); } }
+        g.studioPose = pose;
+        g.aim = pose === 'ads' ? 1 : 0;
+        if (pose === 'fire') { g.player.ammo = 99; g.player.cooldown = 0; g.fireWeapon(g.weaponDefs[g.player.weapons[g.player.currentWeapon]]); }
+        return 'studio ' + pose;
+    },
+
     /** R2.2 harness: every portrait state on one sheet (overlay); pass false to remove */
     faceSheet(show = true) {
         let el = document.getElementById('tq-facesheet');

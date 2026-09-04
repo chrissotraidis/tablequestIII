@@ -99,10 +99,10 @@ let _skin = null, _skinR = null, _leather = null, _leatherR = null, _cloth = nul
 function skinMaps() {
     if (_skin) return [_skin, _skinR];
     _skin = canvasTex(256, 256, (ctx, w, h) => {
-        ctx.fillStyle = '#e8b48e'; ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = '#e0a67c'; ctx.fillRect(0, 0, w, h);
         for (let i = 0; i < 220; i++) { // mottling: warm and cool blotches
             const r = 10 + Math.random() * 40; const g = ctx.createRadialGradient(0, 0, 0, 0, 0, r);
-            const warm = Math.random() < 0.5; g.addColorStop(0, warm ? 'rgba(220,120,90,0.12)' : 'rgba(200,170,140,0.12)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+            const warm = Math.random() < 0.5; g.addColorStop(0, warm ? 'rgba(210,100,80,0.16)' : 'rgba(190,150,120,0.14)'); g.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.save(); ctx.translate(Math.random() * w, Math.random() * h); ctx.fillStyle = g; ctx.fillRect(-r, -r, r * 2, r * 2); ctx.restore();
         }
         for (let i = 0; i < 6000; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '120,60,40' : '255,230,210'},${0.04 + Math.random() * 0.06})`; ctx.fillRect(Math.random() * w, Math.random() * h, 1.2, 1.2); } // pores
@@ -128,9 +128,9 @@ function leatherMaps() {
 function clothMap() {
     if (_cloth) return _cloth;
     _cloth = canvasTex(128, 128, (ctx, w, h) => {
-        ctx.fillStyle = '#9c8762'; ctx.fillRect(0, 0, w, h);
-        for (let y = 0; y < h; y += 3) { ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.fillRect(0, y, w, 1); }
-        for (let x = 0; x < w; x += 3) { ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(x, 0, 1, h); }
+        ctx.fillStyle = '#8f7a56'; ctx.fillRect(0, 0, w, h);
+        for (let y = 0; y < h; y += 3) { ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(0, y, w, 1); }
+        for (let x = 0; x < w; x += 3) { ctx.fillStyle = 'rgba(255,255,255,0.12)'; ctx.fillRect(x, 0, 1, h); }
         for (let i = 0; i < 400; i++) { ctx.fillStyle = 'rgba(60,40,20,0.15)'; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
     }, [3, 3]);
     _cloth.colorSpace = THREE.SRGBColorSpace;
@@ -174,49 +174,62 @@ export function buildArm({ side, grip, elbow, radius = 0.02, axis = V(0, 0, 1), 
     // palm: wrist → knuckle line, widening, cupped toward the handle
     const knuckleC = V().copy(grip).addScaledVector(across, 0.028 * s).addScaledVector(out, 0.006);
     const palmJ = [V().copy(wrist).addScaledVector(dir, 0.008), V().lerpVectors(wrist, knuckleC, 0.45).addScaledVector(out, 0.002), knuckleC, V().copy(knuckleC).addScaledVector(across, 0.008 * s)];
-    const palmSt = tubeStations(palmJ, [0.024, 0.033, 0.04, 0.036], [0.019, 0.017, 0.015, 0.014], 14);
+    const palmSt = tubeStations(palmJ, [0.025, 0.034, 0.041, 0.037], [0.021, 0.02, 0.018, 0.016], 14);
     skinGeos.push(loft(palmSt, 18, { up: armUp }));
+    // thenar and hypothenar mounds, four tendons on the back of the hand
+    const thenar = V().copy(wrist).addScaledVector(dir, 0.03).addScaledVector(across, -0.02 * s).addScaledVector(out, 0.008);
+    skinGeos.push(loft(tubeStations([V().copy(thenar).addScaledVector(dir, -0.012), thenar, V().copy(thenar).addScaledVector(dir, 0.02).addScaledVector(across, -0.006 * s)], [0.011, 0.014, 0.009], [0.008, 0.01, 0.006], 8), 10, { up: armUp }));
+    const hypo = V().copy(wrist).addScaledVector(dir, 0.028).addScaledVector(across, 0.03 * s).addScaledVector(out, 0.004);
+    skinGeos.push(loft(tubeStations([V().copy(hypo).addScaledVector(dir, -0.01), hypo, V().copy(hypo).addScaledVector(dir, 0.022)], [0.009, 0.012, 0.008], [0.006, 0.008, 0.005], 8), 10, { up: armUp }));
+    for (let i = 0; i < 4; i++) { const t = (i - 1.5) * 0.0185; const a = V().copy(wrist).addScaledVector(dir, 0.012).addScaledVector(ax, t * 0.5).addScaledVector(armUp, 0.017), b2 = V().copy(knuckleC).addScaledVector(ax, t).addScaledVector(armUp, 0.015).addScaledVector(across, 0.002 * s); skinGeos.push(loft(tubeStations([a, V().lerpVectors(a, b2, 0.5), b2], [0.0022, 0.0026, 0.002], [0.0012, 0.0014, 0.001], 6), 6, { up: armUp })); }
     // fingerless leather glove over the palm (slightly larger), open at the finger bases
     const gloveSt = tubeStations(palmJ, [0.027, 0.036, 0.043, 0.038], [0.022, 0.02, 0.018, 0.017], 14);
-    leatherGeos.push(loft(gloveSt.slice(0, 13), 18, { up: armUp, capStart: false, capEnd: false }));
+    leatherGeos.push(loft(gloveSt.slice(0, 13), 18, { up: armUp, capStart: true, capEnd: true }));
     // wrist strap (leather ring) + buckle
-    const strapSt = [{ p: V().copy(wrist).addScaledVector(dir, -0.002), rx: 0.03, ry: 0.024 }, { p: V().copy(wrist).addScaledVector(dir, 0.012), rx: 0.03, ry: 0.024 }];
+    const strapSt = [{ p: V().copy(wrist).addScaledVector(dir, -0.004), rx: 0.03, ry: 0.024 }, { p: V().copy(wrist).addScaledVector(dir, 0.0), rx: 0.0315, ry: 0.0255 }, { p: V().copy(wrist).addScaledVector(dir, 0.012), rx: 0.0315, ry: 0.0255 }, { p: V().copy(wrist).addScaledVector(dir, 0.016), rx: 0.03, ry: 0.024 }];
     leatherGeos.push(loft(strapSt, 16, { up: armUp }));
     const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.005, 0.014), new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.4, metalness: 0.75 }));
     buckle.position.copy(wrist).addScaledVector(dir, 0.005).addScaledVector(armUp, 0.026); buckle.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(buckle);
 
-    // fingers
-    const nailMat = new THREE.MeshStandardMaterial({ color: 0xf6dcc8, roughness: 0.3, metalness: 0 });
+    // fingers: proximal > middle > distal, knuckle bulges, pads, nails; they wrap the actual handle radius
+    const nailMat = new THREE.MeshStandardMaterial({ color: 0xf3d6c2, roughness: 0.28, metalness: 0 });
     let triggerPart = null;
     const finger = (parent, joints, rBase, gloved) => {
-        const st = tubeStations(joints, [rBase, rBase * 0.95, rBase * 0.86, rBase * 0.7], null, 18, { creaseAt: [0.36, 0.68], crease: 0.84 });
+        const st = tubeStations(joints, [rBase * 1.06, rBase, rBase * 0.9, rBase * 0.74], [rBase * 0.95, rBase * 0.92, rBase * 0.84, rBase * 0.62], 20, { creaseAt: [0.34, 0.66], crease: 0.8 });
+        st.forEach((s2, i) => { const tt = i / 20; for (const j of [0.34, 0.66]) { const d = Math.abs(tt - j); if (d < 0.08) { const k = 1 + 0.16 * (1 - d / 0.08); s2.rx *= k; s2.ry *= k; } } }); // knuckle bulges
         const geo = loft(st, 12, { up: armUp });
         if (parent === g) skinGeos.push(geo); else parent.add(new THREE.Mesh(geo, skinMaterial()));
-        // nail: flattened ellipsoid on the back of the tip
         const tip = joints[3], seg = V().subVectors(joints[3], joints[2]).normalize();
-        const nail = new THREE.Mesh(new THREE.SphereGeometry(rBase * 0.62, 10, 6), nailMat);
-        nail.scale.set(1, 0.28, 1.35); nail.position.copy(tip).addScaledVector(armUp, rBase * 0.62).addScaledVector(seg, -rBase * 0.3);
+        const nail = new THREE.Mesh(new THREE.SphereGeometry(rBase * 0.6, 10, 6), nailMat);
+        nail.scale.set(0.9, 0.22, 1.3); nail.position.copy(tip).addScaledVector(armUp, rBase * 0.5).addScaledVector(seg, -rBase * 0.25);
         nail.quaternion.setFromUnitVectors(V(0, 0, 1), seg); parent.add(nail);
-        if (gloved) { // proximal glove loop
-            const loopSt = tubeStations([joints[0], V().lerpVectors(joints[0], joints[1], 0.6)], [rBase + 0.0025, rBase + 0.0022], null, 4);
-            if (parent === g) leatherGeos.push(loft(loopSt, 12, { up: armUp, capStart: false })); else parent.add(new THREE.Mesh(loft(loopSt, 12, { up: armUp, capStart: false }), leatherMaterial()));
+        if (gloved) {
+            const loopSt = tubeStations([V().lerpVectors(joints[0], joints[1], -0.05), V().lerpVectors(joints[0], joints[1], 0.55)], [rBase + 0.0028, rBase + 0.0024], null, 4);
+            const lg = loft(loopSt, 12, { up: armUp });
+            if (parent === g) leatherGeos.push(lg); else parent.add(new THREE.Mesh(lg, leatherMaterial()));
         }
     };
+    const lens = [0.03, 0.021, 0.016];
     for (let i = 0; i < 4; i++) {
-        const t = (i - 1.5) * 0.0175 * spread;
-        const rBase = 0.0095 - Math.abs(i - 1.2) * 0.0008;
-        const base = V().copy(grip).addScaledVector(ax, t).addScaledVector(out, 0.01).addScaledVector(across, 0.032 * s);
+        const t = (i - 1.5) * 0.0185 * spread;
+        const rBase = [0.0098, 0.0104, 0.0098, 0.0086][i];
+        const lenK = [0.95, 1.0, 0.94, 0.78][i];
+        const base = V().copy(knuckleC).addScaledVector(ax, t).addScaledVector(across, 0.004 * s);
         if (i === 0 && trigger) {
             const tf = new THREE.Group(); tf.position.copy(base);
             const d = V().subVectors(trigger, base).normalize(), inward = out.clone().negate();
-            const k1 = V().copy(d).multiplyScalar(0.028), k2 = V().copy(k1).addScaledVector(d, 0.02).addScaledVector(inward, 0.004), k3 = V().copy(k2).addScaledVector(d, 0.015).addScaledVector(inward, 0.007);
+            const k1 = V().copy(d).multiplyScalar(lens[0] * lenK), k2 = V().copy(k1).addScaledVector(d, lens[1] * lenK).addScaledVector(inward, 0.005), k3 = V().copy(k2).addScaledVector(d, lens[2] * lenK).addScaledVector(inward, 0.008);
             finger(tf, [V(0, 0, 0), k1, k2, k3], rBase, true);
             g.add(tf); triggerPart = tf; continue;
         }
-        const r = radius + 0.011;
-        const a0 = 0.1, a1 = a0 + 1.1 * curl, a2 = a1 + 1.0 * curl, a3 = a2 + 0.85 * curl;
+        // wrap: the finger's centre-line stays (handle radius + finger radius) from the handle axis
+        const r = radius + rBase * 0.9;
+        const total = (lens[0] + lens[1] + lens[2]) * lenK;
+        const arc = Math.min(Math.PI * 1.35, total / r) * curl; // how far round the handle the finger reaches
+        const a0 = 0.05;
         const p = (a) => V().copy(grip).addScaledVector(ax, t).addScaledVector(out, Math.cos(a) * r).addScaledVector(across, Math.sin(a) * r * s);
-        finger(g, [base, p(a1 * 0.5 + 0.3), p(a2 * 0.55 + 0.4), p(a3 * 0.6 + 0.45)], rBase, true);
+        const j1 = p(a0 + arc * (lens[0] * lenK / total)), j2 = p(a0 + arc * ((lens[0] + lens[1]) * lenK / total)), j3 = p(a0 + arc);
+        finger(g, [base, j1, j2, j3], rBase, true);
     }
     // thumb: from the palm side over the top of the handle
     const tb = V().copy(grip).addScaledVector(across, -0.024 * s).addScaledVector(out, -0.004).addScaledVector(ax, 0.004);
@@ -241,4 +254,10 @@ export function buildArm({ side, grip, elbow, radius = 0.02, axis = V(0, 0, 1), 
     if (leatherGeos.length) { const ml = BufferGeometryUtils.mergeGeometries(leatherGeos, false); leatherGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(ml, leatherMaterial())); }
     if (clothGeos.length) { const mc = BufferGeometryUtils.mergeGeometries(clothGeos, false); clothGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mc, clothMaterial())); }
     return { group: g, trigger: triggerPart };
+}
+
+/** a continuous hose along control points (Catmull-Rom), for tools */
+export function hose(points, r = 0.007, samples = 24) {
+    const st = tubeStations(points, points.map(() => r), points.map(() => r), samples);
+    return loft(st, 10);
 }

@@ -630,3 +630,50 @@ After the gate: `main` (tagged `v2.1-classic-final` beforehand) fast-forwarded t
 Delivered: the bench no longer fades; Sandy's portrait is a painted likeness of the cover; hands are lofted organic meshes with skin and leather maps under their own lights; the five tools are rebuilt on real references; Options offers the three generations and launches them; the modern build is the main version with the classic generation preserved byte-for-byte under `classic/` and shipped beside it. Verified by the guard, validators, smoke, collision signatures, and a full campaign clear.
 Blocked on the user: pushing to GitHub (invalid `gh` token, no SSH key). A local bundle backup exists at `~/backups/tablequestIII-pre-round3-20260903.bundle`.
 Owed on hardware: the look of the new hands and tools in motion, the portrait at bench size on a real display, the generation switch from the built files.
+
+
+---
+
+## Round 4 — generations accurate, a living face, hands and tools iterated (docs/modern/GOAL_LOOP_4.md)
+
+| Milestone | Status | Notes |
+|:--|:--|:--|
+| H1 Generations, accurate | DONE | gen 1 = original raycaster (card); gen 2.0 / 2.1 / 3 playable |
+| H2 A living face | DONE | tweened parameters, blinks, saccades, breathing, hair follow-through |
+| H3 Hands v4, iterated | DONE (4 passes) | studio harness, anatomy, grips |
+| H4 Weapon and hand animation v4 | DONE | spring recoil with arm lag, per-tool impulses, grip adjustments |
+| H5 Tools detail v4 | DONE (3 passes) | rear caps, vents, lofted hoses, nailer layout |
+| H6 Playtest and gate | DONE | campaign clear; main fast-forwarded, v3.1-modern; push owed |
+
+### H1.1 / H1.2 — Generations, accurate   (2026-09-03)
+Finding: `git show 3903b90:dist/index.html` (the first commit) already titles itself "v2.0 3D REMASTER" — both bundled builds are generation 2. Generation 1 is the original browser raycaster (README "Original 1.0": 320×200 CPU raycaster, four levels, paintbrush and table leg, billboard sprites, four synth songs) that lives in its own repository; `ref/` is git-ignored and absent, and the user's public GitHub has no such repo (anonymous API listing), so it cannot be bundled. Options now lists **GEN 3 · MODERN** (this), **GEN 2.1 · 3D REMASTER** (classic), **GEN 2.0 · FIRST 3D REMASTER** (first commit), **GEN 1 · ORIGINAL 199X** (a card explaining what it was and that it is not bundled), each with a one-line note; Enter launches or shows the card. README table corrected.
+**Owed to the user:** if the original's repository is shared (or `ref/` restored), gen 1 can be bundled the same way.
+
+### H2.1–H2.4 — A living face   (2026-09-03)
+`src/face.js` rewritten around `FaceAnim`: every feature is a continuous parameter (lids per eye, gaze, brow height and angle per side, mouth open/width/corners/teeth, jaw, head yaw/pitch/roll, hair sway, blush, pallor, sweat, tremor) approaching a target with its own time constant. Life: a blink scheduler with 120 ms close / 180 ms open and occasional double blinks, gaze saccades between fixation points with micro-drift (locked forward while moving or aiming), head micro-movement, breathing on shoulders and nostrils, hair follow-through as a damped spring on head-yaw velocity. Reactions as curves: hit (snap away, squeeze, jaw clench, 0.6 s recovery), low health (tremor, running sweat, pallor), grin (asymmetric onset), aim (squint and tilt), sprint (rhythmic huff, bob, blush), fire (brow knit), rage worry, dead. Rendering: cheek and nose highlights, jaw and beret occlusion, eye moisture highlight, lash line that follows the lid, lower-lip highlight, hair highlight sweep. `hud.js` keeps one `FaceAnim` and steps it with real frame time.
+**Evidence:** `docs/evidence/H2/face-strip.jpg` — 24 frames: idle drift, a hit through eight frames of recovery, low health, grin.
+
+### H3.1 — Studio harness   (2026-09-03)
+`TQ.vmStudio(key, pose)`: neutral backdrop and two studio lights on layer 1, the viewmodel pulled to centre at 1.45×, poses hip / ads / fire / sprint / inspect; `tools/studio_shots.mjs` captures all five tools × five poses. Passes live in `docs/evidence/H3/pass1..4`.
+
+### H3.2 / H3.3 / H5 — Passes   (2026-09-03)
+- **Pass 1 faults:** fingers too long and thin and not wrapping; glove a flat cut-out with an uncapped wrist ring; hoses as broken chains; bare rear ends on nailer and launcher; battery too big; magazine slab crossing the grip hand.
+- **Pass 2 fixes:** finger lengths proximal > middle > distal with knuckle bulges, pads and nail beds; fingers wrap the actual handle radius by arc length; thenar and hypothenar mounds; four tendons on the back of the hand; capped strap with a bulge; capped glove; warmer skin with stronger mottling; higher-contrast weave on the sleeve.
+- **Pass 3 fixes:** continuous Catmull-Rom hoses (nailer, launcher, spray gun); nailer rear motor cap with vents, rubber bumper, air fitting; magazine moved under the nose and clear of the hand; smaller battery; launcher breech cap, latch lever, rubber ring.
+- **Pass 4 fixes:** spring impulses scaled to centimetres and tenths of a radian; grip wrap radii matched to the grip blocks (nailer 0.027, launcher 0.026, spray gun 0.024); the portrait's head turn softened.
+- **Pass 5 fixes:** the launcher's shoulder stock moved to the shoulder line below and right of the eye (it had been filling the frame); the leg swing made wrist-led with a forward lunge so the arms stay anchored instead of sweeping into view. Remaining faults after pass 5, left for the user's hardware review: fingers still read as smooth tubes at close range (no knuckle skin folds), the studio's rear view of the launcher shows its breech disc large, and the leg does not fit the studio frame at its raised carry.
+
+### H4.1 / H4.2 — Animation   (2026-09-03)
+A second-order spring (back, up, pitch, roll) on the tool with per-tool stiffness, damping and impulses in `RECOIL[key].kin`; the arms follow the tool with a lag (55 % back, 50 % up) so the kick reads through the wrists; the brush snaps forward and rolls, the leg has a heavy low-stiffness follow-through, the nailer a sharp fast-settling snap, the launcher a slow shoulder-check settle, the sprayer a buzz. Idle: a grip adjustment every 4–9 s (a small roll and re-seat), on top of the round-2 fidgets, hose sway and breathing. ADS, sprint lower, swap, inspect and top-up transitions are the round-2 eased ones (H4.3).
+
+### H6 — Playtest and gate   (2026-09-03)
+- Frozen guard OK; validator OK; syntax sweep clean; `npm run smoke` green; build `dist/index.html` 14.5 MB.
+- Campaign (`docs/evidence/H6/campaign.json`): **victory**, 6/6, boss defeated, score 33,470, 19 deaths (Office 1, Factory 17, Penthouse 1).
+- Collision signatures identical to the classic on all six floors (md5 of both signature sets equal, `gate-run.log`).
+- Sheets: `docs/evidence/H6/` (menu, floor select, Options with the four generation rows, crawl, loading card, bench at two sizes, face sheet, five tools at hip/ADS/fire, face strip); studio passes in `docs/evidence/H3/pass1..5`.
+- `main` fast-forwarded to the round-4 gate and tagged `v3.1-modern`. **Push still owed** (credentials, see round 3 G1.1).
+
+### Round 4 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: the generation list now tells the truth (the original raycaster is a card; 2.0, 2.1 and 3 are playable); a living, tweened portrait; five studio critique passes on hands and tools with a new studio harness; spring-based recoil with arm lag and idle grip life. Honest state: the hands and tools are markedly better than round 3 but not yet at the standard the user asked for — fingers still read as smooth tubes up close, and the procedural approach limits surface detail. The next round should consider a different technique (skinned hand mesh with a proper bind pose, or authored geometry) rather than more passes of the same.
+Owed on hardware: motion of the spring recoil, the face at bench size, the Generation switch from the built files. Owed from the user: `gh auth login` then `git push origin main modern-preview --tags`; the original game's repository if gen 1 is to be bundled.
