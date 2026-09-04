@@ -155,6 +155,14 @@ const buildHand = buildArm; // G3: lofted organic hands from hands.js (legacy pr
 function finish(g, name, baseRotX, muzzle, ads = null, parts = {}) {
     g.updateMatrixWorld(true);
     const inv = new THREE.Matrix4().copy(g.matrixWorld).invert();
+    // L3: hand specs (grip frames) expressed in the baked root's space, for the skinned rig
+    const handSpecs = [];
+    g.traverse(o => {
+        const hs = o.userData.handSpec; if (!hs) return;
+        const rel = new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld);
+        const nm = new THREE.Matrix3().getNormalMatrix(rel);
+        handSpecs.push({ ...hs, grip: hs.grip.clone().applyMatrix4(rel), axis: hs.axis.clone().applyMatrix3(nm).normalize(), out: hs.out.clone().applyMatrix3(nm).normalize() });
+    });
     const bakedParts = {};
     for (const [k, part] of Object.entries(parts)) {
         if (!part) continue;
@@ -170,7 +178,7 @@ function finish(g, name, baseRotX, muzzle, ads = null, parts = {}) {
     const baked = bakeStatic(g, { quantize: 0.5 });
     for (const bp of Object.values(bakedParts)) baked.add(bp);
     const hands = []; baked.traverse(o => { if (o.isMesh && o.userData.isHand) { o.morphTargetInfluences = o.morphTargetInfluences ? [...o.morphTargetInfluences] : [0, 0, 0, 0]; hands.push(o); } });
-    baked.userData = { name, baseRotX, muzzle, ads, parts: bakedParts, hands };
+    baked.userData = { name, baseRotX, muzzle, ads, parts: bakedParts, hands, handSpecs, rigs: [] };
     baked.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; o.renderOrder = 10; o.layers.set(1); } }); // layer 1: drawn by the viewmodel camera (48° FOV)
     return baked;
 }

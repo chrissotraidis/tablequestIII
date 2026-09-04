@@ -742,3 +742,29 @@ The user's verdict after K1–K4 was still "super bad". Stepping back: the faili
 ### K7 — The viewmodel camera   (2026-09-03)
 The second thing the screenshots were really showing: the hands were being drawn through the 72° world camera from a few centimetres away, which stretches any arm into a giant tube. Shooters render the hands and weapon through their own narrow camera. `postfx.js` now adds a second `RenderPass` with a 48° `vmCamera` (a child of the world camera) that draws only layer 1 with the depth buffer cleared, both inside the post stack and in the no-post path; viewmodel meshes, muzzle-flash sprites, the viewmodel key/rim lights and a new hemisphere fill live on layer 1 only; the world camera draws layer 0. Shoulders moved lower and further out so only the glove and a few centimetres of cuff enter the frame. Aim poses pushed 20–25 % further out for the narrower lens.
 **Evidence:** `docs/evidence/K7/pass1` (in-game), `docs/evidence/K7/studio1`.
+
+
+---
+
+## Round 7 — real hands: acquire, rig, iterate by looking (docs/modern/GOAL_LOOP_7.md)
+
+| Milestone | Status | Notes |
+|:--|:--|:--|
+| L1 Acquire | DONE | WebXR input-profiles generic-hand left/right, MIT (Amazon 2019), 94 KB each |
+| L2 Load and inline | DONE | GLTFLoader from data URLs; layer 1 |
+| L3 Rig to the tools | DONE | frame detection, wrist placement, per-tool poses |
+| L4 Animate the skeleton | DONE | trigger, relax, fidget, grip adjust, wrist flex on joints |
+| L5 Look, judge, loop | DONE (5 passes) | see below |
+| L6 Gate | TODO | |
+
+### L1 — Acquire   (2026-09-03)
+Searched for a permissively licensed rigged hand reachable anonymously. Found the models three.js itself loads for VR hand tracking: `@webxr-input-profiles/assets` `generic-hand` (`left.glb`, `right.glb`, 1,360 vertices each, 25 named joints per the WebXR hand spec, UVs, no textures), MIT-licensed (Amazon, 2019). Copied to `src/assets/hands/` with `LICENSE.md`; provenance recorded here. (The 1.0.0 release lacks the hand profile; 1.0.20 has it.)
+
+### L2 — Load and inline   (2026-09-03)
+`src/handrig.js` loads both with `GLTFLoader` from `?url` imports, which the single-file build inlines as data URLs (no runtime fetch). Hands arrive asynchronously; `game.js` attaches them to every tool once loaded. Meshes get the game's procedural skin material (tint 0xd9c2b4, roughness 0.7) and live on layer 1 for the 48° viewmodel camera.
+
+### L3 — Rig to the tools   (2026-09-03)
+The rig detects the model's own frame instead of assuming one: finger direction from wrist → middle tip; palm direction as the mesh's thickness axis signed toward the thumb's base; the bend axis by rotating the index proximal joint about each local axis and keeping the one that moves the tip toward the palm (with its sign). The wrist joint is placed at the tool's grip frame (grip + out·(radius + 12 mm) − fingers·70 mm) and the model basis (side, back, fingers) is mapped onto the tool's (X, back, fingers). Per-tool curls from the handle radius (`gripCurls`), index on the trigger, support poses for off hands, thumb over. The lofted sleeve now ends at the rig's wrist. **Passes:** 1 — hands beside the grips, splayed, orange: the curl test assumed local X; 2 — palm sign from the thumb tip was a coin toss (it lies in the finger plane); 3 — palm from the thickness axis; still no curl; 4 — found the cause: the generic-hand skeleton is **flat** (every joint a child of the armature), so a bend never carried down the finger; `chainJoints()` re-parents the joints into anatomical chains with world transforms preserved; 5 — fingers wrap the grips (side and top studio poses added to see it).
+
+### L4 — Animate the skeleton   (2026-09-03)
+`applyPose(rig)` runs every frame: base curls × relax, trigger squeeze on the index (right hand fully, off hand 15 %), ring/little-finger fidget on the idle timer, grip-adjust opening, wrist flex from the recoil spring's pitch; proximal spread about the joint's spread axis. The round-5 morph path is left in place but idle (no morph hands remain).

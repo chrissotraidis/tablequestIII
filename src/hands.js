@@ -175,30 +175,13 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
     if (mode === 'support' && !outIn) out.set(0, -1, 0);
     const across = V().crossVectors(out, ax).normalize();
 
-    // ---- hand frame: +Y = back of the hand (away from the tool), +Z = fingers before the curl
+    // ---- hand frame: +Y = back of the hand (away from the tool), +Z = fingers before the curl (L3: the skinned hand is placed here later)
     const Y = out.clone(), Z = across.clone().multiplyScalar(s).normalize(), X = V().crossVectors(Y, Z).normalize();
-    const HAND_SCALE = 0.88;
-    const origin = grip.clone().addScaledVector(out, radius + 0.014 * HAND_SCALE).addScaledVector(Z, -0.026 * HAND_SCALE);
-    const frame = new THREE.Matrix4().makeBasis(X, Y, Z);
-    const hand = new THREE.Group(); hand.position.copy(origin); hand.quaternion.setFromRotationMatrix(frame); hand.scale.setScalar(HAND_SCALE);
-    const pose = mode === 'support'
-        ? { curl: [[0.5, 0.55, 0.4], [0.55, 0.6, 0.45], [0.5, 0.55, 0.4], [0.45, 0.5, 0.35]].map(f => f.map(a => Math.min(1.3, a * (0.6 + radius * 12)))), spread: 0.15, thumb: [0.15, 0.25, 0.2] }
-        : gripPose(radius / HAND_SCALE, { curlScale: 0.85 + curl * 0.35, spread, trigger: !!trigger });
-    const built = buildHandMesh(pose, s, { fullGlove: true });
-    const mesh = new THREE.Mesh(built.geometry, [leatherMaterial(), leatherMaterial()]);
-    mesh.userData.isHand = true; mesh.userData.side = side;
-    hand.add(mesh);
-    const nailMat = new THREE.MeshStandardMaterial({ color: 0xf3d6c2, roughness: 0.28, metalness: 0 });
-    for (const st of built.nails) {
-        const nail = new THREE.Mesh(new THREE.SphereGeometry(st.r, 10, 6), nailMat);
-        nail.scale.set(0.95, 0.22, 1.35); nail.position.copy(st.pos);
-        const m = new THREE.Matrix4().makeBasis(V().crossVectors(st.up, st.dir).normalize(), st.up, st.dir); nail.quaternion.setFromRotationMatrix(m);
-        hand.add(nail);
-    }
-    g.add(hand);
-
+    const origin = grip.clone().addScaledVector(out, radius + 0.012).addScaledVector(Z, -0.085); // the rig's wrist joint
+    g.userData.handSpec = { side, grip: grip.clone(), radius, axis: ax.clone(), out: out.clone(), mode, trigger: !!trigger, curl };
+    const mesh = null, hand = null;
     // ---- arm: shoulder anchored at the lower corner of the view; elbow from two-bone IK bending down and outward
-    const wrist = origin.clone().addScaledVector(Z, -0.045 * HAND_SCALE);
+    const wrist = origin.clone().addScaledVector(Z, 0.012); // sleeve overlaps the rig's wrist a little
     const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.24 : -0.66, -0.56, 0.3);
     const LU = 0.28, LF = 0.25;
     const sw = V().subVectors(wrist, shoulder); let d = sw.length(); const dirSW = sw.clone().normalize();

@@ -1,1 +1,24 @@
 == probe
+TQ defined: object
+== weapons
+meshes per viewmodel {"paintbrush":23,"tableLeg":14,"sprayer":16,"nailgun":17,"roller":16}
+ERRORS []
+== smoke
+Node.js v22.13.1
+== campaign
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Execution context was destroyed, most likely because of a navigation.
+    at /home/chris/code/tablequestIII/tools/campaign.mjs:20:24 {
+  name: 'Error'
+}
+
+Node.js v22.13.1
+
+== hud
+ERRORS []
+== collision
+3f530ff5608a24789c6cf8cc91ac4f1c  -
+3f530ff5608a24789c6cf8cc91ac4f1c  -

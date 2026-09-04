@@ -13,6 +13,7 @@ import { World } from './world.js';
 import { input, fireHeld } from './input.js';
 import { playSound, startSong, setMix, musicSwell, resetMix } from './audio.js';
 import { bakeStatic } from './bake.js';
+import { loadHandModels, makeHand, applyPose } from './handrig.js';
 import { hud } from './hud.js';
 import { buildEnemy } from './characters.js'; // MODERN M4.1
 import { poseEnemy, poseDeath } from './enemyanim.js'; // MODERN M4.2
@@ -120,6 +121,13 @@ export class Game {
         }
         this.vmAnim = { swapT: 0, swapPhase: 'idle', pending: null, lower: 0, inspect: 0, breathe: 0, topT: 0, topPuff: false };
         this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
+        // L2/L3: real skinned hands arrive asynchronously and are posed into each tool's grip frames
+        loadHandModels().then(() => {
+            for (const vm of Object.values(this.viewmodels)) {
+                for (const spec of vm.userData.handSpecs || []) { const hand = makeHand(spec); vm.add(hand); vm.userData.rigs.push(hand.userData.rig); }
+            }
+            this.handsReady = true;
+        }).catch(e => console.error('hand models failed to load', e));
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
         this.vmKey = new THREE.PointLight(0xfff1dc, 0.9, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
         this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
@@ -1493,7 +1501,16 @@ export class Game {
             const parts = vm.userData.parts || {};
             const r = this.recoil;
             if (parts.trigger) parts.trigger.rotation.x = parts.trigger.userData.rest.x + Math.min(1, r * 1.5) * 0.5;
-            // J2.1: morph targets on the subdivision hands — trigger squeeze, relax, fidget, thumb lift
+            // L4: skinned hand animation — trigger squeeze, relax, fidget, grip adjust, recoil wrist flex
+            const rigs = vm.userData.rigs || [];
+            if (rigs.length) {
+                const hm = this.handMorph || (this.handMorph = { sq: 0, relax: 0, fid: 0, fidT: 2 + Math.random() * 3, fidPhase: 0 });
+                hm.sq += (Math.min(1, r * 1.6) - hm.sq) * Math.min(1, dt * 30);
+                hm.relax += (((this.sprinting && this.moving) || this.vmAnim.swapPhase !== 'idle' ? 1 : 0) - hm.relax) * Math.min(1, dt * 6);
+                hm.fidT -= dt; if (hm.fidT <= 0 && !this.moving) { hm.fidT = 3 + Math.random() * 4; hm.fidPhase = 1.2; }
+                if (hm.fidPhase > 0) { hm.fidPhase = Math.max(0, hm.fidPhase - dt); hm.fid = Math.sin((1 - hm.fidPhase / 1.2) * Math.PI) * 0.6; } else hm.fid = 0;
+                for (const rig of rigs) { const R = rig.side === 'R'; rig.sq = R ? hm.sq : hm.sq * 0.15; rig.relax = hm.relax; rig.fid = hm.fid * (R ? 0.5 : 1); rig.grip = sp.grip * 0.7; rig.wristFlex = sp.px * (R ? 0.5 : 0.25); applyPose(rig); }
+            }
             const hands = vm.userData.hands || [];
             if (hands.length) {
                 const hm = this.handMorph || (this.handMorph = { sq: 0, relax: 0, fid: 0, fidT: 2 + Math.random() * 3, fidPhase: 0 });
@@ -1519,6 +1536,8 @@ export class Game {
             root.position.set(0.02, -0.02, -0.42); root.rotation.set(0.05, -0.15, 0); root.scale.setScalar(zoom);
             if (this.studioPose === 'sprint') { root.position.y -= 0.12; root.rotation.x += 0.5; root.rotation.y -= 0.35; }
             if (this.studioPose === 'inspect') { root.rotation.y += 1.0; root.rotation.x -= 0.2; root.position.x -= 0.05; }
+            if (this.studioPose === 'side') { root.rotation.y += 1.5; root.position.x -= 0.02; root.position.z -= 0.12; } // grip seen from the side
+            if (this.studioPose === 'top') { root.rotation.x += 1.1; root.position.y += 0.08; root.position.z -= 0.05; } // seen from above
             if (this.studioPose === 'ads' && adsVm?.userData.ads) { const a = adsVm.userData.ads; root.position.set(a.pos.x, a.pos.y + 0.06, a.pos.z + 0.1); root.rotation.set(a.rotX, a.rotY, 0); root.scale.setScalar(1.15); }
         } else if (root.scale.x !== 0.9) root.scale.setScalar(0.9); // K3: viewmodel at 90 % to cut wide-FOV distortion
         // R4.3: the tool pulls in and tilts down against a wall

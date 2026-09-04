@@ -16,7 +16,7 @@ await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(800);
 await p.evaluate(() => { TQ.skipBoot(); TQ.startGameAt(0); TQ.giveAll(); TQ.godmode(true); TQ.teleport(15, 9); TQ.player.rot = -1.57; TQ.game.pitch = 0; TQ.hud.hide(); document.getElementById('crosshair').classList.add('hidden'); });
 await p.waitForTimeout(1200);
 for (const k of keys) {
-    for (const pose of ['hip', 'ads', 'fire', 'sprint', 'inspect']) {
+    for (const pose of (process.env.POSES ? process.env.POSES.split(',') : ['hip', 'ads', 'fire', 'sprint', 'inspect'])) {
         await p.evaluate(({ k, pose }) => TQ.vmStudio(k, pose), { k, pose });
         await p.waitForTimeout(pose === 'fire' ? 120 : 900);
         await p.screenshot({ path: `${out}/${k}-${pose}.jpg`, type: 'jpeg', quality: 86, clip: { x: 240, y: 120, width: 800, height: 600 } });
