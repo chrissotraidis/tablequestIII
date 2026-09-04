@@ -300,9 +300,10 @@ export function buildNailgunViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, -0.06, 0.072), elbow: V(0.17, -0.29, 0.3), radius: 0.027, axis: V(0, 1, 0.3).normalize(), curl: 0.95, trigger: V(0, -0.04, 0.02) });
     inner.add(R.group);
     const off = new THREE.Group();
-    off.add(buildHand({ side: 'L', grip: V(-0.02, -0.06, -0.13), elbow: V(-0.27, -0.29, 0.22), radius: 0.03, axis: V(0, 0, 1), curl: 0.6, watch: true }).group);
+    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.12, -0.165), radius: 0.024, axis: V(0, 0, 1), watch: true }).group); // under the nose housing, fingers up its side
     inner.add(off);
     g.add(inner);
+    g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
     return finish(g, 'nailgun', -0.14, V(0, 0.0, -0.26), { pos: V(0.0, -0.15, -0.8), rotX: -0.06, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
 }
 
@@ -339,10 +340,11 @@ export function buildRollerViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, -0.065, 0.09), elbow: V(0.17, -0.29, 0.31), radius: 0.026, axis: V(0, 1, 0.3).normalize(), curl: 0.95, trigger: V(0, -0.045, 0.045) });
     inner.add(R.group);
     const off = new THREE.Group();
-    off.add(buildHand({ side: 'L', grip: V(0, -0.062, -0.13), elbow: V(-0.27, -0.29, 0.22), radius: 0.015, axis: V(0, 1, 0), curl: 0.95, watch: true }).group);
+    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.045, -0.15), radius: 0.06, axis: V(0, 0, 1), watch: true }).group);
     inner.add(off);
     g.add(inner);
-    return finish(g, 'roller', -0.12, V(0, 0.08, -0.31), { pos: V(0.045, -0.15, -0.56), rotX: -0.02, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
+    g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
+    return finish(g, 'roller', -0.12, V(0, 0.08, -0.31), { pos: V(0.02, -0.21, -0.62), rotX: -0.08, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
 }
 
 /** gravity-feed spray gun with the cup on top */
@@ -373,9 +375,10 @@ export function buildSprayerViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, -0.052, 0.055), elbow: V(0.17, -0.28, 0.3), radius: 0.024, axis: V(0, 1, 0.25).normalize(), curl: 0.95, trigger: V(0, -0.03, -0.005) });
     inner.add(R.group);
     const off = new THREE.Group();
-    off.add(buildHand({ side: 'L', grip: V(-0.02, -0.02, -0.06), elbow: V(-0.27, -0.28, 0.24), radius: 0.02, axis: V(0, 0, 1), curl: 0.85, watch: true }).group);
+    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.03, -0.07), radius: 0.026, axis: V(0, 0, 1), watch: true }).group);
     inner.add(off);
     g.add(inner);
+    g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
     return finish(g, 'sprayer', -0.12, V(0, 0.0, -0.14), { pos: V(0.075, -0.13, -0.62), rotX: -0.05, rotY: 0.1 }, { trigger: R.trigger, offHand: off });
 }
 

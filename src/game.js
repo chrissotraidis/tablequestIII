@@ -111,7 +111,7 @@ export class Game {
         // vmRoot carries the whole-arm motion (bob, sway, sprint lower, swap,
         // inspect); each weapon group carries only its own recoil.
         this.vmRoot = new THREE.Group();
-        this.vmRoot.position.set(0.19, -0.075, -0.47); // R3: raised so both hands clear the bench
+        this.vmRoot.position.set(0.17, -0.055, -0.45); // K3: rig sits so the hands show above the bench at hip
         camera.add(this.vmRoot);
         this.viewmodels = buildViewmodels();
         for (const vm of Object.values(this.viewmodels)) {
@@ -1427,9 +1427,9 @@ export class Game {
             const lagX = -THREE.MathUtils.clamp(this.smDX * this.sens * 0.35, -0.03, 0.03);
             const lagY = THREE.MathUtils.clamp(this.smDY * this.sens * 0.25, -0.02, 0.02);
             root.position.set(
-                0.19 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
-                -0.075 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
-                -0.47 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
+                0.17 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
+                -0.055 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
+                -0.45 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
             root.rotation.set(
                 anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2 + anim.top * 0.35,
                 -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5 + anim.top * 0.25,
@@ -1519,7 +1519,7 @@ export class Game {
             if (this.studioPose === 'sprint') { root.position.y -= 0.12; root.rotation.x += 0.5; root.rotation.y -= 0.35; }
             if (this.studioPose === 'inspect') { root.rotation.y += 1.0; root.rotation.x -= 0.2; root.position.x -= 0.05; }
             if (this.studioPose === 'ads' && adsVm?.userData.ads) { const a = adsVm.userData.ads; root.position.set(a.pos.x, a.pos.y + 0.06, a.pos.z + 0.1); root.rotation.set(a.rotX, a.rotY, 0); root.scale.setScalar(1.15); }
-        } else if (root.scale.x !== 1) root.scale.setScalar(1);
+        } else if (root.scale.x !== 0.9) root.scale.setScalar(0.9); // K3: viewmodel at 90 % to cut wide-FOV distortion
         // R4.3: the tool pulls in and tilts down against a wall
         {
             const ahead = this.world.isSolidCell(Math.floor(p.x + Math.cos(p.rot) * 0.6), Math.floor(p.y + Math.sin(p.rot) * 0.6)) ? 1 : 0;

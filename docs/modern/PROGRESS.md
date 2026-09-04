@@ -708,3 +708,26 @@ Frozen guard OK; validator OK; syntax sweep clean; `npm run smoke` green; build 
 
 Delivered: hands are one subdivision surface per weapon pose instead of tubes — webbing, knuckles, a glove region and nails on a single mesh — with four morph targets animated from play; tools carry baked directional shading. Four studio passes fixed the curl direction, proportions, minimum curl, and the thumb wrap. Honest state: this is the largest single jump in hand quality of any round, and the in-game views now read as hands gripping tools; what remains is skin surface detail (pores, knuckle folds would need a normal map or a finer cage), bone-driven finger animation instead of morphs, and per-tool silhouette work at the studio scale.
 Owed on hardware: the hands in motion (morph squeeze on fire, fidgets, relax on sprint). Owed from the user: `gh auth login` then `git push origin main modern-preview --tags`.
+
+
+---
+
+## Round 6 — how the hands hold the tools (docs/modern/GOAL_LOOP_6.md)
+
+| Milestone | Status | Notes |
+|:--|:--|:--|
+| K1 Anchored arms with an elbow | DONE | shoulders at the view's lower corners, two-bone IK elbow |
+| K2 Hand size and closure | DONE | 88 % hands, fingers together, support pose |
+| K3 Tools on the grips | DONE | support contacts, tools 90 %, rig 90 % and re-seated |
+| K4 Usage animation | DONE | round-5 morphs + spring lag kept; wrist rides the arm lag |
+| K5 Gate | TODO | |
+
+### K1 — Anchored arms   (2026-09-03)
+`hands.js buildArm`: shoulders are fixed in the rig at the lower corners (right 0.08/−0.36/0.5, left −0.5/−0.36/0.5 in tool space); the elbow is solved by two-bone IK (upper arm 0.28, forearm 0.25) with the bend hinted down and outward, so the arms enter from the corners, bend, and leave the frame quickly instead of running as straight tubes to a far elbow. The sleeve is lofted shoulder → elbow → cuff with ripples and a rolled cuff, the forearm and strap continue to the hand's wrist cap.
+
+### K2 — Hand size and closure   (2026-09-03)
+Hands at 88 %; grip poses with fingers together (spread 0.25) and the thumb closing over the fingers (round-5 metacarpal); a **support** pose for off hands — palm up under the tool, fingers together and curled to the barrel radius, thumb out — replacing the clawed "cup".
+
+### K3 — Tools on the grips   (2026-09-03)
+Off hands placed as support contacts: nailer under the nose housing, launcher under the tube ahead of the tank, spray gun under the body. Tools scaled to 90 % and pushed back 3 cm; the whole viewmodel renders at 90 % scale (wide-FOV distortion) and the rig re-seated (0.17 / −0.055 / −0.45) so hands show above the bench at hip. Launcher ADS lowered so the eye looks along the top rail and ring sight instead of into the breech disc.
+**Evidence:** `docs/evidence/K1/pass1` (in-game, before the re-seat), `docs/evidence/K1/studio1`, gate sheets in `docs/evidence/K5`.

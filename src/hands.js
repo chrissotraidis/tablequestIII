@@ -148,21 +148,30 @@ export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: c
  * the handle; curl 0..1; watch; trigger Vector3 (index finger reaches for it and
  * becomes an animated part); spread finger spacing scale.
  */
-export function buildArm({ side, grip, elbow, radius = 0.02, axis = V(0, 0, 1), curl = 0.9, watch = false, trigger = null, spread = 1 }) {
+/**
+ * side 'R'|'L'; grip: contact point on the tool; radius: handle/barrel radius; axis: along the handle;
+ * mode 'grip' (fingers wrap, thumb over) or 'support' (palm up under the tool, fingers together);
+ * out: for 'support', the direction from the tool to the back of the hand (default down).
+ * Shoulders are anchored at the lower corners of the view (K1); the elbow comes from two-bone IK.
+ */
+export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 0.9, watch = false, trigger = null, spread = 0.25, mode = 'grip', out: outIn = null, shoulder: shoulderIn = null, elbow = null }) {
     const g = new THREE.Group();
     const s = side === 'R' ? 1 : -1;
-    elbow = elbow.clone().add(V(0.03 * s, -0.07, -0.05));
     const ax = axis.clone().normalize();
-    let out = V().crossVectors(ax, V(s, 0, 0)).normalize();
+    let out = outIn ? outIn.clone().normalize() : V().crossVectors(ax, V(s, 0, 0)).normalize();
     if (out.lengthSq() < 0.01) out.set(0, -1, 0);
+    if (mode === 'support' && !outIn) out.set(0, -1, 0);
     const across = V().crossVectors(out, ax).normalize();
 
-    // ---- hand frame (J1.4): +Y = back of the hand (away from the handle), +Z = fingers before the curl
+    // ---- hand frame: +Y = back of the hand (away from the tool), +Z = fingers before the curl
     const Y = out.clone(), Z = across.clone().multiplyScalar(s).normalize(), X = V().crossVectors(Y, Z).normalize();
-    const origin = grip.clone().addScaledVector(out, radius + 0.016).addScaledVector(Z, -0.028);
+    const HAND_SCALE = 0.88;
+    const origin = grip.clone().addScaledVector(out, radius + 0.014 * HAND_SCALE).addScaledVector(Z, -0.026 * HAND_SCALE);
     const frame = new THREE.Matrix4().makeBasis(X, Y, Z);
-    const hand = new THREE.Group(); hand.position.copy(origin); hand.quaternion.setFromRotationMatrix(frame);
-    const pose = gripPose(radius, { curlScale: 0.85 + curl * 0.35, spread: spread * 0.9, trigger: !!trigger });
+    const hand = new THREE.Group(); hand.position.copy(origin); hand.quaternion.setFromRotationMatrix(frame); hand.scale.setScalar(HAND_SCALE);
+    const pose = mode === 'support'
+        ? { curl: [[0.5, 0.55, 0.4], [0.55, 0.6, 0.45], [0.5, 0.55, 0.4], [0.45, 0.5, 0.35]].map(f => f.map(a => Math.min(1.3, a * (0.6 + radius * 12)))), spread: 0.15, thumb: [0.15, 0.25, 0.2] }
+        : gripPose(radius / HAND_SCALE, { curlScale: 0.85 + curl * 0.35, spread, trigger: !!trigger });
     const built = buildHandMesh(pose, s);
     const mesh = new THREE.Mesh(built.geometry, [skinMaterial(), leatherMaterial()]);
     mesh.userData.isHand = true; mesh.userData.side = side;
@@ -176,36 +185,44 @@ export function buildArm({ side, grip, elbow, radius = 0.02, axis = V(0, 0, 1), 
     }
     g.add(hand);
 
-    // ---- arm: shoulder stub → elbow → sleeve with ripples and a rolled cuff → forearm → wrist (meets the hand's wrist cap)
-    const wrist = origin.clone().addScaledVector(Z, -0.045);
-    const toWrist = V().subVectors(wrist, elbow), dir = toWrist.clone().normalize();
-    const shoulder = V().copy(elbow).addScaledVector(dir, -0.22).add(V(s * 0.05, -0.05, 0.08));
+    // ---- arm: shoulder anchored at the lower corner of the view; elbow from two-bone IK bending down and outward
+    const wrist = origin.clone().addScaledVector(Z, -0.045 * HAND_SCALE);
+    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.08 : -0.5, -0.36, 0.5);
+    const LU = 0.28, LF = 0.25;
+    const sw = V().subVectors(wrist, shoulder); let d = sw.length(); const dirSW = sw.clone().normalize();
+    if (d > LU + LF - 0.01) { d = LU + LF - 0.01; }
+    const a = (LU * LU - LF * LF + d * d) / (2 * d);
+    const hgt = Math.sqrt(Math.max(0, LU * LU - a * a));
+    const hint = V(s * 0.45, -1, 0.15).normalize();
+    const perp = hint.sub(dirSW.clone().multiplyScalar(hint.dot(dirSW))).normalize();
+    const elbowP = elbow ? elbow.clone() : shoulder.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
+    const toWrist = V().subVectors(wrist, elbowP), dir = toWrist.clone().normalize();
     const armUp = Y.clone();
     const skinGeos = [], leatherGeos = [], clothGeos = [];
-    const cuffEnd = V().copy(elbow).addScaledVector(toWrist, 0.56);
-    const sleeveSt = tubeStations([shoulder, elbow, V().lerpVectors(elbow, cuffEnd, 0.5), cuffEnd], [0.05, 0.047, 0.043, 0.04], [0.048, 0.045, 0.041, 0.038], 22);
-    sleeveSt.forEach((st, i) => { const t = i / 22; const rip = t > 0.35 ? 1 + 0.045 * Math.sin(t * 40) : 1; st.rx *= rip; st.ry *= rip; if (t > 0.9) { st.rx *= 1.18; st.ry *= 1.18; } });
+    // upper arm (sleeve) shoulder → elbow, then the sleeve continues to the cuff with ripples and a rolled cuff
+    const cuffEnd = V().copy(elbowP).addScaledVector(toWrist, 0.45);
+    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.046, 0.044, 0.042, 0.039, 0.036], [0.044, 0.042, 0.04, 0.037, 0.034], 26);
+    sleeveSt.forEach((st, i) => { const t = i / 26; const rip = t > 0.55 ? 1 + 0.04 * Math.sin(t * 46) : 1; st.rx *= rip; st.ry *= rip; if (t > 0.92) { st.rx *= 1.16; st.ry *= 1.16; } });
     clothGeos.push(loft(sleeveSt, 16, { up: armUp }));
-    const foreSt = tubeStations([cuffEnd, V().lerpVectors(cuffEnd, wrist, 0.5), V().copy(wrist).addScaledVector(dir, -0.006), V().copy(wrist).addScaledVector(dir, 0.01)], [0.031, 0.029, 0.026, 0.024], [0.026, 0.024, 0.02, 0.016], 12);
+    const foreSt = tubeStations([cuffEnd, V().lerpVectors(cuffEnd, wrist, 0.5), V().copy(wrist).addScaledVector(dir, -0.006), V().copy(wrist).addScaledVector(dir, 0.008)], [0.029, 0.027, 0.024, 0.022], [0.024, 0.022, 0.019, 0.015], 12);
     skinGeos.push(loft(foreSt, 16, { up: armUp }));
-    // wrist strap (leather) with a buckle
-    const strapSt = [{ p: V().copy(wrist).addScaledVector(dir, -0.014), rx: 0.029, ry: 0.022 }, { p: V().copy(wrist).addScaledVector(dir, -0.01), rx: 0.0305, ry: 0.0235 }, { p: V().copy(wrist).addScaledVector(dir, 0.002), rx: 0.0305, ry: 0.0235 }, { p: V().copy(wrist).addScaledVector(dir, 0.006), rx: 0.029, ry: 0.022 }];
+    const strapSt = [{ p: V().copy(wrist).addScaledVector(dir, -0.014), rx: 0.027, ry: 0.021 }, { p: V().copy(wrist).addScaledVector(dir, -0.01), rx: 0.0285, ry: 0.0225 }, { p: V().copy(wrist).addScaledVector(dir, 0.002), rx: 0.0285, ry: 0.0225 }, { p: V().copy(wrist).addScaledVector(dir, 0.006), rx: 0.027, ry: 0.021 }];
     leatherGeos.push(loft(strapSt, 16, { up: armUp }));
-    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.005, 0.014), new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.4, metalness: 0.75 }));
-    buckle.position.copy(wrist).addScaledVector(dir, -0.004).addScaledVector(armUp, 0.024); buckle.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(buckle);
+    const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.011, 0.005, 0.013), new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.4, metalness: 0.75 }));
+    buckle.position.copy(wrist).addScaledVector(dir, -0.004).addScaledVector(armUp, 0.023); buckle.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(buckle);
     if (watch) {
-        const wp = V().copy(elbow).addScaledVector(toWrist, 0.72);
-        leatherGeos.push(loft([{ p: V().copy(wp).addScaledVector(dir, -0.006), rx: 0.029, ry: 0.023 }, { p: V().copy(wp).addScaledVector(dir, 0.006), rx: 0.029, ry: 0.023 }], 16, { up: armUp }));
-        const face = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.006, 16), new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.25, metalness: 0.7 }));
-        face.position.copy(wp).addScaledVector(armUp, 0.025); face.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(face);
-        const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, 0.002, 16), new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.1, metalness: 0.2 }));
+        const wp = V().copy(cuffEnd).addScaledVector(toWrist, 0.3);
+        leatherGeos.push(loft([{ p: V().copy(wp).addScaledVector(dir, -0.006), rx: 0.027, ry: 0.021 }, { p: V().copy(wp).addScaledVector(dir, 0.006), rx: 0.027, ry: 0.021 }], 16, { up: armUp }));
+        const face = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.006, 16), new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.25, metalness: 0.7 }));
+        face.position.copy(wp).addScaledVector(armUp, 0.023); face.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(face);
+        const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.002, 16), new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.1, metalness: 0.2 }));
         glass.position.copy(face.position).addScaledVector(armUp, 0.004); glass.quaternion.copy(face.quaternion); g.add(glass);
     }
     const mergedSkin = BufferGeometryUtils.mergeGeometries(skinGeos, false); skinGeos.forEach(x => x.dispose());
     g.add(new THREE.Mesh(mergedSkin, skinMaterial()));
     const ml = BufferGeometryUtils.mergeGeometries(leatherGeos, false); leatherGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(ml, leatherMaterial()));
     const mc = BufferGeometryUtils.mergeGeometries(clothGeos, false); clothGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mc, clothMaterial()));
-    return { group: g, trigger: null, hand: mesh };
+    return { group: g, trigger: null, hand: mesh, handGroup: hand };
 }
 
 /** a continuous hose along control points (Catmull-Rom), for tools */
