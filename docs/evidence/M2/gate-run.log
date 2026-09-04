@@ -1,2 +1,19 @@
 == probe
 TQ defined: object
+== smoke
+[smoke:modern] OK
+== campaign
+{"won":true,"state":"victory","deaths":22,"gameTime":1230.3,"score":34065,"wallMinutes":9.7,"floors":["1:58.2s/0d","2:254.4s/0d","3:77.6s/0d","4:203.2s/2d","5:528.5s/19d","6:108.5s/1d"],"errors":[]}
+
+== hud
+ERRORS []
+== collision
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.waitForTimeout: Target page, context or browser has been closed
+    at /home/chris/code/tablequestIII/tools/collision_sig.mjs:13:51
+
+Node.js v22.13.1
+d41d8cd98f00b204e9800998ecf8427e  -

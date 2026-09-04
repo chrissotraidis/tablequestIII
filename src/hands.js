@@ -142,7 +142,7 @@ export function knitMaterial() { return new THREE.MeshStandardMaterial({ map: kn
 function clothMap() {
     if (_cloth) return _cloth;
     _cloth = canvasTex(128, 128, (ctx, w, h) => {
-        ctx.fillStyle = '#8f7a55'; ctx.fillRect(0, 0, w, h); // khaki work shirt: a fine twill, no banding
+        ctx.fillStyle = '#34322f'; ctx.fillRect(0, 0, w, h); // charcoal work jacket: dark and matte so the sleeves recede
         for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { if (((x + y) >> 1) % 2 === 0) { ctx.fillStyle = 'rgba(255,240,210,0.05)'; ctx.fillRect(x, y, 1, 1); } else { ctx.fillStyle = 'rgba(40,28,12,0.06)'; ctx.fillRect(x, y, 1, 1); } }
         for (let i = 0; i < 700; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '90,70,40' : '220,200,160'},0.08)`; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 1); }
     }, [6, 6]);
@@ -167,7 +167,7 @@ function skinNormal() { // fine pore relief plus a few broader wrinkles, as a no
 }
 export function skinMaterial() { const [m, r] = skinMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, normalMap: skinNormal(), normalScale: new THREE.Vector2(0.45, 0.45), roughness: 0.62, metalness: 0, color: 0xffffff, vertexColors: true }); }
 export function leatherMaterial() { const [m, r] = leatherMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, roughness: 0.9, metalness: 0, color: 0xffffff, vertexColors: true }); }
-export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), roughness: 0.95, metalness: 0, color: 0xffffff, vertexColors: true }); }
+export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), roughness: 1.0, metalness: 0, color: 0xffffff, vertexColors: true }); }
 
 // ---------------------------------------------------------------- arm + hand
 
@@ -212,7 +212,7 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
     const skinGeos = [], leatherGeos = [], clothGeos = [], knitGeos = [];
     // sleeve: shoulder → elbow → wrist, cream shirt with fold ripples and a rolled cuff just behind the glove
     const cuffEnd = V().copy(wrist).addScaledVector(dir, -0.03);
-    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.042, 0.04, 0.034, 0.027, 0.023], [0.04, 0.038, 0.032, 0.025, 0.021], 26);
+    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.036, 0.034, 0.03, 0.026, 0.023], [0.034, 0.032, 0.028, 0.024, 0.021], 26);
     sleeveSt.forEach((st, i) => { const t = i / 26; const fold = t > 0.5 ? 0.018 * Math.sin(t * 23 + 1.3) + 0.012 * Math.sin(t * 41 + 0.4) : 0; st.rx *= 1 + fold; st.ry *= 1 + fold * 0.8; st.shade = 0.92 + 3 * fold; if (t > 0.93) { st.rx *= 1.1; st.ry *= 1.1; st.shade = 0.9; } }); // soft irregular folds near the cuff
     clothGeos.push(loft(sleeveSt, 16, { up: armUp }));
     // knit glove cuff from the sleeve end to the wrist cap
