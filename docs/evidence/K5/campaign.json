@@ -1,0 +1,190 @@
+{
+ "won": false,
+ "state": "gameover",
+ "deaths": 25,
+ "guard": 330,
+ "gameTime": 1303.7,
+ "score": 20760,
+ "floors": [
+  {
+   "floor": 1,
+   "name": "The Lobby",
+   "staff": 6,
+   "tablesNeeded": 2,
+   "legs": [
+    "arrived",
+    "arrived",
+    "stuck:elevator",
+    "arrived"
+   ],
+   "time": 53.7,
+   "deaths": 0
+  },
+  {
+   "floor": 2,
+   "name": "The Office",
+   "staff": 9,
+   "tablesNeeded": 3,
+   "legs": [
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "stuck:weapon:tableLeg",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "stuck:weapon:tableLeg",
+    "arrived",
+    "stuck:health",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "stuck:weapon:tableLeg",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "stuck:ammo",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 556.5,
+   "deaths": 4
+  },
+  {
+   "floor": 3,
+   "name": "The Archives",
+   "staff": 8,
+   "tablesNeeded": 3,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 74.7,
+   "deaths": 0
+  },
+  {
+   "floor": 4,
+   "name": "The Showroom",
+   "staff": 11,
+   "tablesNeeded": 4,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 125.3,
+   "deaths": 0
+  },
+  {
+   "floor": 5,
+   "name": "The Factory",
+   "staff": 15,
+   "tablesNeeded": 4,
+   "legs": [
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death"
+   ],
+   "time": 493.5,
+   "deaths": 21
+  }
+ ],
+ "end": {
+  "floor": 5,
+  "pos": [
+   38.4,
+   9.5
+  ],
+  "hp": 0,
+  "ammo": 13,
+  "tables": "1/4",
+  "activeTables": [
+   [
+    7.5,
+    1.5
+   ],
+   [
+    35.5,
+    19.5
+   ],
+   [
+    39.5,
+    23.5
+   ]
+  ],
+  "staffAlive": 6,
+  "dead": [
+   "1:weapon:tableLeg:19.5,12.5",
+   "1:ammo:3.5,3.5"
+  ]
+ },
+ "wallMinutes": 10.6,
+ "errors": []
+}

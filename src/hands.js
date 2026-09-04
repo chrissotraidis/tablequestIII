@@ -142,11 +142,10 @@ export function knitMaterial() { return new THREE.MeshStandardMaterial({ map: kn
 function clothMap() {
     if (_cloth) return _cloth;
     _cloth = canvasTex(128, 128, (ctx, w, h) => {
-        ctx.fillStyle = '#8f7a55'; ctx.fillRect(0, 0, w, h); // khaki work shirt
-        for (let y = 0; y < h; y += 3) { ctx.fillStyle = 'rgba(40,28,12,0.2)'; ctx.fillRect(0, y, w, 1); }
-        for (let x = 0; x < w; x += 3) { ctx.fillStyle = 'rgba(255,240,210,0.12)'; ctx.fillRect(x, 0, 1, h); }
-        for (let i = 0; i < 500; i++) { ctx.fillStyle = 'rgba(90,70,40,0.12)'; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
-    }, [3, 3]);
+        ctx.fillStyle = '#8f7a55'; ctx.fillRect(0, 0, w, h); // khaki work shirt: a fine twill, no banding
+        for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { if (((x + y) >> 1) % 2 === 0) { ctx.fillStyle = 'rgba(255,240,210,0.05)'; ctx.fillRect(x, y, 1, 1); } else { ctx.fillStyle = 'rgba(40,28,12,0.06)'; ctx.fillRect(x, y, 1, 1); } }
+        for (let i = 0; i < 700; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '90,70,40' : '220,200,160'},0.08)`; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 1); }
+    }, [6, 6]);
     _cloth.colorSpace = THREE.SRGBColorSpace;
     return _cloth;
 }

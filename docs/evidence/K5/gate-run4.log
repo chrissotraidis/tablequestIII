@@ -1,1 +1,10 @@
 == smoke
+[smoke:modern] FAILED (4 checks, 0 console errors)
+== campaign
+{"won":false,"state":"gameover","deaths":25,"gameTime":1303.7,"score":20760,"wallMinutes":10.6,"floors":["1:53.7s/0d","2:556.5s/4d","3:74.7s/0d","4:125.3s/0d","5:493.5s/21d"],"errors":[]}
+
+== hud
+ERRORS []
+== collision
+3f530ff5608a24789c6cf8cc91ac4f1c  -
+3f530ff5608a24789c6cf8cc91ac4f1c  -
