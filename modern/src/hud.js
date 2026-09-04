@@ -373,7 +373,7 @@ export const hud = {
         }
         paintFace(c.getContext('2d'), f, time);
         const pc = $('pause-face');
-        if (pc && pc.offsetParent) { const pctx = pc.getContext('2d'); pctx.imageSmoothingEnabled = false; pctx.drawImage(c, 0, 0); }
+        if (pc && pc.offsetParent) { const pctx = pc.getContext('2d'); pctx.imageSmoothingEnabled = true; pctx.drawImage(c, 0, 0); }
     },
 
     drawMinimap(game, player) {

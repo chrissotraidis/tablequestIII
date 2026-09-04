@@ -208,16 +208,24 @@ const MENU_ITEMS = ['New Game', 'Level Select', 'Options', 'Instructions', 'Togg
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
     ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
-    ['FIELD SETTINGS', 'OPTIONS', 'Post-processing, field of view, mouse, sound.'],
+    ['FIELD SETTINGS', 'OPTIONS', 'Pick a generation of the game (three so far), post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
     ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
 ];
 
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
-const OPTIONS = ['postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
+const OPTIONS = ['generation', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
+// G5: the three generations of the game, each a single-file build served beside this one
+const GENERATIONS = [
+    { key: 'v3', label: 'GEN 3 · MODERN', url: null },
+    { key: 'v2', label: 'GEN 2 · CLASSIC 3D', url: 'generations/v2/index.html' },
+    { key: 'v1', label: 'GEN 1 · ORIGINAL 3D', url: 'generations/v1/index.html' },
+];
+let genIdx = 0;
 let optIdx = 0;
 function renderOptions() {
     document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => el.classList.toggle('selected', i === optIdx));
+    $('opt-generation').textContent = GENERATIONS[genIdx].label;
     $('opt-postfx').textContent = postfx.enabled ? 'ON' : 'OFF';
     $('opt-fov').textContent = String(Math.round(game.baseFov));
     $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
@@ -231,7 +239,8 @@ function renderOptions() {
 }
 function adjustOption(dir) {
     const key = OPTIONS[optIdx];
-    if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
+    if (key === 'generation') { genIdx = (genIdx + (dir || 1) + GENERATIONS.length) % GENERATIONS.length; }
+    else if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
     else if (key === 'fov') {
         game.baseFov = Math.max(60, Math.min(100, game.baseFov + (dir || 1) * 2));
         camera.fov = game.baseFov; camera.updateProjectionMatrix();
@@ -248,12 +257,20 @@ function adjustOption(dir) {
     playSound('menu_move');
     renderOptions();
 }
+/** G5.2: play the selected generation — each is a single-file build served beside this one */
+function launchGeneration() {
+    const g = GENERATIONS[genIdx];
+    if (!g.url) { playSound('menu_select'); return; }
+    playSound('menu_select');
+    window.location.href = g.url;
+}
 document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => {
     el.addEventListener('mouseenter', () => { optIdx = i; renderOptions(); });
     el.addEventListener('click', (e) => {
         optIdx = i;
         const arrows = [...el.querySelectorAll('.opt-arrow')];
         const which = arrows.indexOf(e.target);
+        if (which < 0 && OPTIONS[i] === 'generation') { launchGeneration(); return; }
         adjustOption(which === 0 ? -1 : 1);
     });
 });
@@ -601,7 +618,8 @@ onKeyPress((e) => {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { optIdx = (optIdx + OPTIONS.length - 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { optIdx = (optIdx + 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
                 else if (e.code === 'ArrowLeft' || e.code === 'KeyA') adjustOption(-1);
-                else if (e.code === 'ArrowRight' || e.code === 'KeyD' || e.code === 'Enter' || e.code === 'Space') adjustOption(1);
+                else if (e.code === 'ArrowRight' || e.code === 'KeyD') adjustOption(1);
+                else if (e.code === 'Enter' || e.code === 'Space') { if (OPTIONS[optIdx] === 'generation') launchGeneration(); else adjustOption(1); }
                 else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
             } else if (menuSub === 'levels') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { levelIdx = (levelIdx + LEVELS.length - 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
@@ -937,7 +955,7 @@ window.TQ = {
         el.style.cssText = 'position:fixed;inset:0;z-index:9999;background:#1a1410;display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:16px;font:11px monospace;color:#e8dcc0;align-content:start';
         for (const [name, st] of Object.entries(FACE_STATES)) {
             const cell = document.createElement('div'); cell.style.textAlign = 'center';
-            const c = document.createElement('canvas'); c.width = 64; c.height = 64; c.style.cssText = 'width:128px;height:128px;image-rendering:pixelated;border:4px solid #5a3414;background:#26262b';
+            const c = document.createElement('canvas'); c.width = 192; c.height = 192; c.style.cssText = 'width:160px;height:160px;border:4px solid #5a3414;background:#26262b';
             const { time = 1.0, ...rest } = st;
             paintFace(c.getContext('2d'), { ...FACE_DEFAULTS, ...rest }, time);
             cell.appendChild(c); cell.appendChild(document.createTextNode(name)); el.appendChild(cell);
