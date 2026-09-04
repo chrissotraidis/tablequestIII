@@ -1,0 +1,97 @@
+{
+ "won": false,
+ "state": "play",
+ "deaths": 1,
+ "guard": 2501,
+ "gameTime": 1339.4,
+ "score": 5530,
+ "floors": [
+  {
+   "floor": 1,
+   "name": "The Lobby",
+   "staff": 6,
+   "tablesNeeded": 2,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 42.1,
+   "deaths": 0
+  },
+  {
+   "floor": 2,
+   "name": "The Office",
+   "staff": 9,
+   "tablesNeeded": 3,
+   "legs": [
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path",
+    "no-path"
+   ],
+   "time": 1297.3,
+   "deaths": 1
+  }
+ ],
+ "end": {
+  "floor": 2,
+  "pos": [
+   28.5,
+   7.6
+  ],
+  "hp": 29,
+  "ammo": 0,
+  "tables": "2/3",
+  "activeTables": [
+   [
+    11.5,
+    7.5
+   ]
+  ],
+  "staffAlive": 2,
+  "dead": [
+   "1:weapon:tableLeg:19.5,12.5",
+   "1:table:11.5,7.5",
+   "1:health:31.5,2.5"
+  ]
+ },
+ "wallMinutes": 8.6,
+ "errors": []
+}

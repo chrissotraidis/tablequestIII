@@ -104,13 +104,21 @@ const result = await p.evaluate(async ({ turbo, firstFloor }) => {
         else if (!w.elevatorCells.length) { await wall(300); continue; } // Penthouse after the boss: wait for the victory state
         else { const [ex, ey] = w.elevatorCells[0]; r = await goTo(ex + 0.5, ey + 0.5, 'elevator'); if (r === 'arrived') { await TQ.botSleep(0.4); } }
         cur.legs.push(r);
-        if (target && r === 'arrived') { await TQ.botSleep(0.2); if (target.active) dead.add(tkey(target)); } // arrived but not consumed: never chase it again
+        if (target && typeof r === 'string' && r.startsWith('stuck') && target.kind === 'table') { // furniture in the way: turn and blast it (classic: props are destructible)
+            const inp = TQ.input; g.player.rot = Math.atan2(target.y - g.player.y, target.x - g.player.x);
+            for (let k = 0; k < 6 && g.player.ammo > 0; k++) { inp.fireKeyHeld = true; await TQ.botSleep(0.5); inp.fireKeyHeld = false; await TQ.botSleep(0.1); }
+            const r2 = await goTo(target.x, target.y, 'table-after-blast'); cur.legs.push(r2);
+            if (r2 === 'arrived') { await TQ.botSleep(0.2); if (!target.active) { continue; } }
+        }
+        if (target && r === 'arrived') { await TQ.botSleep(0.2); if (target.active) { // arrived but not consumed: nudge through the pickup from each side once, then give it up
+            for (const [dx, dy] of [[0.4, 0], [-0.4, 0], [0, 0.4], [0, -0.4]]) { await TQ.botGoto(target.x + dx, target.y + dy, 2); if (!target.active) break; }
+            if (target.active) dead.add(tkey(target)); } }
         if (target && typeof r === 'string' && r.startsWith('stuck')) dead.add(tkey(target));
         if (typeof r === 'string' && r.startsWith('stuck')) { // unstick: random nearby walkable cell, then re-plan
             const cx = Math.floor(p.x) + (Math.random() < 0.5 ? -1 : 1), cy = Math.floor(p.y) + (Math.random() < 0.5 ? -1 : 1);
             if (passable(w, cx, cy)) await TQ.botGoto(cx + 0.5, cy + 0.5, 3);
         }
-        if (r === 'no-path') await TQ.botSleep(0.3);
+        if (r === 'no-path') { for (const k of [...dead]) if (k.includes(':table:')) dead.delete(k); await TQ.botSleep(0.3); } // a locked elevator means a table was wrongly given up on
     }
     cur.time = +(g.time - cur.t0).toFixed(1); floors.push(cur);
     for (const f of floors) { f.deaths = (floors.indexOf(f) + 1 < floors.length ? floors[floors.indexOf(f) + 1].deathsBefore : deaths) - f.deathsBefore; delete f.deathsBefore; delete f.t0; f.legs = f.legs.slice(-40); }

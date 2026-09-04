@@ -588,8 +588,8 @@ Owed to the user (this gate is the review): feel of look smoothing, aim sensitiv
 | G3 Hands v3 | DONE | lofted organic hands, skin/leather maps, viewmodel lights |
 | G4 Tools v3 | DONE | brush, nailer, spray gun, launcher, leg on real references |
 | G5 Generations | DONE | Options → Generation; gen 1 and 2 builds served beside the game |
-| G6 Promotion | DONE (push BLOCKED) | classic → classic/, modern → root, dist layout; local merge to main pending verification |
-| G7 Playtest and gate | TODO | |
+| G6 Promotion | DONE (push BLOCKED) | classic → classic/, modern → root, dist layout; merged to main locally, tagged v3.0-modern |
+| G7 Playtest and gate | DONE | campaign clear on the promoted build; merged to main locally |
 
 ### G1.1 — Backup   (2026-09-03)
 `git push` to `origin` is **blocked**: the stored `gh` token is invalid and there is no SSH key (`gh auth status` → "token is invalid"; `ssh -T git@github.com` → permission denied). Local backup made instead: `~/backups/tablequestIII-pre-round3-20260903.bundle` (all branches and tags, verified with `git bundle verify`); tags `v2.1-classic-final` (on `main`) and `round2-gate` created locally. **Owed to the user:** `gh auth login` (or an SSH key), then `git push -u origin modern-preview && git push origin --tags`.
@@ -615,3 +615,18 @@ Gen 1 (`git show 3903b90:dist/index.html`, 6.7 MB) and gen 2 (`dist/index.html` 
 ### G6.1 / G6.2 — Restructure and dist layout   (2026-09-03)
 On `modern-preview`, with `git mv` only: `index.html`, `src/`, `tools/`, `vite.config.js`, `design/`, `design.md`, `design-qa.md` → `classic/…`; `dist/index.html` → `dist/classic/index.html`; `modern/index.html`, `modern/src`, `modern/tools`, `modern/vite.config.js`, `modern/public` → the root; `modern/docs` → `docs/evidence`; `modern/PROGRESS.md` → `docs/modern/PROGRESS.md`; `dist/modern/index.html` → `dist/index.html`. `package.json` (now `sandys-table-quest-modern` 3.0.0): `dev`/`build`/`preview` are the main build, `dev:classic`/`build:classic`/`preview:classic` the classic (ports 5174 / 5173), `check:classic`, `smoke`, `validate:levels`, plus the old `*:modern` names as aliases. Root `vite.config.js` builds to `dist/` without emptying it; `classic/vite.config.js` points root and output at `classic/` → `dist/classic/` (the one tooling edit in the classic tree; its sources are untouched). The frozen guard now diffs `classic/` and `dist/classic/index.html` against the `v2.1-classic-final` tag and passes. The build copies `public/generations/v1|v2` beside `dist/index.html`. Tool defaults write to `docs/evidence/`. Vite needed `node_modules/.vite` cleared after the root change.
 **Evidence:** `npm run check:classic` OK; validators OK on both trees; syntax sweep clean; `npm run smoke` green on the promoted layout; `dist/index.html` 14.5 MB with `dist/classic/` and `dist/generations/v1|v2` beside it; gen 2 served at `/generations/v2/index.html` in dev and in the built preview.
+
+### G6.3 — Merge to main   (2026-09-03)
+After the gate: `main` (tagged `v2.1-classic-final` beforehand) fast-forwarded to `modern-preview`; tag `v3.0-modern` on the merge. **Push still blocked** on credentials (see G1.1): `git push origin main modern-preview --tags` is owed once `gh auth login` is done. Nothing was deleted from history; the classic generation is reachable at the tag and under `classic/`.
+
+### G7 — Playtest and gate   (2026-09-03)
+- Frozen guard OK (`classic/` and `dist/classic/index.html` identical to `v2.1-classic-final`); validators OK on both trees; syntax sweep clean; `npm run smoke` green on the promoted layout; collision signatures identical to the classic on all six floors (`docs/evidence/G7/gate-run.log`).
+- Campaign (`docs/evidence/G7/campaign.json`): **victory**, 6/6, boss defeated, score 27,790, 24 deaths (Office 3, Factory 20, Penthouse 1) through the classic retry. Two earlier runs stalled on the Office's conference-room table (`11.5,7.5`, flanked diagonally by two props): the bot gave the table up and looped on the locked elevator — a bot flaw, fixed in `tools/campaign.mjs` (blast furniture in the way, nudge from adjacent cells, forgive blacklisted tables when the elevator is locked). No game code involved.
+- Sheets: `docs/evidence/G2/` (portrait), `G3/` and `G7/` (hands and tools at hip, ADS, fire), `G6/` (menu, floor select, Options with the Generation row, crawl, loading card), `G7/bench-*`, `G1/bench-idle.jpg` (bench opacity 1 while idle).
+- Build: `dist/index.html` 14.5 MB, `dist/classic/index.html`, `dist/generations/v1|v2`.
+
+### Round 3 gate summary   (2026-09-03, no pause per 5-G)
+
+Delivered: the bench no longer fades; Sandy's portrait is a painted likeness of the cover; hands are lofted organic meshes with skin and leather maps under their own lights; the five tools are rebuilt on real references; Options offers the three generations and launches them; the modern build is the main version with the classic generation preserved byte-for-byte under `classic/` and shipped beside it. Verified by the guard, validators, smoke, collision signatures, and a full campaign clear.
+Blocked on the user: pushing to GitHub (invalid `gh` token, no SSH key). A local bundle backup exists at `~/backups/tablequestIII-pre-round3-20260903.bundle`.
+Owed on hardware: the look of the new hands and tools in motion, the portrait at bench size on a real display, the generation switch from the built files.
