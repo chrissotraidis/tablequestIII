@@ -149,7 +149,23 @@ function clothMap() {
     _cloth.colorSpace = THREE.SRGBColorSpace;
     return _cloth;
 }
-export function skinMaterial() { const [m, r] = skinMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, roughness: 0.62, metalness: 0, color: 0xffffff, vertexColors: true }); }
+let _skinN = null;
+function skinNormal() { // fine pore relief plus a few broader wrinkles, as a normal map from a height field
+    if (_skinN) return _skinN;
+    const w = 256, hgt = new Float32Array(w * w);
+    for (let i = 0; i < w * w; i++) hgt[i] = Math.random() * 0.35;
+    for (let k = 0; k < 90; k++) { const cx = Math.random() * w, cy = Math.random() * w, r = 6 + Math.random() * 18, a = Math.random() * 6.3; for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) { const dx = x - cx, dy = y - cy; const u = dx * Math.cos(a) + dy * Math.sin(a), vv = -dx * Math.sin(a) + dy * Math.cos(a); if (Math.abs(vv) < 1.2 && Math.abs(u) < r) hgt[y * w + x] += 0.6 * (1 - Math.abs(u) / r); } }
+    const c = document.createElement('canvas'); c.width = c.height = w; const ctx = c.getContext('2d'); const img = ctx.createImageData(w, w);
+    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) {
+        const l = hgt[y * w + (x + w - 1) % w], rr = hgt[y * w + (x + 1) % w], u = hgt[((y + w - 1) % w) * w + x], d = hgt[((y + 1) % w) * w + x];
+        const nx = (l - rr) * 1.6, ny = (u - d) * 1.6; const len = Math.hypot(nx, ny, 1);
+        const o = (y * w + x) * 4; img.data[o] = 128 + nx / len * 127; img.data[o + 1] = 128 + ny / len * 127; img.data[o + 2] = 128 + 127 / len; img.data[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    _skinN = new THREE.CanvasTexture(c); _skinN.wrapS = _skinN.wrapT = THREE.RepeatWrapping; _skinN.repeat.set(3, 3);
+    return _skinN;
+}
+export function skinMaterial() { const [m, r] = skinMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, normalMap: skinNormal(), normalScale: new THREE.Vector2(0.45, 0.45), roughness: 0.62, metalness: 0, color: 0xffffff, vertexColors: true }); }
 export function leatherMaterial() { const [m, r] = leatherMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, roughness: 0.9, metalness: 0, color: 0xffffff, vertexColors: true }); }
 export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), roughness: 0.95, metalness: 0, color: 0xffffff, vertexColors: true }); }
 
@@ -182,13 +198,13 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
     const mesh = null, hand = null;
     // ---- arm: shoulder anchored at the lower corner of the view; elbow from two-bone IK bending down and outward
     const wrist = origin.clone().addScaledVector(Z, 0.012); // sleeve overlaps the rig's wrist a little
-    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.24 : -0.66, -0.56, 0.3);
-    const LU = 0.28, LF = 0.25;
+    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.2 : -0.6, -0.5, 0.12); // behind and below the eye: the forearm drops out of frame within ~20 cm
+    const LU = 0.3, LF = 0.27;
     const sw = V().subVectors(wrist, shoulder); let d = sw.length(); const dirSW = sw.clone().normalize();
     if (d > LU + LF - 0.01) { d = LU + LF - 0.01; }
     const a = (LU * LU - LF * LF + d * d) / (2 * d);
     const hgt = Math.sqrt(Math.max(0, LU * LU - a * a));
-    const hint = V(s * 0.45, -1, 0.15).normalize();
+    const hint = V(s * 0.6, -1, -0.1).normalize();
     const perp = hint.sub(dirSW.clone().multiplyScalar(hint.dot(dirSW))).normalize();
     const elbowP = elbow ? elbow.clone() : shoulder.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
     const toWrist = V().subVectors(wrist, elbowP), dir = toWrist.clone().normalize();
@@ -196,11 +212,11 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
     const skinGeos = [], leatherGeos = [], clothGeos = [], knitGeos = [];
     // sleeve: shoulder → elbow → wrist, cream shirt with fold ripples and a rolled cuff just behind the glove
     const cuffEnd = V().copy(wrist).addScaledVector(dir, -0.03);
-    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.04, 0.038, 0.036, 0.032, 0.029], [0.038, 0.036, 0.034, 0.03, 0.027], 26);
-    sleeveSt.forEach((st, i) => { const t = i / 26; const fold = t > 0.5 ? 0.018 * Math.sin(t * 23 + 1.3) + 0.012 * Math.sin(t * 41 + 0.4) : 0; st.rx *= 1 + fold; st.ry *= 1 + fold * 0.8; st.shade = 0.92 + 3 * fold; if (t > 0.93) { st.rx *= 1.18; st.ry *= 1.18; st.shade = 0.9; } }); // soft irregular folds near the cuff
+    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.042, 0.04, 0.034, 0.027, 0.023], [0.04, 0.038, 0.032, 0.025, 0.021], 26);
+    sleeveSt.forEach((st, i) => { const t = i / 26; const fold = t > 0.5 ? 0.018 * Math.sin(t * 23 + 1.3) + 0.012 * Math.sin(t * 41 + 0.4) : 0; st.rx *= 1 + fold; st.ry *= 1 + fold * 0.8; st.shade = 0.92 + 3 * fold; if (t > 0.93) { st.rx *= 1.1; st.ry *= 1.1; st.shade = 0.9; } }); // soft irregular folds near the cuff
     clothGeos.push(loft(sleeveSt, 16, { up: armUp }));
     // knit glove cuff from the sleeve end to the wrist cap
-    const knitSt = tubeStations([V().copy(cuffEnd).addScaledVector(dir, 0.004), V().copy(wrist).addScaledVector(dir, 0.008)], [0.029, 0.027], [0.023, 0.021], 6);
+    const knitSt = tubeStations([V().copy(cuffEnd).addScaledVector(dir, 0.004), V().copy(wrist).addScaledVector(dir, 0.008)], [0.023, 0.021], [0.019, 0.017], 6);
     knitGeos.push(loft(knitSt, 16, { up: armUp }));
     const tag = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.003, 0.02), new THREE.MeshStandardMaterial({ color: 0xe8dcc3, roughness: 0.9 }));
     tag.position.copy(wrist).addScaledVector(dir, -0.008).addScaledVector(armUp, 0.023); tag.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(tag);

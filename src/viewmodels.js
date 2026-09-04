@@ -274,6 +274,10 @@ export function buildNailgunViewmodel() {
     const orange = plastic(0xe07820), orangeD = plastic(0xb85f14, 0.55), dark = plastic(0x2a2e34, 0.6);
     // rounded main body with the motor bulge at the rear, drive housing toward the nose
     inner.add(body([[0.07, 0.03, 0.036], [0.03, 0.038, 0.046], [-0.02, 0.04, 0.05], [-0.07, 0.036, 0.046], [-0.12, 0.028, 0.04], [-0.15, 0.024, 0.034]], orange));
+    // two-tone: a dark cast lower housing under the orange shell, panel seams, hex screws (M2)
+    inner.add(body([[0.06, 0.031, 0.02], [0.03, 0.039, 0.024], [-0.02, 0.041, 0.026], [-0.07, 0.037, 0.024], [-0.12, 0.029, 0.02]], plastic(0x2a2e34, 0.55), V(0, 1, 0), 16));
+    for (const [z, rx, ry] of [[0.02, 0.039, 0.047], [-0.05, 0.039, 0.048], [-0.1, 0.031, 0.043]]) inner.add(body([[z + 0.0015, rx + 0.0008, ry + 0.0008], [z - 0.0015, rx + 0.0008, ry + 0.0008]], plastic(0x1a1c20, 0.7), V(0, 1, 0), 18)); // panel seams hugging the shell
+    for (const [x, y, z] of [[0.038, 0.02, 0.0], [0.038, 0.02, -0.08], [-0.038, 0.02, 0.0], [-0.038, 0.02, -0.08], [0.034, -0.02, -0.04], [-0.034, -0.02, -0.04]]) { const sc = cyl(0.004, 0.004, 0.003, metal(0x6a7078, 0.4), 6); sc.rotation.z = Math.PI / 2; sc.position.set(x, y, z); inner.add(sc); }
     inner.add(body([[0.02, 0.041, 0.02], [-0.08, 0.041, 0.02]], orangeD, V(0, 1, 0), 12)); // side rib
     inner.add(at(box(0.086, 0.012, 0.16, dark), 0, -0.04, -0.05)); // lower frame
     // exhaust deflector, depth dial, LED, rafter hook, decal
@@ -352,7 +356,7 @@ export function buildRollerViewmodel() {
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
-    return finish(g, 'roller', -0.12, V(0, 0.08, -0.31), { pos: V(0.02, -0.2, -0.82), rotX: -0.07, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
+    return finish(g, 'roller', -0.12, V(0, 0.08, -0.31), { pos: V(0.14, -0.2, -0.76), rotX: -0.04, rotY: 0.06 }, { trigger: R.trigger, offHand: off });
 }
 
 /** gravity-feed spray gun with the cup on top */

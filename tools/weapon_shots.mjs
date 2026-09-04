@@ -15,6 +15,7 @@ p.on('pageerror', e => errors.push(String(e)));
 await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(800);
 const shot = async (name) => { await p.screenshot({ path: `${out}/${name}.jpg`, type: 'jpeg', quality: 84 }); console.log('shot', name); };
 await p.evaluate(() => { TQ.skipBoot(); TQ.startGameAt(0); TQ.giveAll(); TQ.godmode(true); TQ.teleport(15, 9); TQ.player.rot = -1.57; TQ.game.pitch = 0.0; TQ.hud.holdCard = false; });
+await p.evaluate(() => { const g = TQ.game, w = g.world, p2 = g.player; for (let k = 0; k < 8; k++) { const rot = -1.57 + k * Math.PI / 4; let clear = true; for (let d = 1; d <= 3; d++) if (w.isSolidCell(Math.floor(p2.x + Math.cos(rot) * d), Math.floor(p2.y + Math.sin(rot) * d))) clear = false; if (clear) { p2.rot = rot; break; } } }); // face a clear direction so wall-clip avoidance stays out of the shots
 await p.waitForTimeout(1800);
 const counts = await p.evaluate(() => { const o = {}; for (const [k, vm] of Object.entries(TQ.game.viewmodels)) { let n = 0; vm.traverse(x => { if (x.isMesh) n++; }); o[k] = n; } return o; });
 console.log('meshes per viewmodel', JSON.stringify(counts));

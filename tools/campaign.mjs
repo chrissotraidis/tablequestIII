@@ -86,7 +86,7 @@ const result = await p.evaluate(async ({ turbo, firstFloor }) => {
     startFloor();
     while (TQ.state !== 'victory' && guard++ < 2500) {
         const st = TQ.state;
-        if (st === 'gameover') { deaths++; cur.legs.push('death'); if (deaths > 24) break; for (const k of [...dead]) if (k.startsWith(g.levelIndex + ':')) dead.delete(k); TQ.retry(); await wall(200); continue; }
+        if (st === 'gameover') { deaths++; cur.legs.push('death'); if (deaths > 40) break; for (const k of [...dead]) if (k.startsWith(g.levelIndex + ':')) dead.delete(k); TQ.retry(); await wall(200); continue; }
         if (st === 'loading') { TQ.deploy(); await wall(100); continue; }
         if (st === 'transition') { await wall(150); continue; }
         if (st !== 'play') { await wall(200); continue; }

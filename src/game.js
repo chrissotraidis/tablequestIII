@@ -129,9 +129,9 @@ export class Game {
             this.handsReady = true;
         }).catch(e => console.error('hand models failed to load', e));
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
-        this.vmKey = new THREE.PointLight(0xfff1dc, 0.9, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
+        this.vmKey = new THREE.PointLight(0xffffff, 0.35, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
         this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
-        this.vmFill = new THREE.HemisphereLight(0xdfe8f0, 0x5a4a3a, 0.55); this.vmFill.layers.set(1); camera.add(this.vmFill);
+        this.vmFill = new THREE.HemisphereLight(0xe8eef4, 0x4a4038, 0.25); this.vmFill.layers.set(1); camera.add(this.vmFill);
         camera.layers.set(0); // the world camera draws layer 0; PostFX renders layer 1 through the viewmodel camera
         // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
         // spring that fully recovers, so aim is never displaced (balance §2.2).
@@ -257,6 +257,7 @@ export class Game {
         this.vmAnim.swapPhase = 'idle'; this.vmAnim.pending = null;
         this.spawnGrace = 3; // seconds before staff start noticing the intruder
         resetMix(); // MODERN M6.4: fresh mix state per floor
+        this.world.group.traverse(o => { if (o.isLight) o.layers.enable(1); }); // M2: the floor's lights light the hands and tools too
         if (!silent) { // MODERN: the menu loads Floor 1 as a live backdrop without music/card
             startSong(this.level.music);
             hud.floorCard(index + 1, this.level.name, this.level.subtitle);

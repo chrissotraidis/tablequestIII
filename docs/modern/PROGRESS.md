@@ -768,3 +768,25 @@ The rig detects the model's own frame instead of assuming one: finger direction 
 
 ### L4 — Animate the skeleton   (2026-09-03)
 `applyPose(rig)` runs every frame: base curls × relax, trigger squeeze on the index (right hand fully, off hand 15 %), ring/little-finger fidget on the idle timer, grip-adjust opening, wrist flex from the recoil spring's pitch; proximal spread about the joint's spread axis. The round-5 morph path is left in place but idle (no morph hands remain).
+
+### L5 — Look, judge, loop   (2026-09-03)
+Verdicts written before each fix, from `docs/evidence/L1/`:
+- **pass 1** (`pass1`, `studio1`): "a real hand at last, but it floats beside every grip, fingers splayed, and the skin is orange." Cause: bend axis assumed.
+- **pass 2** (`studio2`, `pass2`): "still splayed; the palm sign flips per model." Cause: thumb-tip palm test degenerate.
+- **pass 3** (`studio3`, `pass3`): "placement now sits on the grips, fingers still dead straight." Cause found by checking the glb: a flat skeleton.
+- **pass 4** (`studio5` side views): "fingers wrap the nailer grip, thumb opposite; launcher support hand under the tube." Acceptable at a glance.
+- **pass 5** (`pass4` in-game, `studio6`): "nailer ADS: two sleeved arms, real hands on the grips; brush: open palm under the can, fingers round the handle; spray gun: hand wraps the grip from the side." Remaining at-a-glance faults: skin still a shade warm; the support hand under the nailer is flat rather than cupped; the leg's studio framing is off (in-game it is fine).
+
+### L6 — Gate   (2026-09-03, in progress)
+Smoke green on the real-hands build; HUD sheets clean; collision signatures identical to the classic; frozen guard OK; build 14.2 MB with both hand models inlined. Campaign: the first run cleared Floors 1–4 with one death and then hit the bot's 24-death cap on the Factory (24 deaths there). The Factory count has risen across rounds (12 → 17 → 18 → 20 → 24) while the enemy, projectile, weapon, and level code is untouched (config and levels identical; `git diff` on game.js touches only viewmodel/controls/HUD paths), so the trend is the straight-line kiting bot against fifteen staff with retry-floor paint, not a mechanic change. The cap is raised to 40 (the game itself allows unlimited retries) and the campaign rerun.
+
+
+---
+
+## Round 8 — look, judge, fix (continuing the round-7 loop on the real hands)
+
+Verdicts written from the shots before each fix (`docs/evidence/M1/`):
+- **pass 1** (`pass1`, `studio1`): "hands are real but read as small dark lumps; the sleeves are two fat straight logs crossing under the tool; skin flat orange." Fixes: shoulders moved behind and below the eye with a longer arm so the forearm drops out of frame within ~20 cm; sleeve tapered 4.2 → 2.3 cm; skin neutral; support hands cup harder; white key light.
+- **pass 2** (`pass2`, `studio2`): "still dark lumps." Cause found: the viewmodel camera draws only layer 1, and the floor's lights were layer 0 — the hands were lit by two dim fills in a bright room. Fix: every world light also enables layer 1 (`loadLevel`), viewmodel fills reduced. Also: cuff bigger than the wrist it meets (slimmed); nailer a single-colour blob (two-tone lower housing, screws).
+- **pass 3** (`pass3`, `studio3`): "lit skin now; the seam rings I added poke out as fins; skin is smooth plastic." Fixes: seams as elliptical body slices; a procedural skin normal map (pore noise + wrinkle strokes, height → normal) at 0.45 strength. Result: the spray-gun grip reads as a photographed hand; the launcher's support hand cups the tube.
+- **pass 4** (`pass4`, `studio4`): launcher aim pose looked into the breech again → lowered and pushed out.

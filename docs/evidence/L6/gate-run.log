@@ -1,3 +1,12 @@
 == probe
 TQ defined: object
 == smoke
+[smoke:modern] OK
+== campaign
+{"won":false,"state":"gameover","deaths":25,"gameTime":1048.6,"score":18650,"wallMinutes":8.8,"floors":["1:57.3s/0d","2:281.3s/1d","3:69.7s/0d","4:107.3s/0d","5:533.1s/24d"],"errors":[]}
+
+== hud
+ERRORS []
+== collision
+3f530ff5608a24789c6cf8cc91ac4f1c  -
+3f530ff5608a24789c6cf8cc91ac4f1c  -

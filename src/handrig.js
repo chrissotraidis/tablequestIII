@@ -103,7 +103,7 @@ export function makeHand(spec) {
     const info = analyse(root);
     const J = jointMap(root);
     // skin material with the game's procedural skin maps
-    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xd9c2b4); o.material.roughness = 0.7; o.frustumCulled = false; o.layers.set(1); o.castShadow = false; } });
+    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xcdb4a4); o.material.roughness = 0.62; o.frustumCulled = false; o.layers.set(1); o.castShadow = false; } });
     // ---- frame: tool space basis (X, Y = back of the hand away from the tool, Z = fingers)
     const ax = spec.axis.clone().normalize();
     let out = spec.out ? spec.out.clone().normalize() : V().crossVectors(ax, V(s, 0, 0)).normalize();
@@ -135,10 +135,10 @@ export function makeHand(spec) {
 /** per-joint curl angles from a handle radius: fingers wrap so the three phalanges cover the arc */
 export function gripCurls(radius, spec = {}) {
     const lens = [[0.041, 0.027, 0.021], [0.044, 0.029, 0.023], [0.041, 0.027, 0.022], [0.032, 0.022, 0.019]];
-    const k = spec.mode === 'support' ? 0.55 : 0.62 * (0.85 + (spec.curl ?? 0.9) * 0.35);
+    const k = spec.mode === 'support' ? 0.72 : 0.62 * (0.85 + (spec.curl ?? 0.9) * 0.35);
     const f = lens.map((L, i) => L.map((len, j) => Math.max([0.2, 0.3, 0.2][j], Math.min(1.4, (len / (radius + 0.009)) * k))));
     if (spec.trigger) f[0] = [0.35, 0.45, 0.25];
-    const thumb = spec.mode === 'support' ? [0.1, 0.2, 0.15] : [0.25, 0.5, 0.45];
+    const thumb = spec.mode === 'support' ? [0.2, 0.35, 0.25] : [0.25, 0.5, 0.45];
     return { f, thumb, spread: spec.mode === 'support' ? 0.06 : 0.04 };
 }
 

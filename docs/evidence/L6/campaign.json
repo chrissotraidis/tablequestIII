@@ -1,0 +1,177 @@
+{
+ "won": false,
+ "state": "gameover",
+ "deaths": 25,
+ "guard": 346,
+ "gameTime": 1048.6,
+ "score": 18650,
+ "floors": [
+  {
+   "floor": 1,
+   "name": "The Lobby",
+   "staff": 6,
+   "tablesNeeded": 2,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 57.3,
+   "deaths": 0
+  },
+  {
+   "floor": 2,
+   "name": "The Office",
+   "staff": 9,
+   "tablesNeeded": 3,
+   "legs": [
+    "stuck:weapon:tableLeg",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "stuck:weapon:tableLeg",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "stuck:ammo",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 281.3,
+   "deaths": 1
+  },
+  {
+   "floor": 3,
+   "name": "The Archives",
+   "staff": 8,
+   "tablesNeeded": 3,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 69.7,
+   "deaths": 0
+  },
+  {
+   "floor": 4,
+   "name": "The Showroom",
+   "staff": 11,
+   "tablesNeeded": 4,
+   "legs": [
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived",
+    "arrived"
+   ],
+   "time": 107.3,
+   "deaths": 0
+  },
+  {
+   "floor": 5,
+   "name": "The Factory",
+   "staff": 15,
+   "tablesNeeded": 4,
+   "legs": [
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death",
+    "arrived",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "dead",
+    "gameover",
+    "death"
+   ],
+   "time": 533.1,
+   "deaths": 24
+  }
+ ],
+ "end": {
+  "floor": 5,
+  "pos": [
+   22.4,
+   6.4
+  ],
+  "hp": 0,
+  "ammo": 0,
+  "tables": "0/4",
+  "activeTables": [
+   [
+    7.5,
+    1.5
+   ],
+   [
+    35.5,
+    8.5
+   ],
+   [
+    35.5,
+    19.5
+   ],
+   [
+    39.5,
+    23.5
+   ]
+  ],
+  "staffAlive": 9,
+  "dead": [
+   "1:weapon:tableLeg:19.5,12.5",
+   "1:ammo:11.5,22.5"
+  ]
+ },
+ "wallMinutes": 8.8,
+ "errors": []
+}

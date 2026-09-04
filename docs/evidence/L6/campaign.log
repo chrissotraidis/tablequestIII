@@ -1,0 +1,10 @@
+node:internal/modules/run_main:122
+    triggerUncaughtException(
+    ^
+
+page.evaluate: Execution context was destroyed, most likely because of a navigation.
+    at /home/chris/code/tablequestIII/tools/campaign.mjs:20:24 {
+  name: 'Error'
+}
+
+Node.js v22.13.1
