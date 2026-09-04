@@ -103,7 +103,7 @@ export function makeHand(spec) {
     const info = analyse(root);
     const J = jointMap(root);
     // skin material with the game's procedural skin maps
-    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xb89a88); o.material.roughness = 0.78; o.material.envMapIntensity = 0.25; o.material.normalScale.set(0.55, 0.55); o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
+    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xb89a88); o.material.roughness = 0.86; o.material.envMapIntensity = 0.18; o.material.normalScale.set(0.55, 0.55); o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
     // ---- frame in tool space. A: handle axis pointing toward the thumb side (up a pistol grip, forward
     //      along a fore-end). out: from the handle axis through the palm to the back of the hand.
     //      Z (fingers at the knuckles, before the curl) = s · (A × out): the fingers leave the knuckles
@@ -143,7 +143,7 @@ export function makeHand(spec) {
     hand.userData.rig = rig;
     // ---- sleeve: from the shoulder anchor to the wrist ring (the mesh is open there; ring 0.052 × 0.037 × scale)
     // forearm direction (tool space): default straight off the back of the hand; a spec.forearm bends the wrist
-    const foreDir = spec.forearm ? spec.forearm.clone().normalize() : Z.clone().negate();
+    const foreDir = spec.forearm ? spec.forearm.clone().normalize() : Z.clone().negate().addScaledVector(V(0, -1, 0.45), 1.0).normalize(); // P2: the forearm drops from the wrist (elbow low) instead of running straight off the hand
     if (!spec.noSleeve) hand.add(buildSleeve({ side: spec.side, wrist: origin, X, Y, Z, foreDir, shoulder: spec.shoulder || null, ringX: 0.026 * scale + 0.002, ringY: 0.0185 * scale + 0.002, watch: !!spec.watch }));
     return hand;
 }
@@ -151,7 +151,7 @@ export function makeHand(spec) {
 /** per-joint curl angles from a handle radius: fingers wrap so the three phalanges cover the arc */
 export function gripCurls(radius, spec = {}) {
     const lens = [[0.041, 0.027, 0.021], [0.044, 0.029, 0.023], [0.041, 0.027, 0.022], [0.032, 0.022, 0.019]];
-    const k = spec.mode === 'support' ? 0.72 : 0.62 * (0.85 + (spec.curl ?? 0.9) * 0.35);
+    const k = spec.mode === 'support' ? 0.95 : 0.62 * (0.85 + (spec.curl ?? 0.9) * 0.35);
     const f = lens.map((L, i) => L.map((len, j) => Math.max([0.2, 0.3, 0.2][j], Math.min(1.4, (len / (radius + 0.009)) * k))));
     if (spec.trigger) f[0] = [0.12, 0.55, 0.3];   // index along the trigger: straight at the knuckle, bent at the middle joint
     const thumb = spec.mode === 'support' ? [0.2, 0.35, 0.25] : [0.25, 0.5, 0.45];

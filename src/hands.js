@@ -167,7 +167,18 @@ function skinNormal() { // fine pore relief plus a few broader wrinkles, as a no
 }
 export function skinMaterial() { const [m, r] = skinMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, normalMap: skinNormal(), normalScale: new THREE.Vector2(0.45, 0.45), roughness: 0.62, metalness: 0, color: 0xffffff, vertexColors: true }); }
 export function leatherMaterial() { const [m, r] = leatherMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, roughness: 0.9, metalness: 0, color: 0xffffff, vertexColors: true }); }
-export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), normalMap: skinNormal(), normalScale: new THREE.Vector2(0.35, 0.35), roughness: 1.0, metalness: 0, color: 0xffffff, vertexColors: true, envMapIntensity: 0.15 }); }
+export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), normalMap: clothNormal(), normalScale: new THREE.Vector2(0.9, 0.9), roughness: 1.0, metalness: 0, color: 0xffffff, vertexColors: true, envMapIntensity: 0.1 }); }
+let _clothN = null;
+function clothNormal() { // twill weave: diagonal ribs plus thread noise, height → normal (P2)
+    if (_clothN) return _clothN;
+    const w = 128, hgt = new Float32Array(w * w);
+    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) { const d = ((x + y) % 8) < 4 ? 1 : 0; hgt[y * w + x] = d * 0.6 + Math.random() * 0.3 + ((x % 4) < 2 ? 0.15 : 0); }
+    const c = document.createElement('canvas'); c.width = c.height = w; const ctx = c.getContext('2d'); const img = ctx.createImageData(w, w);
+    for (let y = 0; y < w; y++) for (let x = 0; x < w; x++) { const l = hgt[y * w + (x + w - 1) % w], rr = hgt[y * w + (x + 1) % w], u = hgt[((y + w - 1) % w) * w + x], dd = hgt[((y + 1) % w) * w + x]; const nx = (l - rr) * 1.2, ny = (u - dd) * 1.2; const len = Math.hypot(nx, ny, 1); const o = (y * w + x) * 4; img.data[o] = 128 + nx / len * 127; img.data[o + 1] = 128 + ny / len * 127; img.data[o + 2] = 128 + 127 / len; img.data[o + 3] = 255; }
+    ctx.putImageData(img, 0, 0);
+    _clothN = new THREE.CanvasTexture(c); _clothN.wrapS = _clothN.wrapT = THREE.RepeatWrapping; _clothN.repeat.set(14, 3);
+    return _clothN;
+}
 
 // ---------------------------------------------------------------- arm + hand
 
@@ -213,7 +224,7 @@ export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = n
     const perp = hint.sub(dirSW.clone().multiplyScalar(hint.dot(dirSW))).normalize();
     const elbow = sh.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
     const pts = [sh, V().lerpVectors(sh, elbow, 0.5), elbow, V().lerpVectors(elbow, fore, 0.5), fore, cuff];
-    const rx = [0.037, 0.036, 0.033, 0.03, ringX + 0.006, ringX + 0.004], ry = [0.035, 0.034, 0.031, 0.027, ringY + 0.007, ringY + 0.005];
+    const rx = [0.04, 0.041, 0.04, 0.036, ringX + 0.007, ringX + 0.005], ry = [0.038, 0.039, 0.037, 0.032, ringY + 0.008, ringY + 0.006]; // upper arm, elbow, forearm belly, taper to the cuff
     const st = tubeStations(pts, rx, ry, 30);
     // the last stations keep the wrist ring's plane: their up is the hand's Y so the ellipse hugs the wrist
     st.forEach((o, i) => { const t = i / 30; if (t > 0.8) o.up = Y.clone(); const fold = t > 0.35 && t < 0.82 ? 0.02 * Math.sin(t * 29 + 1.1) + 0.012 * Math.sin(t * 47 + 0.4) : 0; o.rx *= 1 + fold; o.ry *= 1 + fold * 0.8; o.shade = 0.92 + 3 * fold; });
@@ -228,8 +239,11 @@ export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = n
         geo.computeVertexNormals();
     }
     g.add(new THREE.Mesh(geo, clothMaterial()));
-    // ribbed knit cuff: a short band just behind the wrist, a little larger than the sleeve end
-    const kst = tubeStations([wrist.clone().addScaledVector(fd, 0.028).addScaledVector(Z, -0.004), wrist.clone().addScaledVector(Z, 0.004)], [ringX + 0.006, ringX + 0.003], [ringY + 0.007, ringY + 0.004], 6);
+    // rolled cuff: a thicker turned-back band ending just behind the wrist (bulge, then a crease where it folds), plus the knit inner cuff
+    const rollSt = tubeStations([wrist.clone().addScaledVector(fd, 0.05).addScaledVector(Z, -0.003), wrist.clone().addScaledVector(fd, 0.03).addScaledVector(Z, -0.003), wrist.clone().addScaledVector(fd, 0.012).addScaledVector(Z, -0.004), wrist.clone().addScaledVector(fd, 0.004).addScaledVector(Z, -0.004)], [ringX + 0.006, ringX + 0.012, ringX + 0.011, ringX + 0.006], [ringY + 0.007, ringY + 0.013, ringY + 0.012, ringY + 0.007], 10, { crease: 0.8, creaseAt: [0.0, 1.0] });
+    rollSt.forEach((o, i) => { if (i > 5) o.up = Y.clone(); });
+    g.add(new THREE.Mesh(loft(rollSt, 20, { up: Y }), clothMaterial()));
+    const kst = tubeStations([wrist.clone().addScaledVector(fd, 0.016).addScaledVector(Z, -0.004), wrist.clone().addScaledVector(Z, 0.004)], [ringX + 0.005, ringX + 0.003], [ringY + 0.006, ringY + 0.004], 6);
     kst.forEach(o => { o.up = Y.clone(); });
     g.add(new THREE.Mesh(loft(kst, 18, { up: Y }), knitMaterial()));
     if (watch) {

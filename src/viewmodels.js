@@ -101,6 +101,29 @@ function brushedTex() {
         for (let i = 0; i < 900; i++) { const y = Math.random() * h; ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '255,255,255' : '40,44,50'},${0.05 + Math.random() * 0.12})`; ctx.fillRect(Math.random() * w, y, 8 + Math.random() * 30, 1); }
     }, [3, 1]));
 }
+let _grain = {};
+/** P5: plastic grain with scuffs — a colour map plus a matching roughness map (scuffs shinier, grain matte) */
+function grainMaps(hex) {
+    if (_grain[hex]) return _grain[hex];
+    const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255; // sRGB bytes straight from the hex (THREE.Color would hand back linear values)
+    const scuffs = []; for (let i = 0; i < 26; i++) scuffs.push([Math.random() * 256, Math.random() * 256, 6 + Math.random() * 40, Math.random() * 6.3, 0.5 + Math.random()]);
+    const map = canvasTex(256, 256, (ctx, w, h) => {
+        ctx.fillStyle = `rgb(${r},${g},${b})`; ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i < 9000; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${0.03 + Math.random() * 0.05})`; ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5); } // grain
+        for (const [x, y, len, a, wd] of scuffs) { ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.stroke(); ctx.strokeStyle = 'rgba(0,0,0,0.18)'; ctx.lineWidth = wd * 0.6; ctx.beginPath(); ctx.moveTo(x + 1, y + 1); ctx.lineTo(x + 1 + Math.cos(a) * len, y + 1 + Math.sin(a) * len); ctx.stroke(); }
+        const grd = ctx.createRadialGradient(w * 0.5, h * 0.5, 20, w * 0.5, h * 0.5, w * 0.75); grd.addColorStop(0, 'rgba(0,0,0,0)'); grd.addColorStop(1, 'rgba(0,0,0,0.12)'); ctx.fillStyle = grd; ctx.fillRect(0, 0, w, h); // grime toward the edges
+    }, [2, 2]);
+    map.colorSpace = THREE.SRGBColorSpace;
+    const rough = canvasTex(256, 256, (ctx, w, h) => {
+        ctx.fillStyle = '#8a8a8a'; ctx.fillRect(0, 0, w, h);
+        for (let i = 0; i < 6000; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '40,40,40' : '230,230,230'},0.08)`; ctx.fillRect(Math.random() * w, Math.random() * h, 2, 2); }
+        for (const [x, y, len, a, wd] of scuffs) { ctx.strokeStyle = 'rgba(30,30,30,0.7)'; ctx.lineWidth = wd; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len); ctx.stroke(); }
+    }, [2, 2]);
+    return (_grain[hex] = [map, rough]);
+}
+const grained = (hex, rough = 0.55, metalness = 0.05) => { const [m, r] = grainMaps(hex); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, roughness: rough, metalness }); };
+let _brushedR = null;
+function brushedRough() { return _brushedR || (_brushedR = canvasTex(128, 128, (ctx, w, h) => { ctx.fillStyle = '#6a6a6a'; ctx.fillRect(0, 0, w, h); for (let i = 0; i < 700; i++) { ctx.fillStyle = `rgba(${Math.random() < 0.5 ? '20,20,20' : '200,200,200'},0.25)`; ctx.fillRect(Math.random() * w, Math.random() * h, 6 + Math.random() * 30, 1); } for (let i = 0; i < 12; i++) { ctx.fillStyle = 'rgba(230,230,230,0.5)'; const x = Math.random() * w, y = Math.random() * h; ctx.fillRect(x, y, 3 + Math.random() * 10, 2 + Math.random() * 6); } }, [3, 1])); }
 function tapeTex() {
     return _tape || (_tape = canvasTex(64, 64, (ctx, w, h) => {
         ctx.fillStyle = '#1e2126'; ctx.fillRect(0, 0, w, h);
@@ -188,7 +211,7 @@ function finish(g, name, baseRotX, muzzle, ads = null, parts = {}) {
 // ---------------------------------------------------------------- weapons (v3, Round 3 G4)
 
 const plastic = (color, rough = 0.48) => mat(color, { roughness: rough, metalness: 0.05 });
-const alu = () => texMat(brushedTex(), { roughness: 0.32, metalness: 0.85 });
+const alu = () => texMat(brushedTex(), { roughness: 0.4, metalness: 0.85, roughnessMap: brushedRough() });
 const rubberM = () => mat(RUBBER, { roughness: 0.92 });
 /** rounded body lofted along -Z: sections [[z, rx, ry], ...] */
 function body(sections, m, up = V(0, 1, 0), segs = 18) {
@@ -244,7 +267,7 @@ export function buildBrushViewmodel() {
 
 export function buildLegViewmodel() {
     const g = new THREE.Group();
-    const inner = new THREE.Group(); inner.position.y = 0.07; inner.rotation.z = 0.35; // the leg leans left across the view
+    const inner = new THREE.Group(); inner.position.y = 0.07; inner.rotation.z = 0.55; inner.rotation.x = 0.35; // at the ready: the leg rises steeply across the view to the upper left
     const wood = texMat(woodTex(), { roughness: 0.5 }), woodDark = texMat(woodTex(true), { roughness: 0.55 });
     const tilt = -Math.PI / 3;
     const along = V(0, Math.cos(tilt + Math.PI / 2) * -1, Math.sin(tilt + Math.PI / 2) * -1).normalize();
@@ -266,7 +289,7 @@ export function buildLegViewmodel() {
     inner.add(buildHand({ side: 'R', grip: V(0.0, -0.075, 0.01), elbow: V(0.17, -0.27, 0.22), radius: 0.04, axis: gripAxis, curl: 0.85 }).group);
     inner.add(buildHand({ side: 'L', grip: V(0.0, -0.02, -0.02), elbow: V(-0.19, -0.25, 0.22), radius: 0.04, axis: gripAxis, curl: 0.85, watch: true }).group);
     g.add(inner);
-    g.scale.setScalar(0.6); g.position.set(0.08, 0.0, -0.02); // O4: hands low-right, the leg rising up-forward across the frame
+    g.scale.setScalar(0.6); g.position.set(0.05, -0.07, 0.05); // P6: hands low-right just above the bench, the leg rising to the upper left
     return finish(g, 'tableLeg', 0, V(0, 0.2, -0.3));
 }
 
@@ -277,7 +300,7 @@ export function buildLegViewmodel() {
 export function buildNailgunViewmodel() {
     const g = new THREE.Group();
     const inner = new THREE.Group(); inner.position.y = 0.05;
-    const orange = plastic(0xe07a22, 0.5), orangeD = plastic(0xb85f14, 0.55), dark = plastic(0x2a2e34, 0.6), darkL = plastic(0x3a4048, 0.55);
+    const orange = grained(0xe07a22, 0.5), orangeD = plastic(0xb85f14, 0.55), dark = grained(0x2a2e34, 0.62), darkL = plastic(0x3a4048, 0.55);
     const RAKE = -0.28; // grip top forward
     // ---- body: upper orange shell over a dark lower casting, rear motor cap, seams and screws
     inner.add(at(rbox(0.076, 0.07, 0.25, 0.014, orange), 0, 0.045, -0.02));
@@ -334,7 +357,7 @@ export function buildNailgunViewmodel() {
     off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.11, -0.15), radius: 0.026, axis: V(0, 0, -1), watch: true }).group);
     inner.add(off);
     g.add(inner);
-    g.scale.setScalar(0.9); g.position.set(0.02, -0.02, -0.02); g.rotation.y = 0.18; // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
+    g.scale.setScalar(0.9); g.position.set(0.02, -0.03, -0.02); g.rotation.y = 0.18; g.rotation.z = -0.1; // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
     return finish(g, 'nailgun', -0.1, V(0, 0.0, -0.26), { pos: V(0.0, -0.13, -0.5), rotX: 0.0, rotY: -0.18 }, { trigger: R.trigger, offHand: off });
 }
 
@@ -372,7 +395,7 @@ export function buildRollerViewmodel() {
     const trig = new THREE.Mesh(loft([{ p: V(0, TY - 0.045, 0.04), rx: 0.006, ry: 0.004 }, { p: V(0, TY - 0.065, 0.036), rx: 0.006, ry: 0.004 }, { p: V(0, TY - 0.078, 0.042), rx: 0.005, ry: 0.003 }], 8, { up: V(0, 0, 1) }), metal(0x9aa0a8, 0.4)); inner.add(trig);
     inner.add(new THREE.Mesh(hose([V(0, TY - 0.05, 0.025), V(0, TY - 0.09, 0.02), V(0, TY - 0.105, 0.035), V(0, TY - 0.108, 0.055)], 0.0035, 16), metal(DARK, 0.5)));
     // ---- stock: back and right to the shoulder, rubber butt pad
-    const stock = rbox(0.05, 0.06, 0.2, 0.012, plastic(0x2a2e34, 0.6)); stock.position.set(0.075, TY - 0.11, 0.24); stock.rotation.set(0.22, -0.28, 0.1); inner.add(stock);
+    const stock = rbox(0.05, 0.06, 0.2, 0.012, grained(0x2a2e34, 0.62)); stock.position.set(0.075, TY - 0.11, 0.24); stock.rotation.set(0.22, -0.28, 0.1); inner.add(stock);
     inner.add(at(rbox(0.054, 0.07, 0.02, 0.006, rubberM()), 0.1, TY - 0.135, 0.33));
     inner.add(at(rbox(0.03, 0.03, 0.12, 0.006, darkL), 0.02, TY - 0.02, 0.19)); // stock bar from the breech
     // ---- tank under the tube, straps, label, gauge, valve, hose

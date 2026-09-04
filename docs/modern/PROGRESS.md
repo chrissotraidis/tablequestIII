@@ -827,3 +827,25 @@ Rest pose (0.12, −0.06, −0.40); tools yawed +0.15..0.18 so the muzzle meets 
 - `game6` (final): tools low-right showing their flank, grip and support hands on them, sleeves leaving downward, aim poses along the tool. Studio `studio5`: spray gun in hand reads as a real object.
 ### O6 — Gate   (2026-09-04)
 Frozen guard OK; levels valid; build 15.0 MB (`dist/index.html`); smoke green on the built file (`docs/smoke/modern`); collision hashes identical to the classic on all six floors (bbd9de57 e5dd0df8 473211ec 892d4d6b c4ae3547 66dc2900). Committed; `main` fast-forwarded; tagged `v3.4-modern`. Push to GitHub still owed (credentials).
+
+---
+
+## Round 11 — from "holds the tool" to "looks good"   (2026-09-04, `docs/modern/GOAL_LOOP_10.md`)
+
+### P1 — Crop tool
+`tools/vm_crops.mjs`: the lower-right viewmodel region per tool for hip/ads/fire/swap, waiting on rendered frames, enemies hidden. Every verdict below is from crops (`docs/evidence/P1/`), not full frames.
+### P2 — Sleeves
+Verdict on `crops1`: "the right forearm is a fat pipe rising to the right edge and hiding the back of the hand." Measured (`sleeveprobe`, `diag-sleeves-*`): the sleeve path was correct; the fault was the forearm leaving the wrist straight off the hand's axis (back and slightly up) with the wrist only 6 cm below the eye, so it exited through the right edge, magnified. Fix: the default forearm direction drops from the wrist (−Z blended with (0, −1, 0.45)), shoulders moved in to (±0.15, −0.46, 0.12); the forearm now leaves the frame downward within ~10 cm. Sleeve shape: upper arm → elbow → forearm belly → taper; a rolled cuff (bulge + crease) over the knit inner cuff; a twill-weave normal map at 0.9. Verdict on `crops2`: "cuffs read as a jacket; the pipe is gone."
+### P3 — Cant and rear ends
+Nailer canted −0.1 and lowered 1 cm; domed motor and breech ends (round 10) kept.
+### P4 — Hands
+Support-hand curl 0.72 → 0.95 (cupped instead of flat); skin roughness 0.86, env reflection 0.18 (the knuckle highlights were reading as gloss).
+### P5 — Surfaces
+`grainMaps(hex)`: plastic grain, scuffs with matching roughness map, grime toward the edges — nailer shell and casting, launcher stock; brushed aluminium gets a roughness map (streaks, polished spots). Verdict on `studio6`: shell came out red — `THREE.Color(hex)` returns linear components; bytes now come straight from the hex. Fixed in `crops5`.
+### P6 — Poses
+Leg: at the ready, hands low-right just above the bench, the leg rising to the upper left (`crops3`). Brush unchanged from round 10 (reads as a fist on the handle with the head forward-up).
+### P7 — Animation
+Swap probed frame by frame: raise drops 7 cm and pitches 0.18 rad mid-way and settles in three frames; the "no change" crop was a capture-timing artefact. Fire poses show recoil and particles on all tools.
+### P8 — Gate
+Frozen guard OK; levels valid; build 15.0 MB; collision hashes identical to the classic (bbd9de57 e5dd0df8 473211ec 892d4d6b c4ae3547 66dc2900); smoke on the built file below.
+Smoke green on the built file (`docs/smoke/modern`). Committed; `main` fast-forwarded; tagged `v3.5-modern`. Push still owed.

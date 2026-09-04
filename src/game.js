@@ -125,7 +125,7 @@ export class Game {
         loadHandModels().then(() => {
             // O3: shoulder anchors live in camera space (below and beside the eye, a little behind the lens) and are
             // converted into each tool's local frame, so sleeves leave the frame downward whatever the tool's pose
-            const SHOULDER = { R: new THREE.Vector3(0.2, -0.42, 0.16), L: new THREE.Vector3(-0.2, -0.42, 0.16) };
+            const SHOULDER = { R: new THREE.Vector3(0.15, -0.46, 0.12), L: new THREE.Vector3(-0.15, -0.46, 0.12) };
             this.vmRoot.updateMatrix();
             for (const vm of Object.values(this.viewmodels)) {
                 vm.updateMatrix();
