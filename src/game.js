@@ -123,7 +123,8 @@ export class Game {
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
         this.vmKey = new THREE.PointLight(0xfff1dc, 0.9, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
         this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
-        camera.layers.enable(1);
+        this.vmFill = new THREE.HemisphereLight(0xdfe8f0, 0x5a4a3a, 0.55); this.vmFill.layers.set(1); camera.add(this.vmFill);
+        camera.layers.set(0); // the world camera draws layer 0; PostFX renders layer 1 through the viewmodel camera
         // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
         // spring that fully recovers, so aim is never displaced (balance §2.2).
         //   pitch/yaw: peak camera kick (rad); roll: camera roll; vm: viewmodel

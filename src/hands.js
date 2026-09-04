@@ -199,7 +199,7 @@ export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 
 
     // ---- arm: shoulder anchored at the lower corner of the view; elbow from two-bone IK bending down and outward
     const wrist = origin.clone().addScaledVector(Z, -0.045 * HAND_SCALE);
-    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.16 : -0.58, -0.44, 0.42);
+    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.24 : -0.66, -0.56, 0.3);
     const LU = 0.28, LF = 0.25;
     const sw = V().subVectors(wrist, shoulder); let d = sw.length(); const dirSW = sw.clone().normalize();
     if (d > LU + LF - 0.01) { d = LU + LF - 0.01; }

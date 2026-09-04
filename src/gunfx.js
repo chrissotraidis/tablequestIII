@@ -123,6 +123,7 @@ export class MuzzleFlash {
             const s = new THREE.Sprite(mat);
             s.visible = false;
             s.renderOrder = 20;
+            s.layers.set(1); // rides the viewmodel camera
             s.scale.setScalar(r.scale);
             parent.add(s);
             this.sprites[key] = s;

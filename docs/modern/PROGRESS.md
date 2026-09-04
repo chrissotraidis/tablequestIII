@@ -721,6 +721,7 @@ Owed on hardware: the hands in motion (morph squeeze on fire, fidgets, relax on 
 | K3 Tools on the grips | DONE | support contacts, tools 90 %, rig 90 % and re-seated |
 | K4 Usage animation | DONE | round-5 morphs + spring lag kept; wrist rides the arm lag |
 | K6 Gloves and sleeves (the zoom-out) | DONE | full leather work gloves, khaki shirt sleeves to the wrist, knit cuffs |
+| K7 Viewmodel camera | DONE | hands and tools drawn by their own 48° camera; arms cut to gloves and cuff |
 | K5 Gate | TODO | |
 
 ### K1 — Anchored arms   (2026-09-03)
@@ -737,3 +738,7 @@ Off hands placed as support contacts: nailer under the nose housing, launcher un
 The user's verdict after K1–K4 was still "super bad". Stepping back: the failing target was convincing bare skin and forearms built procedurally, which at first-person scale reads as mannequin plastic no matter how the geometry is tuned. Shooters of the era showed gloved hands and rolled sleeves with the weapon dominating; Sandy is a furniture maker, so **full leather work gloves** are in character. Changes: the subdivision hand is now entirely leather (tan work-glove map with grain, wear, and dashed seam stitching along the finger columns and knuckle line), with a darker padded back-of-hand patch, reinforced fingertips, and a lighter suede palm baked as vertex tint; nails gone; a **knit cuff** at the wrist with a tag; the **shirt sleeve** (khaki, woven) runs from the anchored shoulder to the wrist with soft irregular folds and a rolled cuff, so no bare forearm is ever in frame; viewmodel lights eased (key 0.9, rim 0.5) so cloth no longer blows out; sleeves slimmed.
 **Passes:** 1 — cream sleeves overexposed to white and read as corrugated tubes; 2 — khaki, lights eased, slimmer; 3 — irregular folds.
 **Evidence:** `docs/evidence/K6/pass1..3` (in-game), `docs/evidence/K6/studio1..3`.
+
+### K7 — The viewmodel camera   (2026-09-03)
+The second thing the screenshots were really showing: the hands were being drawn through the 72° world camera from a few centimetres away, which stretches any arm into a giant tube. Shooters render the hands and weapon through their own narrow camera. `postfx.js` now adds a second `RenderPass` with a 48° `vmCamera` (a child of the world camera) that draws only layer 1 with the depth buffer cleared, both inside the post stack and in the no-post path; viewmodel meshes, muzzle-flash sprites, the viewmodel key/rim lights and a new hemisphere fill live on layer 1 only; the world camera draws layer 0. Shoulders moved lower and further out so only the glove and a few centimetres of cuff enter the frame. Aim poses pushed 20–25 % further out for the narrower lens.
+**Evidence:** `docs/evidence/K7/pass1` (in-game), `docs/evidence/K7/studio1`.

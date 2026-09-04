@@ -171,7 +171,7 @@ function finish(g, name, baseRotX, muzzle, ads = null, parts = {}) {
     for (const bp of Object.values(bakedParts)) baked.add(bp);
     const hands = []; baked.traverse(o => { if (o.isMesh && o.userData.isHand) { o.morphTargetInfluences = o.morphTargetInfluences ? [...o.morphTargetInfluences] : [0, 0, 0, 0]; hands.push(o); } });
     baked.userData = { name, baseRotX, muzzle, ads, parts: bakedParts, hands };
-    baked.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; o.renderOrder = 10; o.layers.enable(1); } });
+    baked.traverse(o => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; o.frustumCulled = false; o.renderOrder = 10; o.layers.set(1); } }); // layer 1: drawn by the viewmodel camera (48° FOV)
     return baked;
 }
 
@@ -228,7 +228,7 @@ export function buildBrushViewmodel() {
     off.add(buildHand({ side: 'L', grip: V(0, 0.055, 0), elbow: V(-0.17, -0.17, 0.33), radius: 0.004, axis: V(1, 0, 0), curl: 1.0, watch: true }).group);
     g.add(off);
     g.rotation.set(0.12, 0.18, -0.3); g.position.set(0.05, 0.0, -0.03); g.scale.setScalar(0.92);
-    return finish(g, 'paintbrush', -0.3, V(0, 0.0, -0.24), { pos: V(0.05, -0.04, -0.42), rotX: 0.16, rotY: -0.22 }, { head, offHand: off });
+    return finish(g, 'paintbrush', -0.3, V(0, 0.0, -0.24), { pos: V(0.05, -0.05, -0.56), rotX: 0.14, rotY: -0.2 }, { head, offHand: off });
 }
 
 export function buildLegViewmodel() {
@@ -304,7 +304,7 @@ export function buildNailgunViewmodel() {
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
-    return finish(g, 'nailgun', -0.14, V(0, 0.0, -0.26), { pos: V(0.0, -0.15, -0.8), rotX: -0.06, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
+    return finish(g, 'nailgun', -0.14, V(0, 0.0, -0.26), { pos: V(0.0, -0.15, -1.02), rotX: -0.05, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
 }
 
 /** shoulder-fired roller launcher: turned tube with a bell, sight rail, foregrip, stock, tank */
@@ -344,7 +344,7 @@ export function buildRollerViewmodel() {
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
-    return finish(g, 'roller', -0.12, V(0, 0.08, -0.31), { pos: V(0.02, -0.21, -0.62), rotX: -0.08, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
+    return finish(g, 'roller', -0.12, V(0, 0.08, -0.31), { pos: V(0.02, -0.2, -0.82), rotX: -0.07, rotY: 0.0 }, { trigger: R.trigger, offHand: off });
 }
 
 /** gravity-feed spray gun with the cup on top */
@@ -379,7 +379,7 @@ export function buildSprayerViewmodel() {
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.0, -0.01, -0.03);
-    return finish(g, 'sprayer', -0.12, V(0, 0.0, -0.14), { pos: V(0.075, -0.13, -0.62), rotX: -0.05, rotY: 0.1 }, { trigger: R.trigger, offHand: off });
+    return finish(g, 'sprayer', -0.12, V(0, 0.0, -0.14), { pos: V(0.07, -0.13, -0.8), rotX: -0.05, rotY: 0.08 }, { trigger: R.trigger, offHand: off });
 }
 
 export function buildViewmodels() {

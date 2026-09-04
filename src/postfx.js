@@ -95,6 +95,14 @@ export class PostFX {
         const size = renderer.getSize(new THREE.Vector2());
         this.composer = new EffectComposer(renderer);
         this.renderPass = new RenderPass(scene, camera);
+        // K7: the hands and weapon are drawn by their own narrow camera (48°) on top of the world
+        // (depth cleared), the way shooters of the era avoided wide-FOV distortion on the arms.
+        // Layer 1 holds the viewmodel meshes, flashes, and their lights; the world camera draws layer 0.
+        this.vmCamera = new THREE.PerspectiveCamera(48, size.x / Math.max(1, size.y), 0.02, 20);
+        this.vmCamera.layers.set(1);
+        camera.add(this.vmCamera);
+        this.vmPass = new RenderPass(scene, this.vmCamera);
+        this.vmPass.clear = false; this.vmPass.clearDepth = true;
         this.bloom = new UnrealBloomPass(size.clone(), 0.35, 0.4, 0.85);
         this.output = new OutputPass();
         this.grade = new ShaderPass(GradeShader);
@@ -102,6 +110,7 @@ export class PostFX {
         // way). On the HDR buffer, anything the key light pushes past 1.0
         // blooms and whole rooms wash out; post-tonemap only true highlights do.
         this.composer.addPass(this.renderPass);
+        this.composer.addPass(this.vmPass);
         this.composer.addPass(this.output);
         this.composer.addPass(this.bloom);
         this.composer.addPass(this.grade);
@@ -110,6 +119,7 @@ export class PostFX {
     }
 
     setSize(w, h) {
+        this.vmCamera.aspect = w / Math.max(1, h); this.vmCamera.updateProjectionMatrix();
         this.composer.setSize(w, h);
         this.bloom.setSize(w, h);
         this.grade.uniforms.aspect.value = w / h;
@@ -136,7 +146,7 @@ export class PostFX {
      * @param yawRate radians/second of camera yaw (drives motion blur)
      */
     render(time = 0, yawRate = 0) {
-        if (!this.enabled) { this.renderer.render(this.scene, this.camera); return; }
+        if (!this.enabled) { this.renderer.render(this.scene, this.camera); this.renderer.autoClear = false; this.renderer.clearDepth(); this.renderer.render(this.scene, this.vmCamera); this.renderer.autoClear = true; return; }
         const u = this.grade.uniforms;
         u.time.value = time;
         // ease the blur so it never pops; ~2 px at a brisk 4 rad/s turn
