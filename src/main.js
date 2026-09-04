@@ -8,6 +8,7 @@ import { getSurfaces } from './textures.js';
 import { PostFX } from './postfx.js';
 import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
+import { makeHand } from './handrig.js';
 import { hud } from './hud.js';
 import { drawFace as paintFace, FACE_DEFAULTS, FACE_STATES } from './face.js';
 import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
@@ -731,9 +732,12 @@ let lastTime = performance.now();
 let elapsed = 0;
 let testMode = false; // lets automated playtests run while the tab is hidden
 
+let frameNo = 0; const frameWaiters = []; // harness: TQ.settle(n) resolves after n rendered frames
 function step(now, render = true) {
     const dt = Math.min(0.05, (now - lastTime) / 1000);
     lastTime = now;
+    frameNo++;
+    for (let i = frameWaiters.length - 1; i >= 0; i--) if (frameWaiters[i].at <= frameNo) { frameWaiters[i].res(frameNo); frameWaiters.splice(i, 1); }
 
     // game-time sleep for test scripts (DOM timers throttle in hidden tabs)
     if (bot.sleep > 0) {
@@ -900,6 +904,10 @@ window.TQ = {
     get scene() { return scene; },
     get player() { return game.player; },
     get input() { return input; }, // R5 harness: drive look/move directly
+    get THREE() { return THREE; },   // harness probes build vectors/matrices from the same three.js
+    get frameNo() { return frameNo; },
+    /** harness: resolves after n more rendered frames (headless renders ~1 frame/s, so timers are not enough) */
+    settle(n = 3) { return new Promise(res => frameWaiters.push({ at: frameNo + n, res })); },
     setState,
     startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
     deploy() { finishLoading(); return state; },                   // harness: dismiss a loading card
@@ -953,6 +961,36 @@ window.TQ = {
     renderDemo, renderSong, renderSfx, songData, setMix, // MODERN M6: offline evidence renders + mix control
     showAudioMeter(on = true) { audioMeterOn = on; $('audio-meter').classList.toggle('hidden', !on); return on; },
     setTestMode(on = true) { testMode = on; return 'testMode ' + on; },
+    /** O1 harness: hand lab — one skinned hand gripping a plain handle in camera space, no tool.
+     *  o: { side, radius, axis, out, mode, trigger, curl, curls, dz, dOut, scale, shoulder, wristRoll, view, zoom, dist, noSleeve, noHandle }
+     *  view: 'front' | 'side' | 'top' | 'palm' | 'back' | 'front-low'. Pass null to restore. */
+    handLab(o = null) {
+        const g = game;
+        if (!g.lab) { g.lab = new THREE.Group(); camera.add(g.lab); }
+        for (const c of [...g.lab.children]) g.lab.remove(c);
+        if (!o) { g.lab.visible = false; g.labOn = false; g.vmRoot.visible = true; g.vmRoot.traverse(o => { if (o.isMesh) o.visible = true; }); postfx.enabled = true; return 'off'; }
+        const back = new THREE.Mesh(new THREE.PlaneGeometry(6, 4), new THREE.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.95 }));
+        back.position.set(0, 0, -2.2); back.layers.set(1); back.receiveShadow = true; g.lab.add(back);
+        const fill = new THREE.PointLight(0xffffff, 2.2, 6, 2); fill.position.set(-0.8, 0.6, 0.4); fill.layers.set(1); g.lab.add(fill);
+        const key2 = new THREE.PointLight(0xfff0dc, 3.0, 6, 2); key2.position.set(0.9, 0.9, 0.6); key2.layers.set(1); g.lab.add(key2);
+        const T = new THREE.Group();
+        const V3 = (a) => new THREE.Vector3().fromArray(a);
+        const r = o.radius ?? 0.025; const A = V3(o.axis || [0, 1, 0.25]).normalize();
+        if (!o.noHandle) {
+            const handle = new THREE.Mesh(new THREE.CylinderGeometry(r, r, o.length ?? 0.16, 24), new THREE.MeshStandardMaterial({ color: 0x4a4e55, roughness: 0.55 }));
+            handle.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), A); handle.layers.set(1); handle.castShadow = handle.receiveShadow = true; T.add(handle);
+            const axisMark = new THREE.Mesh(new THREE.BoxGeometry(0.01, 0.01, 0.12), new THREE.MeshStandardMaterial({ color: 0xc03030, roughness: 0.6 }));
+            axisMark.position.set(0, 0.11, -0.06); axisMark.layers.set(1); T.add(axisMark); // red bar shows the tool's forward (-Z) above the handle
+        }
+        const spec = { side: o.side || 'R', grip: new THREE.Vector3(0, 0, 0), radius: r, axis: A, out: o.out ? V3(o.out) : null, mode: o.mode || 'grip', trigger: !!o.trigger, curl: o.curl ?? 0.9, curls: o.curls || null, dz: o.dz ?? null, dOut: o.dOut ?? null, scale: o.scale, shoulder: o.shoulder ? V3(o.shoulder) : null, wristRoll: o.wristRoll || 0, noSleeve: !!o.noSleeve, watch: !!o.watch };
+        const hand = makeHand(spec); T.add(hand);
+        const views = { front: [0.15, 0, 0], 'front-low': [0.35, 0, 0], side: [0, -1.45, 0], sideL: [0, 1.45, 0], top: [1.3, 0, 0], palm: [0, 2.6, 0.2], back: [0, -0.3, 0] };
+        const rv = views[o.view || 'front'] || views.front;
+        T.rotation.set(rv[0], rv[1], rv[2]);
+        T.position.set(o.x ?? 0, o.y ?? -0.01, -(o.dist ?? 0.42)); T.scale.setScalar(o.zoom ?? 1.2);
+        g.lab.add(T); g.lab.visible = true; g.labOn = true; g.vmRoot.visible = false; g.vmRoot.traverse(o => { if (o.isMesh) o.visible = false; }); postfx.enabled = false;
+        return 'lab ' + (o.view || 'front');
+    },
     /** H3.1 harness: frame the viewmodel large against a neutral studio backdrop for critique shots.
      *  pose: 'hip' | 'ads' | 'fire' | 'sprint' | 'inspect' | 'off' (restore). */
     vmStudio(key = null, pose = 'hip') {

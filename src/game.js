@@ -112,7 +112,7 @@ export class Game {
         // vmRoot carries the whole-arm motion (bob, sway, sprint lower, swap,
         // inspect); each weapon group carries only its own recoil.
         this.vmRoot = new THREE.Group();
-        this.vmRoot.position.set(0.17, -0.055, -0.45); // K3: rig sits so the hands show above the bench at hip
+        this.vmRoot.position.set(0.12, -0.06, -0.40); // O4: tools low-right, hands in the lower third above the bench
         camera.add(this.vmRoot);
         this.viewmodels = buildViewmodels();
         for (const vm of Object.values(this.viewmodels)) {
@@ -123,14 +123,29 @@ export class Game {
         this.flash = new MuzzleFlash(this.vmRoot); // MODERN: muzzle flash sprites
         // L2/L3: real skinned hands arrive asynchronously and are posed into each tool's grip frames
         loadHandModels().then(() => {
+            // O3: shoulder anchors live in camera space (below and beside the eye, a little behind the lens) and are
+            // converted into each tool's local frame, so sleeves leave the frame downward whatever the tool's pose
+            const SHOULDER = { R: new THREE.Vector3(0.2, -0.42, 0.16), L: new THREE.Vector3(-0.2, -0.42, 0.16) };
+            this.vmRoot.updateMatrix();
             for (const vm of Object.values(this.viewmodels)) {
-                for (const spec of vm.userData.handSpecs || []) { const hand = makeHand(spec); vm.add(hand); vm.userData.rigs.push(hand.userData.rig); }
+                vm.updateMatrix();
+                const toLocal = new THREE.Matrix4().multiplyMatrices(this.vmRoot.matrix, vm.matrix).invert();
+                for (const spec of vm.userData.handSpecs || []) {
+                    const shoulder = (spec.shoulderCam || SHOULDER[spec.side]).clone().applyMatrix4(toLocal);
+                    const hand = makeHand({ ...spec, shoulder }); vm.add(hand); vm.userData.rigs.push(hand.userData.rig);
+                }
             }
             this.handsReady = true;
         }).catch(e => console.error('hand models failed to load', e));
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
-        this.vmKey = new THREE.PointLight(0xffffff, 0.35, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
+        this.vmKey = new THREE.PointLight(0xffffff, 0.15, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
         this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
+        // N2: a shadow-casting key in camera space so hands and tools shade each other (contact shadows)
+        this.vmSun = new THREE.DirectionalLight(0xfff4e8, 1.1); this.vmSun.position.set(0.45, 0.7, 0.25);
+        this.vmSun.target = new THREE.Object3D(); this.vmSun.target.position.set(0, -0.15, -0.55); camera.add(this.vmSun.target);
+        this.vmSun.castShadow = true; this.vmSun.shadow.mapSize.set(1024, 1024);
+        const sc = this.vmSun.shadow.camera; sc.left = -0.5; sc.right = 0.5; sc.top = 0.45; sc.bottom = -0.45; sc.near = 0.01; sc.far = 2.5; sc.layers.set(1);
+        this.vmSun.shadow.bias = -0.0006; this.vmSun.shadow.normalBias = 0.004; this.vmSun.layers.set(1); camera.add(this.vmSun);
         this.vmFill = new THREE.HemisphereLight(0xe8eef4, 0x4a4038, 0.25); this.vmFill.layers.set(1); camera.add(this.vmFill);
         camera.layers.set(0); // the world camera draws layer 0; PostFX renders layer 1 through the viewmodel camera
         // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
@@ -1436,10 +1451,10 @@ export class Game {
             // mouse look lag: the arms trail the view a touch
             const lagX = -THREE.MathUtils.clamp(this.smDX * this.sens * 0.35, -0.03, 0.03);
             const lagY = THREE.MathUtils.clamp(this.smDY * this.sens * 0.25, -0.02, 0.02);
-            root.position.set(
-                0.17 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
-                -0.055 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
-                -0.45 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
+            root.position.set( // O4: rest pose (0.12, -0.06, -0.40) — tools low-right, hands in the lower third
+                0.12 + walkSway * this.bobAmount + breatheX + lagX + anim.lower * 0.07 - anim.inspect * 0.05 - anim.top * 0.05,
+                -0.06 + walkBob * this.bobAmount + breatheY - anim.swapDrop * 0.34 - anim.lower * 0.13 - anim.inspect * 0.03 + lagY - anim.top * 0.09,
+                -0.40 + anim.lower * 0.03 + anim.inspect * 0.06 + anim.top * 0.03);
             root.rotation.set(
                 anim.swapDrop * 0.9 + anim.lower * 0.55 - anim.inspect * 0.25 + lagY * 2 + anim.top * 0.35,
                 -anim.lower * 0.35 + anim.inspect * 1.1 - lagX * 1.5 + anim.top * 0.25,

@@ -796,3 +796,34 @@ Remaining at-a-glance faults after pass 6: at hip most tools show only their nos
 
 ### Simplification   (2026-09-03)
 User verdict: still bad, and stop waiting on test runs. Simplified: sleeves are now a dark, matte charcoal jacket (they recede instead of reading as two beige logs), thinner (3.6 → 2.3 cm); everything else stays — real skinned hands under the world's lights with a skin normal map, tools in the lower third, launcher aimed beside the head. `docs/evidence/M3/pass1`. The autopilot campaign is no longer part of the visual loop's gate (it broke on every hot reload); smoke and collision remain.
+
+---
+
+## Round 10 — hands that hold, tools worth holding   (2026-09-04, `docs/modern/GOAL_LOOP_9.md`)
+
+User verdict on round 9: still bad; "figure out what is wrong and fix it". Stopped tuning by eye and measured instead.
+
+### What was actually wrong
+1. **The grip frame was wrong.** `out` (handle → back of the hand) defaulted to `axis × X`, which can only point up or forward, so the back of every hand sat *in front of* the grip, and the finger-direction sign was flipped. No constant could make fingers wrap a handle from that frame — every tool's hand looked "placed beside" the tool because it was.
+2. **The offsets were guesses.** Measured on the glb (`handmeasure` probe): knuckles 0.088 from the wrist joint (code used 0.07), palm skin 0.019 below it, wrist ring 0.052 × 0.037 — larger than the knit cuff (0.042 × 0.034), so the mesh's open wrist cut showed in every side view.
+3. **Every in-game sheet was shot mid-animation.** Headless renders ~1 frame/s; the swap takes 8 frames and the aim blend 2–3, so "hip" shots showed lowered tools and "ads" shots were half-way. Framing had been judged on garbage for nine rounds.
+4. **Support hands had the thumb axis backwards**, the brush's rake was overwritten every frame by its base pitch, and the spray gun was rotated 90° by a chained `.rotation` on `Group.add()`'s return value.
+
+### O1 — Hand lab and a correct grip frame
+`TQ.handLab(o)` renders one skinned hand on a plain cylinder in camera space (front/side/top/palm); `scratchpad/handlab.mjs` shoots it. New convention: `A` = handle axis toward the thumb side (up a pistol grip, forward along a fore-end); `out` = handle → back of the hand (outward and a little back for pistol grips, down for support); fingers at the knuckles `Z = s·(A × out)`; wrist = grip + out·(r + 0.013) − Z·0.078 (support: mid-palm, −0.052). Curls: index on the trigger `[0.12, 0.55, 0.30]`. Lab sheets `docs/evidence/O1/lab1`, `lab2`: pistol grip and support grip read as a hand holding a bar from side and top. The sleeve is now built at load time from the wrist ring (`buildSleeve`), cuff around the real ring, so the hollow wrist is gone; `buildArm` only records the spec.
+### O2 — Tool hand specs re-expressed
+Thumb-forward axes on the support hands; the can hand hooks the wire with its back up; the brush is a hammer hold with the head raked up 32° on an inner group (the root's rotation is driven per frame) and a `forearm` override so the wrist bends and the forearm stays level; the leg leans left across the view.
+### O3 — Shot tools wait on rendered frames
+`TQ.settle(n)` resolves after n rendered frames; `weapon_shots` / `studio_shots` force the swap idle and settle instead of sleeping; enemies are hidden so staff stop wandering into sheets. Shoulder anchors are camera-space (±0.2, −0.42, 0.16) converted into each tool's frame, so sleeves leave downward whatever the tool's pose.
+### O4 — Framing
+Rest pose (0.12, −0.06, −0.40); tools yawed +0.15..0.18 so the muzzle meets the crosshair and the left flank shows; ADS heights derived from each tool's geometry (nailer −0.13, launcher −0.14 with the ring at the eye, spray gun beside the cup at x 0.06); per-tool offsets so grip hands sit above the bench.
+### O5 — Hard-surface tools
+`rbox` (RoundedBoxGeometry; `bakeStatic` now indexes non-indexed sources so they merge). Nailer: raked grip with finger grooves, two-tone body with seams and screws, domed motor end, cast-alu nose, 15° magazine with a nail window, battery with charge LEDs. Spray gun: cast body, horned air cap, knurled needle/fan knobs, translucent cup with paint, long trigger, coiled hose. Launcher: banded tube, muzzle bell with the loaded roller, domed breech with latch, rail + ring sight + fibre bead, vertical foregrip, raked grip, stock, tank with gauge, spare-roller rack.
+### O6 — Look-judge-fix passes (verdicts written before each fix)
+- `game1`: grips right but sleeves cross the whole screen (anchors in rotated tool space); tools at eye level; nailer ADS a metre away.
+- `game2`/`studio3`: nailer reads as a tool; brush from above (ice-pick), launcher/nailer ADS show the rear cap.
+- `game4`: sprayer rotated 90° (the `add()` bug), tools still at eye level, yaw sign wrong.
+- `game5`: correct layout but over-lowered — hands behind the bench, nailer ADS below the frame.
+- `game6` (final): tools low-right showing their flank, grip and support hands on them, sleeves leaving downward, aim poses along the tool. Studio `studio5`: spray gun in hand reads as a real object.
+### O6 — Gate   (2026-09-04)
+Frozen guard OK; levels valid; build 15.0 MB (`dist/index.html`); smoke green on the built file (`docs/smoke/modern`); collision hashes identical to the classic on all six floors (bbd9de57 e5dd0df8 473211ec 892d4d6b c4ae3547 66dc2900). Committed; `main` fast-forwarded; tagged `v3.4-modern`. Push to GitHub still owed (credentials).

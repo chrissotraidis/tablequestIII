@@ -167,7 +167,7 @@ function skinNormal() { // fine pore relief plus a few broader wrinkles, as a no
 }
 export function skinMaterial() { const [m, r] = skinMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, normalMap: skinNormal(), normalScale: new THREE.Vector2(0.45, 0.45), roughness: 0.62, metalness: 0, color: 0xffffff, vertexColors: true }); }
 export function leatherMaterial() { const [m, r] = leatherMaps(); return new THREE.MeshStandardMaterial({ map: m, roughnessMap: r, roughness: 0.9, metalness: 0, color: 0xffffff, vertexColors: true }); }
-export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), roughness: 1.0, metalness: 0, color: 0xffffff, vertexColors: true }); }
+export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: clothMap(), normalMap: skinNormal(), normalScale: new THREE.Vector2(0.35, 0.35), roughness: 1.0, metalness: 0, color: 0xffffff, vertexColors: true, envMapIntensity: 0.15 }); }
 
 // ---------------------------------------------------------------- arm + hand
 
@@ -182,57 +182,67 @@ export function clothMaterial() { return new THREE.MeshStandardMaterial({ map: c
  * out: for 'support', the direction from the tool to the back of the hand (default down).
  * Shoulders are anchored at the lower corners of the view (K1); the elbow comes from two-bone IK.
  */
-export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 0.9, watch = false, trigger = null, spread = 0.25, mode = 'grip', out: outIn = null, shoulder: shoulderIn = null, elbow = null }) {
+export function buildArm({ side, grip, radius = 0.02, axis = V(0, 0, 1), curl = 0.9, watch = false, trigger = null, spread = 0.25, mode = 'grip', out: outIn = null, shoulder: shoulderIn = null, elbow = null, dz = null, dOut = null, curls = null, wristRoll = 0, forearm = null }) {
+    // O1: the arm is no longer built here. The tool only records the grip frame; the skinned hand and its
+    // sleeve are made at load time by handrig.makeHand (so the cuff can wrap the real wrist ring).
+    const g = new THREE.Group();
+    g.userData.handSpec = { side, grip: grip.clone(), radius, axis: axis.clone().normalize(), out: outIn ? outIn.clone().normalize() : null, mode, trigger: !!trigger, curl, shoulder: shoulderIn ? shoulderIn.clone() : null, dz, dOut, curls, wristRoll, watch, forearm: forearm ? forearm.clone().normalize() : null };
+    return { group: g, trigger: null, hand: null, handGroup: null };
+}
+
+/**
+ * O1: sleeve from the shoulder anchor to the wrist ring. `wrist` is the rig's wrist joint, `X`/`Y`/`Z` the
+ * hand frame there (X thumb-side across the wrist, Y back of the hand, Z fingers). The cuff ring is the
+ * wrist ring of the hand mesh (half-widths ringX/ringY) plus a margin, placed just behind the joint so the
+ * mesh's open cut sits inside it. Returns a Group of cloth + knit meshes (layer 1, shadows on).
+ */
+export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = null, ringX = 0.029, ringY = 0.022, watch = false }) {
     const g = new THREE.Group();
     const s = side === 'R' ? 1 : -1;
-    const ax = axis.clone().normalize();
-    let out = outIn ? outIn.clone().normalize() : V().crossVectors(ax, V(s, 0, 0)).normalize();
-    if (out.lengthSq() < 0.01) out.set(0, -1, 0);
-    if (mode === 'support' && !outIn) out.set(0, -1, 0);
-    const across = V().crossVectors(out, ax).normalize();
-
-    // ---- hand frame: +Y = back of the hand (away from the tool), +Z = fingers before the curl (L3: the skinned hand is placed here later)
-    const Y = out.clone(), Z = across.clone().multiplyScalar(s).normalize(), X = V().crossVectors(Y, Z).normalize();
-    const origin = grip.clone().addScaledVector(out, radius + 0.012).addScaledVector(Z, -0.085); // the rig's wrist joint
-    g.userData.handSpec = { side, grip: grip.clone(), radius, axis: ax.clone(), out: out.clone(), mode, trigger: !!trigger, curl };
-    const mesh = null, hand = null;
-    // ---- arm: shoulder anchored at the lower corner of the view; elbow from two-bone IK bending down and outward
-    const wrist = origin.clone().addScaledVector(Z, 0.012); // sleeve overlaps the rig's wrist a little
-    const shoulder = shoulderIn ? shoulderIn.clone() : V(s > 0 ? 0.2 : -0.6, -0.5, 0.12); // behind and below the eye: the forearm drops out of frame within ~20 cm
+    const sh = shoulder ? shoulder.clone() : V(s > 0 ? 0.22 : -0.55, -0.48, 0.14);
+    // forearm leaves the wrist along -Z (the wrist joint is inside the hand's 2 cm tail), then bends to the elbow
+    const fd = foreDir ? foreDir.clone().normalize() : Z.clone().negate(); // wrist → elbow direction near the wrist
+    const cuff = wrist.clone().addScaledVector(Z, -0.004);
+    const fore = wrist.clone().addScaledVector(fd, 0.055);
     const LU = 0.3, LF = 0.27;
-    const sw = V().subVectors(wrist, shoulder); let d = sw.length(); const dirSW = sw.clone().normalize();
-    if (d > LU + LF - 0.01) { d = LU + LF - 0.01; }
+    const sw = V().subVectors(fore, sh); let d = sw.length(); const dirSW = sw.clone().normalize();
+    if (d > LU + LF - 0.01) d = LU + LF - 0.01;
     const a = (LU * LU - LF * LF + d * d) / (2 * d);
     const hgt = Math.sqrt(Math.max(0, LU * LU - a * a));
     const hint = V(s * 0.6, -1, -0.1).normalize();
     const perp = hint.sub(dirSW.clone().multiplyScalar(hint.dot(dirSW))).normalize();
-    const elbowP = elbow ? elbow.clone() : shoulder.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
-    const toWrist = V().subVectors(wrist, elbowP), dir = toWrist.clone().normalize();
-    const armUp = Y.clone();
-    const skinGeos = [], leatherGeos = [], clothGeos = [], knitGeos = [];
-    // sleeve: shoulder → elbow → wrist, cream shirt with fold ripples and a rolled cuff just behind the glove
-    const cuffEnd = V().copy(wrist).addScaledVector(dir, -0.03);
-    const sleeveSt = tubeStations([shoulder, V().lerpVectors(shoulder, elbowP, 0.5), elbowP, V().lerpVectors(elbowP, cuffEnd, 0.5), cuffEnd], [0.036, 0.034, 0.03, 0.026, 0.023], [0.034, 0.032, 0.028, 0.024, 0.021], 26);
-    sleeveSt.forEach((st, i) => { const t = i / 26; const fold = t > 0.5 ? 0.018 * Math.sin(t * 23 + 1.3) + 0.012 * Math.sin(t * 41 + 0.4) : 0; st.rx *= 1 + fold; st.ry *= 1 + fold * 0.8; st.shade = 0.92 + 3 * fold; if (t > 0.93) { st.rx *= 1.1; st.ry *= 1.1; st.shade = 0.9; } }); // soft irregular folds near the cuff
-    clothGeos.push(loft(sleeveSt, 16, { up: armUp }));
-    // knit glove cuff from the sleeve end to the wrist cap
-    const knitSt = tubeStations([V().copy(cuffEnd).addScaledVector(dir, 0.004), V().copy(wrist).addScaledVector(dir, 0.008)], [0.023, 0.021], [0.019, 0.017], 6);
-    knitGeos.push(loft(knitSt, 16, { up: armUp }));
-    const tag = new THREE.Mesh(new THREE.BoxGeometry(0.014, 0.003, 0.02), new THREE.MeshStandardMaterial({ color: 0xe8dcc3, roughness: 0.9 }));
-    tag.position.copy(wrist).addScaledVector(dir, -0.008).addScaledVector(armUp, 0.023); tag.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(tag);
-    if (watch) {
-        const wp = V().copy(wrist).addScaledVector(dir, -0.006);
-        leatherGeos.push(loft([{ p: V().copy(wp).addScaledVector(dir, -0.006), rx: 0.027, ry: 0.021 }, { p: V().copy(wp).addScaledVector(dir, 0.006), rx: 0.027, ry: 0.021 }], 16, { up: armUp }));
-        const face = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.006, 16), new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.25, metalness: 0.7 }));
-        face.position.copy(wp).addScaledVector(armUp, 0.023); face.quaternion.setFromUnitVectors(V(0, 1, 0), armUp); g.add(face);
-        const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.002, 16), new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.1, metalness: 0.2 }));
-        glass.position.copy(face.position).addScaledVector(armUp, 0.004); glass.quaternion.copy(face.quaternion); g.add(glass);
+    const elbow = sh.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
+    const pts = [sh, V().lerpVectors(sh, elbow, 0.5), elbow, V().lerpVectors(elbow, fore, 0.5), fore, cuff];
+    const rx = [0.037, 0.036, 0.033, 0.03, ringX + 0.006, ringX + 0.004], ry = [0.035, 0.034, 0.031, 0.027, ringY + 0.007, ringY + 0.005];
+    const st = tubeStations(pts, rx, ry, 30);
+    // the last stations keep the wrist ring's plane: their up is the hand's Y so the ellipse hugs the wrist
+    st.forEach((o, i) => { const t = i / 30; if (t > 0.8) o.up = Y.clone(); const fold = t > 0.35 && t < 0.82 ? 0.02 * Math.sin(t * 29 + 1.1) + 0.012 * Math.sin(t * 47 + 0.4) : 0; o.rx *= 1 + fold; o.ry *= 1 + fold * 0.8; o.shade = 0.92 + 3 * fold; });
+    const geo = loft(st, 20, { up: Y });
+    { // fabric folds: displace along normals with low-frequency noise, then re-normal
+        const pos = geo.attributes.position, nrm = geo.attributes.normal; const p = new THREE.Vector3(), n = new THREE.Vector3();
+        for (let i = 0; i < pos.count; i++) {
+            p.fromBufferAttribute(pos, i); n.fromBufferAttribute(nrm, i);
+            const dd = 0.003 * (Math.sin(p.x * 68 + p.z * 47 + p.y * 21) + 0.6 * Math.sin(p.y * 95 - p.x * 38 + 1.7) + 0.35 * Math.sin((p.x + p.y + p.z) * 160));
+            p.addScaledVector(n, dd); pos.setXYZ(i, p.x, p.y, p.z);
+        }
+        geo.computeVertexNormals();
     }
-    if (skinGeos.length) { const mergedSkin = BufferGeometryUtils.mergeGeometries(skinGeos, false); skinGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mergedSkin, skinMaterial())); }
-    if (leatherGeos.length) { const ml = BufferGeometryUtils.mergeGeometries(leatherGeos, false); leatherGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(ml, leatherMaterial())); }
-    const mc = BufferGeometryUtils.mergeGeometries(clothGeos, false); clothGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mc, clothMaterial()));
-    const mk = BufferGeometryUtils.mergeGeometries(knitGeos, false); knitGeos.forEach(x => x.dispose()); g.add(new THREE.Mesh(mk, knitMaterial()));
-    return { group: g, trigger: null, hand: mesh, handGroup: hand };
+    g.add(new THREE.Mesh(geo, clothMaterial()));
+    // ribbed knit cuff: a short band just behind the wrist, a little larger than the sleeve end
+    const kst = tubeStations([wrist.clone().addScaledVector(fd, 0.028).addScaledVector(Z, -0.004), wrist.clone().addScaledVector(Z, 0.004)], [ringX + 0.006, ringX + 0.003], [ringY + 0.007, ringY + 0.004], 6);
+    kst.forEach(o => { o.up = Y.clone(); });
+    g.add(new THREE.Mesh(loft(kst, 18, { up: Y }), knitMaterial()));
+    if (watch) {
+        const wp = wrist.clone().addScaledVector(Z, -0.02);
+        const band = new THREE.Mesh(loft([{ p: wp.clone().addScaledVector(Z, -0.007), rx: ringX + 0.008, ry: ringY + 0.009, up: Y }, { p: wp.clone().addScaledVector(Z, 0.007), rx: ringX + 0.008, ry: ringY + 0.009, up: Y }], 18, { up: Y }), leatherMaterial());
+        g.add(band);
+        const face = new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.006, 16), new THREE.MeshStandardMaterial({ color: 0xd8d0b8, roughness: 0.25, metalness: 0.7 }));
+        face.position.copy(wp).addScaledVector(Y, ringY + 0.01); face.quaternion.setFromUnitVectors(V(0, 1, 0), Y); g.add(face);
+        const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.002, 16), new THREE.MeshStandardMaterial({ color: 0x1a2430, roughness: 0.1, metalness: 0.2 }));
+        glass.position.copy(face.position).addScaledVector(Y, 0.004); glass.quaternion.copy(face.quaternion); g.add(glass);
+    }
+    g.traverse(o => { if (o.isMesh) { o.layers.set(1); o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; o.renderOrder = 10; } });
+    return g;
 }
 
 /** a continuous hose along control points (Catmull-Rom), for tools */

@@ -17,7 +17,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import leftUrl from './assets/hands/left.glb?url';
 import rightUrl from './assets/hands/right.glb?url';
-import { skinMaterial } from './hands.js';
+import { skinMaterial, buildSleeve } from './hands.js';
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const FINGERS = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
@@ -103,14 +103,19 @@ export function makeHand(spec) {
     const info = analyse(root);
     const J = jointMap(root);
     // skin material with the game's procedural skin maps
-    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xcdb4a4); o.material.roughness = 0.62; o.frustumCulled = false; o.layers.set(1); o.castShadow = false; } });
-    // ---- frame: tool space basis (X, Y = back of the hand away from the tool, Z = fingers)
-    const ax = spec.axis.clone().normalize();
-    let out = spec.out ? spec.out.clone().normalize() : V().crossVectors(ax, V(s, 0, 0)).normalize();
-    if (out.lengthSq() < 0.01) out.set(0, -1, 0);
-    if (spec.mode === 'support' && !spec.out) out.set(0, -1, 0);
-    const across = V().crossVectors(out, ax).normalize();
-    const Y = out.clone(), Z = across.clone().multiplyScalar(s).normalize(), X = V().crossVectors(Y, Z).normalize();
+    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xb89a88); o.material.roughness = 0.78; o.material.envMapIntensity = 0.25; o.material.normalScale.set(0.55, 0.55); o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
+    // ---- frame in tool space. A: handle axis pointing toward the thumb side (up a pistol grip, forward
+    //      along a fore-end). out: from the handle axis through the palm to the back of the hand.
+    //      Z (fingers at the knuckles, before the curl) = s · (A × out): the fingers leave the knuckles
+    //      tangentially and wrap the handle with the thumb on the +A side. Y = out. X = Y × Z.
+    const A = spec.axis.clone().normalize();
+    let out;
+    if (spec.out) out = spec.out.clone();
+    else if (spec.mode === 'support') out = V(0, -1, 0);                  // palm up under the tool
+    else out = V(s * 0.92, 0, 0.38);                                        // pistol grip: back of the hand outward and a little back
+    out.sub(A.clone().multiplyScalar(out.dot(A))).normalize();
+    const Z = V().crossVectors(A, out).multiplyScalar(s).normalize();
+    const Y = out.clone(), X = V().crossVectors(Y, Z).normalize();
     // model basis: Fm = finger direction, Pm = palm-ward, Sm = F × P
     const Fm = info.F, Pm = info.palm, Sm = V().crossVectors(Fm, Pm).normalize();
     const mModel = new THREE.Matrix4().makeBasis(Sm, Pm.clone().negate(), Fm);   // model: (side, back, fingers)
@@ -118,18 +123,29 @@ export function makeHand(spec) {
     const rot = new THREE.Matrix4().multiplyMatrices(mTool, mModel.clone().invert());
     const pivot = new THREE.Group();
     pivot.quaternion.setFromRotationMatrix(rot);
-    // place the wrist joint at the frame origin: origin = grip + out*(radius + palm thickness) − Z*(wrist→palm distance)
-    const origin = spec.grip.clone().addScaledVector(out, spec.radius + 0.012).addScaledVector(Z, -0.07);
+    if (spec.wristRoll) pivot.quaternion.premultiply(_q.setFromAxisAngle(Z, spec.wristRoll));
+    // wrist joint = grip + out·(radius + palm depth) − Z·(wrist→knuckle distance); measured on the model:
+    // the knuckles are 0.088 from the wrist joint, the palm skin ~0.017 below it
+    const support = spec.mode === 'support';
+    const dOut = spec.dOut ?? (support ? 0.016 : 0.013), dz = spec.dz ?? (support ? -0.052 : -0.078); // support: the tool rests mid-palm
+    const origin = spec.grip.clone().addScaledVector(out, spec.radius + dOut).addScaledVector(Z, dz);
     root.position.copy(info.wrist).negate();               // wrist at the pivot origin
     pivot.add(root); pivot.position.copy(origin);
-    pivot.scale.setScalar(spec.scale ?? 0.95);
+    const scale = spec.scale ?? 0.92;
+    pivot.scale.setScalar(scale);
     // ---- rest quaternions and the pose
     const rest = {}; for (const n of Object.keys(J)) rest[n] = J[n].quaternion.clone();
-    const curls = spec.curls || gripCurls(spec.radius, spec);
+    const curls = spec.curls || gripCurls(spec.radius / scale, spec);
     const rig = { J, rest, curls, sign: info.bendSign, axis: info.bendAxis, spreadAxis: info.bendAxis.x ? V(0, 0, 1) : V(1, 0, 0), side: spec.side, mode: spec.mode || 'grip', sq: 0, relax: 0, fid: 0, grip: 0, wristFlex: 0 };
-    pivot.userData.rig = rig;
     applyPose(rig);
-    return pivot;
+    const hand = new THREE.Group();
+    hand.add(pivot);
+    hand.userData.rig = rig;
+    // ---- sleeve: from the shoulder anchor to the wrist ring (the mesh is open there; ring 0.052 × 0.037 × scale)
+    // forearm direction (tool space): default straight off the back of the hand; a spec.forearm bends the wrist
+    const foreDir = spec.forearm ? spec.forearm.clone().normalize() : Z.clone().negate();
+    if (!spec.noSleeve) hand.add(buildSleeve({ side: spec.side, wrist: origin, X, Y, Z, foreDir, shoulder: spec.shoulder || null, ringX: 0.026 * scale + 0.002, ringY: 0.0185 * scale + 0.002, watch: !!spec.watch }));
+    return hand;
 }
 
 /** per-joint curl angles from a handle radius: fingers wrap so the three phalanges cover the arc */
@@ -137,7 +153,7 @@ export function gripCurls(radius, spec = {}) {
     const lens = [[0.041, 0.027, 0.021], [0.044, 0.029, 0.023], [0.041, 0.027, 0.022], [0.032, 0.022, 0.019]];
     const k = spec.mode === 'support' ? 0.72 : 0.62 * (0.85 + (spec.curl ?? 0.9) * 0.35);
     const f = lens.map((L, i) => L.map((len, j) => Math.max([0.2, 0.3, 0.2][j], Math.min(1.4, (len / (radius + 0.009)) * k))));
-    if (spec.trigger) f[0] = [0.35, 0.45, 0.25];
+    if (spec.trigger) f[0] = [0.12, 0.55, 0.3];   // index along the trigger: straight at the knuckle, bent at the middle joint
     const thumb = spec.mode === 'support' ? [0.2, 0.35, 0.25] : [0.25, 0.5, 0.45];
     return { f, thumb, spread: spec.mode === 'support' ? 0.06 : 0.04 };
 }

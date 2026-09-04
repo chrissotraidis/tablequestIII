@@ -60,6 +60,7 @@ export function bakeStatic(group, { fresh = false, quantize = 0, single = false 
         if (!o.isMesh) return;
         if (!mergeable(o)) { keep.push(o); return; }
         const g = o.geometry.clone();
+        if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); // O5: non-indexed sources (RoundedBoxGeometry) merge with indexed ones
         // bake transform relative to the group root
         g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
         // bake flat colour into a vertex colour attribute (R3.1: a mesh that already carries
