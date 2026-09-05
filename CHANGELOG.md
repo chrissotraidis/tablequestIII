@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-04 — 4.0: MODERN is the game
+
+Fifteen goal-based rounds later, the modern build is the main version, `main` carries it, and every generation ships inside it.
+
+### Added
+
+- **Versions.** A sixth main-menu entry lists every generation of the game (3 · Modern, 2.1 · 3D Remaster, 2.0 · First 3D Remaster, 1 · Original 199X). Bundled generations open **inside the page** in a player with a BACK TO MODERN bar, an open-in-new-tab link and a loading label, so you can click between versions without leaving. The Options row does the same.
+- **Richer floating weapons.** A loaded sash brush (varnished handle with grain, crimped brass ferrule, striated bristles, a glossy paint load with sag and drips), dimpled overmould and labels on the nailer, paint runs down the spray gun's cup, paint from the launcher's bell, a torn plate with splinters and fraying tape on the leg.
+- **Harness and tools.** `TQ.settle(n)` (wait rendered frames), `TQ.handLab`, `TQ.THREE`; `tools/vm_crops.mjs`, `tools/state_shots.mjs`, `tools/readme_shots.mjs`; shot tools wait on rendered frames and hide enemies.
+- Documentation: `docs/modern/INDEX.md` (start here), `docs/modern/HANDS_REINTRODUCTION.md`, goal loops 9–11, the full pass log in `docs/modern/PROGRESS.md`.
+
+### Changed
+
+- **Hands and arms are parked.** After twelve rounds they were structurally right but still read as bizarre; the weapons now float Doom-style with their grips behind the bench (`SHOW_HANDS = false` in `src/handrig.js`). Everything needed to bring them back is kept and documented.
+- Viewmodel lens widened to 56°, rest pose pushed back; every tool rebuilt as a hard-surface object (rounded boxes, seams, screws, decals, scuffed grain) with a measured grip frame.
+- Loading card heading layout; the Gen 1 card is reachable again (it had never been registered as a screen).
+
+### Verified
+
+- The autopilot wins the whole campaign on the built file (six floors, `docs/evidence/R1/campaign.json`); every screen in the flow screenshotted; smoke green; collision hashes identical to the classic on all six floors; the classic generation byte-identical to `v2.1-classic-final`.
+
 ## 2026-09-03 — 3.0: MODERN becomes the main version
 
 ### Changed
