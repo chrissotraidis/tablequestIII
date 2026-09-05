@@ -142,7 +142,7 @@ function saveHighScore() {
     }
 }
 
-const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'screen-loading',
+const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'menu-versions', 'gen-card', 'screen-loading', // T6: gen-card was missing here, so the Gen 1 card could never show
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
@@ -205,13 +205,14 @@ function setState(next) {
 
 // ------------------------------------------------------------------ MENU
 
-const MENU_ITEMS = ['New Game', 'Level Select', 'Options', 'Instructions', 'Toggle Sound'];
+const MENU_ITEMS = ['New Game', 'Level Select', 'Options', 'Instructions', 'Toggle Sound', 'Versions'];
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
     ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
     ['FIELD SETTINGS', 'OPTIONS', 'Pick a generation of the game (three so far), post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
     ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
+    ['THE ARCHIVE', 'EVERY GENERATION', 'Play the original 3D remaster builds inside this page, or read about the 199X original.'],
 ];
 
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
@@ -262,13 +263,44 @@ function adjustOption(dir) {
     playSound('menu_move');
     renderOptions();
 }
-/** G5.2: play the selected generation — each is a single-file build served beside this one */
-function launchGeneration() {
-    const g = GENERATIONS[genIdx];
+/** G5.2 / T6: play the selected generation inside this page — each is a single-file build served beside this one.
+ *  The player is an overlay with a BACK TO MODERN bar, so switching between versions never navigates away. */
+function launchGeneration(idx = genIdx, from = 'options') {
+    const g = GENERATIONS[idx];
     playSound('menu_select');
-    if (g.card) { showOnly('menu-options', 'gen-card'); return; }
-    if (!g.url) return;
-    window.location.href = g.url;
+    if (g.card) { showOnly(from === 'versions' ? 'menu-versions' : 'menu-options', 'gen-card'); return; }
+    if (!g.url) return; // gen 3 is this build
+    stopMusic();
+    $('gp-title').textContent = g.label;
+    $('gp-newtab').href = g.url;
+    $('gp-loading').textContent = `LOADING ${g.label} …`; $('gp-loading').classList.remove('hidden');
+    $('gp-frame').src = g.url;
+    $('gen-player').classList.remove('hidden');
+    setTimeout(() => $('gp-frame').focus(), 50);
+}
+function closeGenerationPlayer() {
+    $('gp-frame').src = 'about:blank';
+    $('gen-player').classList.add('hidden');
+    startSong('menu');
+    playSound('menu_select');
+}
+$('gp-back').addEventListener('click', closeGenerationPlayer);
+$('gp-frame').addEventListener('load', () => { if ($('gp-frame').src !== 'about:blank' && !$('gp-frame').src.endsWith('about:blank')) $('gp-loading').classList.add('hidden'); });
+let versionIdx = 0;
+function renderVersions() {
+    const list = $('vs-list');
+    if (!list.childElementCount) {
+        list.innerHTML = GENERATIONS.map((g, i) => {
+            const [gen, ...rest] = g.label.split(' · ');
+            const action = g.card ? 'ABOUT' : g.url ? 'PLAY ▶' : 'YOU ARE HERE';
+            return `<button class="vs-item${g.url || g.card ? '' : ' current'}" type="button" data-idx="${i}"><span class="vs-gen">${gen.replace('GEN ', '')}<small>GENERATION</small></span><span class="vs-name">${rest.join(' · ')}<small>${g.note.replace(' · ENTER', '')}</small></span><span class="vs-action">${action}</span></button>`;
+        }).join('');
+        list.querySelectorAll('.vs-item').forEach(el => {
+            el.addEventListener('mouseenter', () => { versionIdx = Number(el.dataset.idx); renderVersions(); });
+            el.addEventListener('click', () => { versionIdx = Number(el.dataset.idx); launchGeneration(versionIdx, 'versions'); });
+        });
+    }
+    list.querySelectorAll('.vs-item').forEach((el, i) => el.classList.toggle('selected', i === versionIdx));
 }
 document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => {
     el.addEventListener('mouseenter', () => { optIdx = i; renderOptions(); });
@@ -367,6 +399,7 @@ function menuSelect() {
     else if (item === 'Options') { menuSub = 'options'; optIdx = 0; renderOptions(); showOnly('menu-options'); }
     else if (item === 'Instructions') { menuSub = 'instructions'; showOnly('menu-instructions'); }
     else if (item === 'Toggle Sound') updateMute(toggleMute());
+    else if (item === 'Versions') { menuSub = 'versions'; versionIdx = 0; renderVersions(); showOnly('menu-versions'); }
 }
 
 function updateMute(m) {
@@ -620,8 +653,15 @@ onKeyPress((e) => {
         case 'menu':
             if (menuSub === 'instructions') {
                 if (['Enter', 'Escape', 'Space'].includes(e.code)) { menuSub = null; showOnly('menu-screen'); }
-            } else if (menuSub === 'options' && !$('gen-card').classList.contains('hidden')) {
-                if (['Enter', 'Escape', 'Space'].includes(e.code)) showOnly('menu-options');
+            } else if (!$('gen-player').classList.contains('hidden')) {
+                if (e.code === 'Escape') closeGenerationPlayer(); // keys only reach here while the iframe is not focused
+            } else if ((menuSub === 'options' || menuSub === 'versions') && !$('gen-card').classList.contains('hidden')) {
+                if (['Enter', 'Escape', 'Space'].includes(e.code)) showOnly(menuSub === 'versions' ? 'menu-versions' : 'menu-options');
+            } else if (menuSub === 'versions') {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') { versionIdx = (versionIdx + GENERATIONS.length - 1) % GENERATIONS.length; playSound('menu_move'); renderVersions(); }
+                else if (e.code === 'ArrowDown' || e.code === 'KeyS') { versionIdx = (versionIdx + 1) % GENERATIONS.length; playSound('menu_move'); renderVersions(); }
+                else if (e.code === 'Enter' || e.code === 'Space') launchGeneration(versionIdx, 'versions');
+                else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
             } else if (menuSub === 'options') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { optIdx = (optIdx + OPTIONS.length - 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { optIdx = (optIdx + 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }

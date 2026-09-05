@@ -221,38 +221,48 @@ function body(sections, m, up = V(0, 1, 0), segs = 18) {
 
 /** the cover's brush: long flat wooden handle, chamfered flat ferrule, layered flat bristles loaded with blue */
 export function buildBrushViewmodel() {
+    // T1: a real 3" sash brush — turned varnished handle, crimped brass ferrule with rivets, a dense three-layer bristle
+    // block, and a glossy paint load that wraps the tip, sags, and drips; smears on the ferrule and splatter on the handle
     const g = new THREE.Group();
     const inner = new THREE.Group(); inner.rotation.set(0.55, 0.1, -0.05); g.add(inner); // head up-forward 32°: the root's rotation is driven per frame, so the rake lives here
-    const wood = texMat(woodTex(), { roughness: 0.42 });
-    // flat handle (lathe, then flattened): hang-hole end behind the hand, waist under the fingers, flare into the ferrule
-    const handle = lathe([[0.004, -0.14], [0.011, -0.128], [0.014, -0.09], [0.012, -0.03], [0.013, 0.02], [0.017, 0.06], [0.02, 0.085], [0.0, 0.09]], wood, 20);
-    handle.rotation.x = -Math.PI / 2; handle.scale.set(1.9, 1, 1); handle.position.z = 0.0; inner.add(handle);
-    const hole = alongZ(cyl(0.004, 0.004, 0.03, mat(0x1a1410), 8)); hole.rotation.z = Math.PI / 2; hole.rotation.x = 0; hole.position.set(0, 0, 0.125); hole.rotation.set(0, 0, Math.PI / 2); inner.add(hole);
-    const label = box(0.03, 0.0125, 0.03, texMat(labelTex(['ARTISAN', 'No. 7 · FLAT SASH'], '#efe6d2', '#2a1a10', '#8a1422'), { roughness: 0.5 })); label.position.set(0, 0, 0.04); label.scale.set(1.35, 1.02, 1); inner.add(label);
-    // head part: ferrule, crimps, rivets, bristle block, bristle strands, paint load, drips
+    const wood = texMat(woodTex(), { roughness: 0.32, metalness: 0.0 });
+    // handle along -Z: hang-hole knob at the rear, waist under the fingers, flare into the ferrule (lathe, flattened)
+    const handle = lathe([[0.0, -0.15], [0.009, -0.148], [0.013, -0.135], [0.016, -0.11], [0.014, -0.07], [0.0125, -0.03], [0.014, 0.02], [0.018, 0.06], [0.022, 0.085], [0.0, 0.09]], wood, 24);
+    handle.rotation.x = -Math.PI / 2; handle.scale.set(1.75, 1, 1); inner.add(handle);
+    const hole = cyl(0.004, 0.004, 0.034, mat(0x1a1410), 8); hole.rotation.z = Math.PI / 2; hole.position.set(0, 0, 0.135); inner.add(hole);
+    for (let i = 0; i < 5; i++) { const chip = box(0.006 + Math.random() * 0.006, 0.0015, 0.004 + Math.random() * 0.01, mat(0xc9b48e, { roughness: 0.85 })); const a = i * 1.9; chip.position.set(Math.cos(a) * 0.024, Math.sin(a) * 0.013, 0.02 + i * 0.022); chip.rotation.z = a; inner.add(chip); } // varnish chips
+    const label = box(0.03, 0.0125, 0.03, texMat(labelTex(['ARTISAN', 'No. 7 · FLAT SASH'], '#efe6d2', '#2a1a10', '#8a1422'), { roughness: 0.5 })); label.position.set(0, 0, 0.045); label.scale.set(1.4, 1.02, 1); inner.add(label);
+    for (let i = 0; i < 9; i++) { const sp = sph(0.002 + Math.random() * 0.003, mat(0x2f62d8, { roughness: 0.25 }), 6, 5); sp.scale.set(1, 0.35, 1); const a = i * 2.4; sp.position.set(Math.cos(a) * 0.026, 0.0135 * Math.sign(Math.sin(a) + 0.3), -0.02 + i * 0.012); inner.add(sp); } // old splatter on the handle
+    // head part: ferrule, crimp ridges, rivets, bristle block, bristle strands, paint load, drips
     const head = new THREE.Group(); head.position.z = -0.09;
-    const ferrule = box(0.078, 0.022, 0.055, alu()); ferrule.position.z = -0.02; head.add(ferrule);
-    const chamfer = box(0.074, 0.03, 0.012, alu()); chamfer.position.set(0, 0, 0.012); head.add(chamfer);
-    for (const z of [-0.036, -0.03]) { const c = box(0.08, 0.023, 0.003, metal(0x9aa0a8, 0.4)); c.position.z = z; head.add(c); }
-    for (const sx of [-1, 1]) { const rv = sph(0.0035, metal(0x606870, 0.4), 6, 5); rv.position.set(sx * 0.028, 0.0115, -0.012); head.add(rv); }
-    const bristleM = mat(0x8a7350, { roughness: 0.95 }), bristleD = mat(0x5e4b30, { roughness: 0.95 });
-    const block = box(0.072, 0.014, 0.08, bristleM); block.position.set(0, 0, -0.085); head.add(block);
-    for (let i = 0; i < 18; i++) { // strands along the working edge, layered top and bottom
-        const x = -0.034 + i * 0.004, y = (i % 2 ? 0.004 : -0.004);
-        head.add(bar(V(x, y, -0.06), V(x + (i % 3 - 1) * 0.002, y * 1.6 - 0.002, -0.128 - (i % 4) * 0.003), 0.0016, 0.0011, i % 2 ? bristleM : bristleD, 5));
+    const brass = metal(0xc9a227, 0.28), brassD = metal(0x9a7a1a, 0.4);
+    const ferrule = rbox(0.082, 0.024, 0.06, 0.004, brass); ferrule.position.z = -0.022; head.add(ferrule);
+    const chamfer = rbox(0.076, 0.03, 0.014, 0.003, brass); chamfer.position.set(0, 0, 0.012); head.add(chamfer);
+    for (const z of [-0.04, -0.034, -0.014]) { const c = rbox(0.085, 0.026, 0.003, 0.001, brassD); c.position.z = z; head.add(c); } // crimps
+    for (const sx of [-1, 1]) for (const z of [-0.03, -0.005]) { const rv = sph(0.0032, metal(0x6a6a66, 0.35), 8, 6); rv.scale.set(1, 0.6, 1); rv.position.set(sx * 0.028, 0.0125, z); head.add(rv); const rv2 = rv.clone(); rv2.position.y = -0.0125; head.add(rv2); } // rivets both faces
+    for (let i = 0; i < 4; i++) { const sm = sph(0.006 + Math.random() * 0.004, mat(0x2f62d8, { roughness: 0.2, emissive: 0x0f2a80, emissiveIntensity: 0.25 }), 8, 6); sm.scale.set(1.6, 0.25, 1.1); sm.position.set(-0.03 + i * 0.02, 0.0125, -0.03 + (i % 2) * 0.012); head.add(sm); } // paint smears up the ferrule
+    // bristles: one solid, slightly flaring slab with a striated bristle map (no gaps), fuzz strands only at the tip edge
+    const bristleTex = canvasTex(128, 128, (ctx, w, h) => { ctx.fillStyle = '#8a7350'; ctx.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 1) { const t = Math.random(); ctx.fillStyle = t < 0.35 ? 'rgba(40,28,14,0.5)' : t < 0.7 ? 'rgba(200,175,130,0.45)' : 'rgba(120,95,60,0.4)'; ctx.fillRect(x, 0, 1, h); } for (let i = 0; i < 300; i++) { ctx.fillStyle = 'rgba(30,20,10,0.35)'; ctx.fillRect(Math.random() * w, Math.random() * h, 1, 6 + Math.random() * 20); } }, [3, 1]);
+    bristleTex.colorSpace = THREE.SRGBColorSpace;
+    const bristleMat = new THREE.MeshStandardMaterial({ map: bristleTex, roughness: 0.97, metalness: 0 });
+    const slab = new THREE.Mesh(loft([{ p: V(0, 0, -0.044), rx: 0.038, ry: 0.0115 }, { p: V(0, 0, -0.08), rx: 0.0385, ry: 0.0105 }, { p: V(0, 0, -0.115), rx: 0.04, ry: 0.0085 }, { p: V(0, 0, -0.142), rx: 0.042, ry: 0.006 }, { p: V(0, -0.001, -0.153), rx: 0.043, ry: 0.0035 }], 22), bristleMat); head.add(slab);
+    const bristleT = mat(0x6b5a3e, { roughness: 0.95 });
+    for (let i = 0; i < 26; i++) { const x = -0.04 + i * 0.0032, y = (i % 2 ? 0.003 : -0.003); head.add(bar(V(x, y, -0.135), V(x + (i % 3 - 1) * 0.0015, y * 1.8, -0.158 - (i % 4) * 0.002), 0.0009, 0.0006, i % 2 ? bristleT : mat(0x3a5aa8, { roughness: 0.5 }), 5)); } // tip fuzz, half of it paint-tinted
+    // paint: a glossy blue shell over the last third of the bristles, a sag underneath, drips of four lengths with beads
+    const paintM = mat(0x2f62d8, { emissive: 0x0f2a80, emissiveIntensity: 0.4, roughness: 0.12, metalness: 0.05 });
+    const load = new THREE.Mesh(loft([{ p: V(0, 0, -0.098), rx: 0.0395, ry: 0.0112 }, { p: V(0, -0.0005, -0.118), rx: 0.0425, ry: 0.0125 }, { p: V(0, -0.0015, -0.14), rx: 0.0445, ry: 0.0105 }, { p: V(0, -0.003, -0.156), rx: 0.044, ry: 0.0065 }, { p: V(0, -0.004, -0.162), rx: 0.038, ry: 0.003 }], 24), paintM); head.add(load);
+    const sag = sph(0.014, paintM, 12, 8); sag.scale.set(2.4, 0.6, 1.2); sag.position.set(0.004, -0.011, -0.138); head.add(sag);
+    for (const [x, len, r] of [[-0.026, 0.036, 0.0036], [-0.008, 0.055, 0.0044], [0.012, 0.028, 0.0031], [0.03, 0.045, 0.0039]]) { // drips with beads
+        head.add(bar(V(x, -0.012, -0.136), V(x + 0.002, -0.012 - len, -0.132), r, r * 0.55, paintM, 7));
+        const d = sph(r * 1.55, paintM, 8, 6); d.scale.set(1, 1.45, 1); d.position.set(x + 0.002, -0.012 - len, -0.132); head.add(d);
     }
-    const paintM = mat(0x2f62d8, { emissive: 0x0f2a80, emissiveIntensity: 0.45, roughness: 0.2 });
-    const load = box(0.074, 0.016, 0.034, paintM); load.position.set(0, -0.001, -0.112); head.add(load);
-    for (const [x, len] of [[-0.02, 0.03], [0.004, 0.045], [0.026, 0.022]]) { // drips
-        head.add(bar(V(x, -0.008, -0.108), V(x + 0.002, -0.008 - len, -0.104), 0.0035, 0.0018, paintM, 6));
-        const d = sph(0.0045, paintM, 8, 6); d.scale.set(1, 1.5, 1); d.position.set(x + 0.002, -0.008 - len, -0.104); head.add(d);
-    }
+    for (let i = 0; i < 6; i++) { const fl = sph(0.0025, paintM, 6, 5); fl.scale.set(1.4, 0.3, 1); fl.position.set(-0.03 + i * 0.012, (i % 2 ? 1 : -1) * 0.0105, -0.07 - (i % 3) * 0.01); head.add(fl); } // flecks on the bristles
     inner.add(head);
-    // right hand on the handle waist, index along; off hand holds the can
-    const R = buildHand({ side: 'R', grip: V(0, -0.003, 0.035), elbow: V(0.16, -0.31, 0.32), radius: 0.015, axis: V(0, 0, -1), curl: 0.95, forearm: V(0, 0.2, 0.98) }); // hammer hold, thumb toward the head; the brush is raked up 43° below and the wrist flexes so the forearm stays level
+    // right hand on the handle waist (grip spec only — hands are parked, see docs/modern/HANDS_REINTRODUCTION.md)
+    const R = buildHand({ side: 'R', grip: V(0, -0.003, 0.035), elbow: V(0.16, -0.31, 0.32), radius: 0.015, axis: V(0, 0, -1), curl: 0.95, forearm: V(0, 0.2, 0.98) });
     inner.add(R.group);
-    const off = new THREE.Group(); inner.add(off); // Q2: the brush is one-handed; the can and off hand are gone (empty part kept for the animator)
-    g.position.set(0.05, -0.09, -0.02); g.scale.setScalar(0.92); // S1: handle end behind the bench
+    const off = new THREE.Group(); inner.add(off); // the brush is one-handed; empty part kept for the animator
+    g.position.set(0.05, -0.09, -0.02); g.scale.setScalar(0.92); // handle end behind the bench
     return finish(g, 'paintbrush', 0.0, V(0, 0.0, -0.24), { pos: V(0.04, -0.1, -0.5), rotX: 0.2, rotY: -0.05 }, { head, offHand: off });
 }
 
@@ -272,6 +282,9 @@ export function buildLegViewmodel() {
     // taped grip at the foot end, brass ferrule at the tip
     legG.add(at(cyl(0.04, 0.04, 0.11, texMat(tapeTex(), { roughness: 0.95 }), 16), 0, 0.075, 0));
     legG.add(at(cyl(0.041, 0.041, 0.018, metal(BRASS, 0.35), 16), 0, 0.005, 0));
+    for (let i = 0; i < 7; i++) { const fr = box(0.006, 0.012 + Math.random() * 0.01, 0.0015, mat(0x2a2a2e, { roughness: 0.95 })); const a = i * 0.9; fr.position.set(Math.cos(a) * 0.041, 0.132 + (i % 2) * 0.006, Math.sin(a) * 0.041); fr.rotation.y = -a; fr.rotation.z = (i % 2 ? 0.4 : -0.3); legG.add(fr); } // T5: fraying tape edge
+    for (let i = 0; i < 6; i++) { const sp = bar(V(Math.cos(i * 1.1) * 0.03, 0.5 + i * 0.004, Math.sin(i * 1.1) * 0.03), V(Math.cos(i * 1.1) * 0.045, 0.53 + i * 0.008, Math.sin(i * 1.1) * 0.045), 0.003, 0.001, mat(0xd9c49a, { roughness: 0.9 }), 5); legG.add(sp); } // splinters where the plate tore off
+    for (let i = 0; i < 6; i++) { const ch = box(0.008 + Math.random() * 0.008, 0.0015, 0.005 + Math.random() * 0.01, mat(0xd8c49c, { roughness: 0.85 })); const a = i * 1.3; ch.position.set(Math.cos(a) * 0.027, 0.18 + i * 0.05, Math.sin(a) * 0.027); ch.rotation.y = -a; legG.add(ch); } // varnish chips
     legG.add(buildHand({ side: 'R', grip: V(0, 0.075, 0), radius: 0.04, axis: V(0, 1, 0), out: V(-0.37, 0, 0.93), curl: 0.9, forearm: V(0.415, -0.49, -0.77) }).group); // right hand on the tape, knuckles toward the lens, thumb up the shaft, forearm down the shaft's line
     g.add(inner);
     g.scale.setScalar(0.62); g.position.set(0.13, -0.13, 0.02); // S1: floating leg — the taped grip rises from behind the bench
@@ -310,6 +323,7 @@ export function buildNailgunViewmodel() {
     const dial = cyl(0.012, 0.012, 0.012, metal(0x9aa0a8, 0.35), 12); dial.rotation.x = Math.PI / 2; dial.position.set(0.0, 0.0, -0.196); inner.add(dial);
     for (let i = 0; i < 8; i++) { const k = box(0.002, 0.005, 0.006, metal(0x5a6470, 0.5)); const a = i / 8 * Math.PI * 2; k.position.set(Math.cos(a) * 0.012, Math.sin(a) * 0.012, -0.196); k.rotation.z = a; inner.add(k); }
     const led = sph(0.004, mat(0xffffff, { emissive: 0xffffff, emissiveIntensity: 2, roughness: 0.3 }), 8, 6); led.position.set(0.018, -0.05, -0.192); inner.add(led);
+    const glow = at(cyl(0.007, 0.007, 0.001, mat(0xfff4d0, { emissive: 0xffe6a0, emissiveIntensity: 0.9, transparent: true, opacity: 0.55 }), 12), 0.018, -0.05, -0.194); glow.rotation.x = Math.PI / 2; inner.add(glow); // (never chain .rotation on add(): it returns the group)
     inner.add(at(alongZ(cyl(0.008, 0.008, 0.04, metal(0x444c56, 0.4), 10)), 0, -0.02, -0.21));
     inner.add(at(rbox(0.026, 0.035, 0.024, 0.004, dark), 0, -0.13, -0.165)); // contact tip
     inner.add(at(rbox(0.03, 0.012, 0.03, 0.003, rubberM()), 0, -0.152, -0.165)); // no-mar pad
@@ -323,7 +337,10 @@ export function buildNailgunViewmodel() {
     const pusher = rbox(0.034, 0.02, 0.03, 0.003, plastic(0xe07a22, 0.5)); pusher.position.set(0, -0.10, 0.08); pusher.rotation.x = magT; inner.add(pusher);
     inner.add(at(box(0.016, 0.006, 0.004, metal(0x9aa0a8, 0.4)), 0.02, -0.105, 0.075));
     // ---- grip: raked rubber overmould with a finger-groove front, trigger, guard, battery
-    const gripB = rbox(0.034, 0.11, 0.046, 0.009, rubberM()); gripB.position.set(0, -0.06, 0.075); gripB.rotation.x = RAKE; inner.add(gripB);
+    const overmould = new THREE.MeshStandardMaterial({ map: canvasTex(64, 64, (ctx, w, h) => { ctx.fillStyle = '#1e2126'; ctx.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 8) for (let x = 0; x < w; x += 8) { ctx.fillStyle = ((x + y) / 8) % 2 ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.25)'; ctx.beginPath(); ctx.arc(x + 4, y + 4, 2.6, 0, 6.3); ctx.fill(); } }, [3, 6]), roughness: 0.92, metalness: 0 }); // T2: dimpled rubber overmould
+    const gripB = rbox(0.034, 0.11, 0.046, 0.009, overmould); gripB.position.set(0, -0.06, 0.075); gripB.rotation.x = RAKE; inner.add(gripB);
+    const warn = box(0.002, 0.018, 0.034, texMat(labelTex(['⚠ WARNING', 'EYE PROTECTION'], '#f2c811', '#1a1a1a', '#1a1a1a'), { roughness: 0.55 })); warn.position.set(-0.0392, 0.035, 0.03); warn.rotation.y = -Math.PI / 2; inner.add(warn);
+    for (let i = 0; i < 5; i++) { const wr = box(0.0015, 0.004 + Math.random() * 0.01, 0.002, metal(0xb8bcc2, 0.35)); wr.position.set(0.0215, -0.03 - i * 0.02, -0.165 - 0.02 + (i % 2) * 0.03); inner.add(wr); } // bright wear on the nose casting edges
     for (let i = 0; i < 4; i++) { const grv = rbox(0.036, 0.006, 0.02, 0.002, mat(0x3a3e44, { roughness: 0.9 })); const y = -0.03 - i * 0.017; grv.position.set(0, y, 0.075 - 0.02 + Math.sin(RAKE) * (y + 0.06)); grv.rotation.x = RAKE; inner.add(grv); } // finger grooves on the front
     const backstrap = rbox(0.03, 0.1, 0.008, 0.003, plastic(0x1e2126, 0.55)); backstrap.position.set(0, -0.058, 0.098); backstrap.rotation.x = RAKE; inner.add(backstrap);
     const trig = new THREE.Mesh(loft([{ p: V(0, -0.012, 0.038), rx: 0.006, ry: 0.004 }, { p: V(0, -0.032, 0.034), rx: 0.006, ry: 0.004 }, { p: V(0, -0.045, 0.04), rx: 0.005, ry: 0.003 }], 8, { up: V(0, 0, 1) }), metal(0x9aa0a8, 0.4)); inner.add(trig);
@@ -357,6 +374,14 @@ export function buildRollerViewmodel() {
     for (const z of [0.08, -0.02, -0.12]) inner.add(at(alongZ(cyl(0.053, 0.053, 0.014, darkL, 28)), 0, TY, z));
     const bell = lathe([[0.05, -0.2], [0.056, -0.23], [0.066, -0.255], [0.07, -0.265], [0.06, -0.265], [0.05, -0.245], [0.046, -0.2]], tubeM, 28); bell.rotation.x = Math.PI / 2; bell.position.set(0, TY, 0); inner.add(bell);
     inner.add(at(alongZ(cyl(0.044, 0.044, 0.06, texMat(napTex(), { roughness: 1 }), 24)), 0, TY, -0.235)); // the roller loaded in the bore
+    const bellPaint = mat(0x2f62d8, { roughness: 0.12, emissive: 0x0f2a80, emissiveIntensity: 0.3 });
+    for (const [a, len, r] of [[3.4, 0.035, 0.0035], [3.9, 0.06, 0.004], [4.4, 0.025, 0.003], [2.9, 0.045, 0.0032]]) { // T4: paint runs down from the bell lip
+        const x = Math.cos(a) * 0.068, y = TY + Math.sin(a) * 0.068;
+        inner.add(bar(V(x, y, -0.255), V(x, y - len, -0.25), r, r * 0.6, bellPaint, 6));
+        const bead = sph(r * 1.5, bellPaint, 7, 5); bead.scale.set(1, 1.4, 1); bead.position.set(x, y - len, -0.25); inner.add(bead);
+    }
+    inner.add(at(new THREE.Mesh(new THREE.TorusGeometry(0.066, 0.004, 8, 28), bellPaint), 0, TY, -0.262)); // wet ring inside the bell lip
+    const tubeLbl = box(0.002, 0.024, 0.07, texMat(labelTex(['ROLLER-MATIC', 'MK II · 90 PSI'], '#e8e0c8', '#1a1a1a', '#b02020'), { roughness: 0.55 })); tubeLbl.position.set(0.051, TY + 0.01, 0.0); tubeLbl.rotation.y = Math.PI / 2; inner.add(tubeLbl);
     inner.add(at(alongZ(cyl(0.054, 0.05, 0.03, darkL, 28)), 0, TY, 0.145)); // breech cap
     const bdome = sph(0.05, darkL, 28, 14); bdome.scale.set(1, 1, 0.35); bdome.position.set(0, TY, 0.16); inner.add(bdome); // domed
     inner.add(at(rbox(0.02, 0.012, 0.05, 0.003, metal(0x9aa0a8, 0.4)), 0.055, TY + 0.02, 0.12)); // latch lever
@@ -438,6 +463,14 @@ export function buildSprayerViewmodel() {
     inner.add(at(cyl(0.0045, 0.0045, 0.012, steel, 8), 0.02, 0.14, -0.035)); // vent
     inner.add(at(cyl(0.0365, 0.0365, 0.002, mat(0x2a6a2a, { roughness: 0.6 }), 22), 0, 0.08, -0.035)); // fill line
     inner.add(at(cyl(0.0345, 0.0345, 0.04, mat(0x2f62d8, { roughness: 0.25, emissive: 0x0f2a80, emissiveIntensity: 0.3 }), 22), 0, 0.058, -0.035)); // paint inside
+    const dripM = mat(0x2f62d8, { roughness: 0.12, emissive: 0x0f2a80, emissiveIntensity: 0.3 });
+    for (const [a, len, r] of [[0.3, 0.05, 0.003], [1.4, 0.03, 0.0025], [2.6, 0.065, 0.0035], [4.1, 0.02, 0.002], [5.2, 0.045, 0.003]]) { // T3: dried paint runs down the cup from the rim
+        const x = Math.cos(a) * 0.0365, z = -0.035 + Math.sin(a) * 0.0365;
+        inner.add(bar(V(x, 0.128, z), V(x, 0.128 - len, z), r, r * 0.6, dripM, 6));
+        const bead = sph(r * 1.5, dripM, 7, 5); bead.scale.set(1, 1.4, 1); bead.position.set(x, 0.128 - len, z); inner.add(bead);
+    }
+    for (let i = 0; i < 4; i++) { const sm = sph(0.004 + Math.random() * 0.003, dripM, 7, 5); sm.scale.set(1.5, 0.3, 1.2); sm.position.set(0.0175, 0.02 - i * 0.012, -0.02 - (i % 2) * 0.03); inner.add(sm); } // smears on the body flank
+    inner.add(at(cyl(0.006, 0.009, 0.014, rubberM(), 10), 0, -0.114, 0.033)); // hose strain relief
     // ---- grip: cast aluminium, raked, with a rubber insert; long two-finger trigger; guard; air fitting; coiled hose
     const RAKE = -0.25;
     const gripB = rbox(0.028, 0.095, 0.036, 0.007, aluM); gripB.position.set(0, -0.055, 0.02); gripB.rotation.x = RAKE; inner.add(gripB);
