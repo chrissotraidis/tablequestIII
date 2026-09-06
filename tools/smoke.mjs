@@ -1,7 +1,7 @@
 /**
  * MODERN smoke harness (GOAL_LOOP.md §3.3-4).
  *
- * Drives a build headlessly with Playwright + SwiftShader WebGL:
+ * Drives a build headlessly with Playwright and the installed browser GPU:
  *   boot -> title -> menu -> story crawl -> Floor 1, then warps to every
  *   floor via the TQ harness and checks table/staff counts, console errors,
  *   and frame time. Writes screenshots to docs/evidence/smoke/<label>/.
@@ -12,8 +12,8 @@
  *   node tools/smoke.mjs --file dist/modern/index.html --label dist
  *   node tools/smoke.mjs --out /tmp/shots     # custom screenshot dir
  */
-import { chromium } from 'playwright-core';
-import { mkdirSync, existsSync } from 'node:fs';
+import { launchBrowser } from './browser.mjs';
+import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -36,15 +36,12 @@ const EXPECTED = [
     { floor: 6, tables: '0/0', staff: 1 },
 ];
 
-const browser = await chromium.launch({
-    headless: true,
-    args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist',
-        '--autoplay-policy=no-user-gesture-required'],
-});
+const browser = await launchBrowser();
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
 const errors = [];
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push('PAGEERROR ' + e.message));
+page.on('response', r => { if (r.status() >= 400) errors.push(`${r.status()} ${r.url()}`); });
 
 const shot = (name) => page.screenshot({ path: `${outDir}/${name}.png`, timeout: 90000 });
 const failures = [];
@@ -56,39 +53,42 @@ await page.waitForTimeout(1200);
 await shot('01-boot-memory');
 check(await page.evaluate(() => TQ.state) === 'boot-memory', 'initial state is boot-memory');
 
-await page.keyboard.press('Enter'); await page.waitForTimeout(600);
+await page.locator('#boot-memory').click(); await page.waitForTimeout(600);
 await shot('02-boot-title');
-check(await page.evaluate(() => TQ.state) === 'boot-title', 'Enter advances to boot-title');
+check(await page.evaluate(() => TQ.state) === 'boot-title', 'left click advances to boot-title');
 
-await page.keyboard.press('Enter'); await page.waitForTimeout(900);
+await page.locator('#boot-title').click(); await page.waitForTimeout(900);
 await shot('03-menu');
-check(await page.evaluate(() => TQ.state) === 'menu', 'Enter advances to menu');
+check(await page.evaluate(() => TQ.state) === 'menu', 'left click advances to menu');
 
 // menu sub-screens
 await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
 await shot('04-floor-select');
 check(await page.evaluate(() => document.querySelectorAll('#level-list .level-item').length) === 6, 'floor select lists 6 floors');
 await page.keyboard.press('Escape'); await page.waitForTimeout(200);
-await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter'); await page.waitForTimeout(400);
+await page.getByRole('option', { name: 'Scoreboard' }).click(); await page.waitForTimeout(400);
+await shot('05-scoreboard');
+check(await page.locator('#menu-scoreboard').isVisible(), 'main menu opens the global scoreboard');
+await page.locator('#btn-scoreboard-back').click(); await page.waitForTimeout(200);
+await page.getByRole('option', { name: 'How to Play' }).click(); await page.waitForTimeout(400);
 await shot('05-instructions');
 await page.keyboard.press('Escape'); await page.waitForTimeout(200);
-await page.keyboard.press('ArrowUp'); await page.keyboard.press('ArrowUp'); // back to New Game
 
 // story crawl
-await page.keyboard.press('Enter'); await page.waitForTimeout(6000);
+await page.getByRole('option', { name: 'New Game' }).click(); await page.waitForTimeout(6000);
 await shot('06-story');
 check(await page.evaluate(() => TQ.state) === 'intro', 'New Game shows the story crawl');
 const storyText = await page.evaluate(() => document.querySelector('.intro-container')?.textContent.replace(/\s+/g, ' ').trim());
 check(storyText && storyText.includes('They left her alive') && storyText.includes("She's taking them back"),
     'story text intact');
 
-await page.keyboard.press('Enter'); await page.waitForTimeout(1500);
-// MODERN M3.6: a per-floor loading card sits between the briefing and play; Enter deploys
-check(await page.evaluate(() => TQ.state) === 'loading', 'skip crawl shows the loading card');
+await page.locator('#intro-screen').click({ position: { x: 32, y: 32 } }); await page.waitForTimeout(1500);
+// MODERN M3.6: a per-floor loading card sits between the briefing and play
+check(await page.evaluate(() => TQ.state) === 'loading', 'clicking the crawl shows the loading card');
 await shot('07a-loading-card');
-await page.keyboard.press('Enter'); await page.waitForTimeout(2500);
+await page.locator('#screen-loading').click({ position: { x: 32, y: 32 } }); await page.waitForTimeout(2500);
 await shot('07-floor1-spawn');
-check(await page.evaluate(() => TQ.state) === 'play', 'deploy enters play');
+check(await page.evaluate(() => TQ.state) === 'play', 'clicking deploy enters play');
 
 // walk forward, capture, then check pause
 await page.mouse.click(640, 400);
@@ -106,7 +106,7 @@ await page.keyboard.press('Escape'); await page.waitForTimeout(200);
 // every floor via harness
 const frameTimes = [];
 for (const exp of EXPECTED) {
-    await page.evaluate((f) => { TQ.startGameAt(f - 1); TQ.godmode(true); }, exp.floor);
+    await page.evaluate(async (f) => { await TQ.startGameAt(f - 1); TQ.godmode(true); }, exp.floor);
     await page.waitForTimeout(1200);
     const snap = await page.evaluate(() => TQ.snapshot());
     check(snap.state === 'play', `floor ${exp.floor} enters play`);

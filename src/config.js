@@ -2,7 +2,7 @@
  * CONFIGURATION & CONSTANTS
  */
 export const WALL_HEIGHT = 1.35;
-export const EYE_HEIGHT = 0.62;
+export const EYE_HEIGHT = 0.70;
 export const PLAYER_RADIUS = 0.26;
 export const PLAYER_SPEED = 3.7;        // units / sec
 export const PLAYER_SPRINT = 5.6;
@@ -112,7 +112,7 @@ export const ENEMY_STATS = {
     0:    { name: 'Guard',         detectRange: 10, attackRange: 7,  moveSpeed: 1.6, attackCooldown: 2.42, health: 30,  damage: 7.5,  score: 100,  lead: 0 },
     1:    { name: 'Manager',       detectRange: 12, attackRange: 8,  moveSpeed: 2.0, attackCooldown: 1.9,  health: 45,  damage: 8.5,  score: 200,  lead: 0.25 },
     2:    { name: 'Executive',     detectRange: 14, attackRange: 10, moveSpeed: 2.4, attackCooldown: 1.58, health: 60,  damage: 11.5, score: 400,  lead: 0.55 },
-    boss: { name: 'Head Designer', detectRange: 26, attackRange: 18, moveSpeed: 2.0, attackCooldown: 1.26, health: 480, damage: 11.5, score: 5000, lead: 0.5 },
+    boss: { name: 'Head Designer', detectRange: 26, attackRange: 18, moveSpeed: 2.0, attackCooldown: 1.26, health: 1200, damage: 11.5, score: 5000, lead: 0.5 },
 };
 
 export const PACK_ALERT_RADIUS = 5.5; // spotting the player wakes nearby staff

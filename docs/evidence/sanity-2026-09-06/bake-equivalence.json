@@ -1,0 +1,287 @@
+[
+  {
+    "name": "plant",
+    "state": "intact",
+    "sha256": "e0c8c93b90997e5135770aabb71de1ed925786e3d40b15a8ab025927734b0fef"
+  },
+  {
+    "name": "plant",
+    "state": "damaged",
+    "sha256": "e24e7039ef0fec8e2ca89b8e8e27deadecb65ccc9ceb7ccd470c669267660d0e"
+  },
+  {
+    "name": "plant",
+    "state": "wreck",
+    "sha256": "a868ee763da8ae80c8e6ddd51060a0067259c0ebf48c5bd8c19c9648d3432bee"
+  },
+  {
+    "name": "cooler",
+    "state": "intact",
+    "sha256": "fdc668f908ab006d6c20afea93bc864c198be45ac561d7190a6e8d7a8b4fac2d"
+  },
+  {
+    "name": "cooler",
+    "state": "damaged",
+    "sha256": "f3b7bfd4d000e9c0934c7825fc44962ca5e2aa6aa978ae6a0cee4a531a35ca58"
+  },
+  {
+    "name": "cooler",
+    "state": "wreck",
+    "sha256": "3621bd6cf7fbd0d7b1a533705afaa678680684e925d57667781099154fb3c8ce"
+  },
+  {
+    "name": "cabinet",
+    "state": "intact",
+    "sha256": "db13bcccb052274aa931824bd8ce25f8c54ca0458bea990383154cae21c78119"
+  },
+  {
+    "name": "cabinet",
+    "state": "damaged",
+    "sha256": "db682fd8c8936d81a9df0ece7451624ee7d25d9d115d4d124cf469733755674d"
+  },
+  {
+    "name": "cabinet",
+    "state": "wreck",
+    "sha256": "37b4a7eef4f4354185f8a7f3978ab43b1db2d63c8e9e15b7d753d7572b889119"
+  },
+  {
+    "name": "crate",
+    "state": "intact",
+    "sha256": "a77629b4892607ed6139c70e2c0d8903f54677b9411d31e47b4504693b6433bf"
+  },
+  {
+    "name": "crate",
+    "state": "damaged",
+    "sha256": "1ab95fa993326231475fbb62860826b9e19ad3635cd66fab6e1db76497953b1d"
+  },
+  {
+    "name": "crate",
+    "state": "wreck",
+    "sha256": "a1c0f71c2c1e0ee5a438cb816fb7db52bd7fd3d04cb320d96eb1be0e0382e5de"
+  },
+  {
+    "name": "barrel",
+    "state": "intact",
+    "sha256": "f6b34ab6432d53e1ae07e2629fc34b8afec01fb7bdcdbc05ee4b076eed7665fc"
+  },
+  {
+    "name": "barrel",
+    "state": "damaged",
+    "sha256": "5a8d0cdf1ac1cc986c5dc74a7b17f51255469bdc17491354cd2ff1f0ea8ca46b"
+  },
+  {
+    "name": "barrel",
+    "state": "wreck",
+    "sha256": "c5f5a7b42064e380f34a937480599a85eebd338d249c4b853f12258b3f7f5d78"
+  },
+  {
+    "name": "shelf",
+    "state": "intact",
+    "sha256": "979f19d05a575d7a8ba8d22d26af9b107a4685a2a7a242cd43e5cda2662dd0e6"
+  },
+  {
+    "name": "shelf",
+    "state": "damaged",
+    "sha256": "858d46f18c506598da586d147d1a0dd1e7e00488c52427520fb75fd038d41e52"
+  },
+  {
+    "name": "shelf",
+    "state": "wreck",
+    "sha256": "b1ff33830824aa5e36ff8db1f962e241981f1f6939ae4286d8d94fee66a965dc"
+  },
+  {
+    "name": "desk",
+    "state": "intact",
+    "sha256": "fb79920be79894b7dec12e5a68205fb9e5f9bf4a7a8d8f0abddf5008c3de7f88"
+  },
+  {
+    "name": "desk",
+    "state": "damaged",
+    "sha256": "a83b02c958f31dfa5b7b3f8f43f4c8cd0d1fd0faf20d6cd55a1155c053e6b738"
+  },
+  {
+    "name": "desk",
+    "state": "wreck",
+    "sha256": "a7cebf7804ddcc779b63a79eb36044b389d96958e3a86ce34372921c5798716a"
+  },
+  {
+    "name": "bench",
+    "state": "intact",
+    "sha256": "c4b5b6e7584f5b8486559f5e9529d432d752d64e0883f0274ff859641945a5d0"
+  },
+  {
+    "name": "bench",
+    "state": "damaged",
+    "sha256": "43505dc3af2d46b829aa727904dc3bf327beda0a6484dbb22190eb842da36c03"
+  },
+  {
+    "name": "bench",
+    "state": "wreck",
+    "sha256": "1849b8eb1588636c9d014a9a45e2e6f75a1d5b7435acafb24c267a986ffa3532"
+  },
+  {
+    "name": "pallet",
+    "state": "intact",
+    "sha256": "e7a47f3b5a03292b63c164f7bdb08eb1eda9837f6cbb0c236381b1a045d2ede2"
+  },
+  {
+    "name": "pallet",
+    "state": "damaged",
+    "sha256": "18aab9a532e0eb976d30d0051873b1bb82c1d2e2d7e311acf2f1c487dcf07f79"
+  },
+  {
+    "name": "pallet",
+    "state": "wreck",
+    "sha256": "8c88389a21400229df897732980fc39a378a09f0af427979214632f531c11820"
+  },
+  {
+    "name": "statue",
+    "state": "intact",
+    "sha256": "4063e8448705429a8689fe72694d46036f9d6bd202d3686cf93a80816f9d7805"
+  },
+  {
+    "name": "statue",
+    "state": "damaged",
+    "sha256": "07cc01a1fa76e5ca4cef389308470c2a527297ece841077757fad2468b45fc4c"
+  },
+  {
+    "name": "statue",
+    "state": "wreck",
+    "sha256": "44e2d198379eb55fe59a088dfb794cb2e21c82b220c758205129d41813b6969f"
+  },
+  {
+    "name": "machine",
+    "state": "intact",
+    "sha256": "794611895824c9e9b0a2ac8bc44a88f1e399976c3eb8e3e143433db7d3da6439"
+  },
+  {
+    "name": "machine",
+    "state": "damaged",
+    "sha256": "bf76d37764cb20f1c687dea197bd0f8cafd1ccd165073a1e0fcabfe9621f85be"
+  },
+  {
+    "name": "machine",
+    "state": "wreck",
+    "sha256": "261946805181d8b16cf504be84117d637e571370c788dcf20caf3fc184bf693d"
+  },
+  {
+    "name": "counter",
+    "state": "intact",
+    "sha256": "708a187f7d9105a07b7f5c0718ed8cd0c453dec4c364b789cb54da07836ea6ca"
+  },
+  {
+    "name": "counter",
+    "state": "damaged",
+    "sha256": "d3cf00f9c1824b3b62e782a3df36131dab5f8add68cb8c04a2cfaf0cc5d73e75"
+  },
+  {
+    "name": "counter",
+    "state": "wreck",
+    "sha256": "b350da7e385ef454e5c118d51e746c6b9c16242d7e2ffa57893a51a0188bcc58"
+  },
+  {
+    "name": "sofa",
+    "state": "intact",
+    "sha256": "1ab2c86da8acb19916116e5062857727eb64a5413ad896355eaaab64afd99d48"
+  },
+  {
+    "name": "sofa",
+    "state": "damaged",
+    "sha256": "6ac361673ce0959583c0aa62648fa874e29952e84c59354c0a6eff19105edb18"
+  },
+  {
+    "name": "sofa",
+    "state": "wreck",
+    "sha256": "5b106df0161b2e5c787758c69abfca9ac4c177112f32e945556ebf768d233dc4"
+  },
+  {
+    "name": "vending",
+    "state": "intact",
+    "sha256": "24673306d416deea08c355ecb29f0868c8eb32f866d5915bda3c8d7aed04e4f3"
+  },
+  {
+    "name": "vending",
+    "state": "damaged",
+    "sha256": "4342e522ddf9eedc3ab28b6f085361942eb5407cd6cbbc87829ef60d89e329c1"
+  },
+  {
+    "name": "vending",
+    "state": "wreck",
+    "sha256": "818f6838db46f0d7ee3563b42600818ecc3f24cf5328f4eedd85d116cf075447"
+  },
+  {
+    "name": "fridge",
+    "state": "intact",
+    "sha256": "87bcbf6273844a712433ca2e8488d2ebc9dd204a002f8504a92240e1d3fafac9"
+  },
+  {
+    "name": "fridge",
+    "state": "damaged",
+    "sha256": "46717b122d8de060d6c1a5830d82f219986a4585924458bac5d6f0771696a49a"
+  },
+  {
+    "name": "fridge",
+    "state": "wreck",
+    "sha256": "1655cb34a9ccc2bc985a993d4c7d52b91cda2c664d88cc30a3f2a38d64f7ca3e"
+  },
+  {
+    "name": "floorLamp",
+    "state": "intact",
+    "sha256": "fbf9ab0a06b0b66c70dab2e73b46be1baa78e615cb181e5a930b803d32f29c54"
+  },
+  {
+    "name": "floorLamp",
+    "state": "damaged",
+    "sha256": "f07b27d5dce6527fcd03b98f204f39878adb927524e75e276539e5d58200d1f9"
+  },
+  {
+    "name": "floorLamp",
+    "state": "wreck",
+    "sha256": "f524286d367bc05d8d1a63fed7e2ee1bd4cfc4b3e4c862406eacfafe516eb110"
+  },
+  {
+    "name": "bigTable",
+    "state": "intact",
+    "sha256": "6d1932bba5abfed1fbedb46b51c80b54864fc60e6a2a22cfce2521d046a39aa6"
+  },
+  {
+    "name": "bigTable",
+    "state": "damaged",
+    "sha256": "58285ee4ce28667aea8a4b285794500c93e8e3c07a43a7e169392e2ea93632b5"
+  },
+  {
+    "name": "bigTable",
+    "state": "wreck",
+    "sha256": "d84f886c6d0fcd858880fab5c34e03a28fc5a7c12a2bf61a0192430e5c502429"
+  },
+  {
+    "name": "lumber",
+    "state": "intact",
+    "sha256": "9c2ce8b73e366076fd80c99ffa413f5381e8d4c1e25cee90fa1a2795d58ef84e"
+  },
+  {
+    "name": "lumber",
+    "state": "damaged",
+    "sha256": "a278096dd591efe251cfaf962344579f4972855e90de4461edf80a01a38ff1c4"
+  },
+  {
+    "name": "lumber",
+    "state": "wreck",
+    "sha256": "19e12fa1ddd8a741782ab1f3168cf9b76624611b789bd5ed4a39e4b40864b2d8"
+  },
+  {
+    "name": "copier",
+    "state": "intact",
+    "sha256": "b3fa5b69d590bf44569376e0d933ed3711c4607f051cd9ecb87a0e04e63defcf"
+  },
+  {
+    "name": "copier",
+    "state": "damaged",
+    "sha256": "4756c984dc8b93925a4c3c6ec557e7e1e03626c1ccd6ef65d2cdb4dc83f79600"
+  },
+  {
+    "name": "copier",
+    "state": "wreck",
+    "sha256": "4022207a14391fb89796c1a41c360ba2b7b0b643fabf5341ec65f18bc40292ef"
+  }
+]

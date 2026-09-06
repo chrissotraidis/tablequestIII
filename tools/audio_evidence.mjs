@@ -11,7 +11,11 @@ import path from 'node:path';
 const url = process.argv[2] || 'http://127.0.0.1:5174/';
 const out = process.argv[3] || 'docs/evidence/M6';
 fs.mkdirSync(out, { recursive: true });
-const b = await chromium.launch({ headless: true, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+const systemBrowser = process.env.TQ_BROWSER_PATH || [
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
+].find(candidate => fs.existsSync(candidate));
+const b = await chromium.launch({ executablePath: systemBrowser, headless: true, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const p = await b.newPage({ viewport: { width: 640, height: 400 } });
 const errors = [];
 p.on('pageerror', e => errors.push(String(e)));
@@ -42,11 +46,13 @@ for (const name of dbg.songs) {
 const sfx = {};
 for (const t of dbg.sfx) sfx[t] = await p.evaluate(async (t) => TQ.renderSfx(t), t);
 fs.writeFileSync(path.join(out, 'sfx.json'), JSON.stringify(sfx, null, 1));
-const quiet = Object.entries(sfx).filter(([, v]) => v.peak < 0.01).map(([k]) => k);
-console.log(`sfx: ${Object.keys(sfx).length}, silent: ${quiet.length ? quiet.join(',') : 'none'}`);
+const silentSfx = Object.entries(sfx).filter(([, v]) => v.peak === 0).map(([k]) => k);
+const quiet = Object.entries(sfx).filter(([, v]) => v.peak > 0 && v.peak < 0.01).map(([k]) => k);
+console.log(`sfx: ${Object.keys(sfx).length}, silent: ${silentSfx.length ? silentSfx.join(',') : 'none'}, quiet: ${quiet.length ? quiet.join(',') : 'none'}`);
 
 console.log('ERRORS', JSON.stringify(errors));
 await b.close();
+if (silent.length || silentSfx.length || errors.length) process.exitCode = 1;
 
 function wav(pcm, rate) {
     const h = Buffer.alloc(44);

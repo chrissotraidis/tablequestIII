@@ -7,6 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "serve:scoreboard": "node server/scoreboard-server.mjs",
+    "test:scoreboard": "node tools/test_scoreboard.mjs",
+    "test:sanity": "node tools/sanity.mjs",
+    "report:telemetry": "node tools/telemetry_report.mjs",
     "dev:classic": "vite --config classic/vite.config.js",
     "build:classic": "vite build --config classic/vite.config.js",
     "preview:classic": "vite preview --config classic/vite.config.js",
@@ -20,7 +24,10 @@
     "build:modern": "vite build",
     "preview:modern": "vite preview",
     "smoke:modern": "node tools/smoke.mjs",
-    "validate:levels:modern": "node tools/validate_levels.mjs"
+    "validate:levels:modern": "node tools/validate_levels.mjs",
+    "pull:telemetry": "node tools/pull_telemetry.mjs",
+    "test:incidents": "node tools/incident_sanity.mjs",
+    "test:telemetry": "node tools/test_telemetry.mjs"
   },
   "keywords": [],
   "author": "",

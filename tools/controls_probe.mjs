@@ -4,13 +4,13 @@
  * second walking and sprinting (PLAYER speeds unchanged).
  *   node tools/controls_probe.mjs [url]
  */
-import { chromium } from 'playwright-core';
+import { launchBrowser } from './browser.mjs';
 const url = process.argv[2] || 'http://127.0.0.1:5174/';
-const b = await chromium.launch({ headless: true, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+const b = await launchBrowser();
 const p = await b.newPage({ viewport: { width: 320, height: 200 } });
 await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(600);
-const r = await p.evaluate(() => {
-    TQ.skipBoot(); TQ.startGameAt(0); TQ.godmode(true); TQ.setTestMode(true);
+const r = await p.evaluate(async () => {
+    TQ.skipBoot(); await TQ.startGameAt(0); TQ.godmode(true); TQ.setTestMode(true);
     const g = TQ.game, inp = TQ.input;
     const out = {};
     const yawFor = (dt, frames, dx) => {

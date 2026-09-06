@@ -4,7 +4,9 @@
 import * as THREE from 'three';
 
 // original Fritos health-pickup art, ported from the 199X release
-import fritosUrl from './assets/fritos.png';
+// Use the preserved original sprite directly. The former modern WebP had
+// artifact damage around the bag and no longer matched the game.
+import fritosUrl from '../classic/src/assets/fritos.png';
 
 // MODERN: every model surface is a StandardMaterial so it responds to the
 // shadowed, graded lighting rig. Default is a satin finish; builders override.

@@ -125,6 +125,14 @@ export class PostFX {
         this.grade.uniforms.aspect.value = w / h;
     }
 
+    setPixelRatio(value) {
+        this.composer.setPixelRatio(value);
+    }
+
+    setPerformanceMode(on = true) {
+        this.bloom.enabled = !on;
+    }
+
     /** Apply a floor's grade block (see lighting.js rigs). Missing keys fall back to defaults. */
     applyGrade(g = {}) {
         const cfg = { ...DEFAULT_GRADE, ...g, bloom: { ...DEFAULT_GRADE.bloom, ...(g.bloom || {}) } };
@@ -149,9 +157,9 @@ export class PostFX {
         if (!this.enabled) { this.renderer.render(this.scene, this.camera); this.renderer.autoClear = false; this.renderer.clearDepth(); this.renderer.render(this.scene, this.vmCamera); this.renderer.autoClear = true; return; }
         const u = this.grade.uniforms;
         u.time.value = time;
-        // ease the blur so it never pops; ~2 px at a brisk 4 rad/s turn
-        const target = Math.min(0.004, Math.abs(yawRate) * 0.0006);
-        this.motion += (target - this.motion) * 0.35;
+        // Keep fast turns readable: a restrained smear, eased in and out.
+        const target = Math.min(0.0018, Math.abs(yawRate) * 0.00028);
+        this.motion += (target - this.motion) * 0.25;
         u.motion.value = this.motion;
         this.composer.render();
     }

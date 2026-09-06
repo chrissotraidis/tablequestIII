@@ -2,6 +2,7 @@
  * GAME — core play-session logic: player, enemies, combat, pickups.
  */
 import * as THREE from 'three';
+import { DecalGeometry } from 'three/addons/geometries/DecalGeometry.js';
 import {
     WEAPONS, SCORE_VALUES, ENEMY_STATS, CELL,
     EYE_HEIGHT, PLAYER_RADIUS, PLAYER_SPEED, PLAYER_SPRINT, PLAYER_ACCEL,
@@ -28,6 +29,7 @@ import { MuzzleFlash } from './gunfx.js';
 import { getRig } from './lighting.js';
 import { Effects, getSplatTextures } from './effects.js';
 import { setShadow } from './lighting.js';
+import { gameLog } from './logger.js';
 
 const ENEMY_CHAR = { g: 0, m: 1, x: 2, D: -1, G: 'boss' };
 
@@ -144,7 +146,7 @@ export class Game {
         // N2: a shadow-casting key in camera space so hands and tools shade each other (contact shadows)
         this.vmSun = new THREE.DirectionalLight(0xfff4e8, 1.1); this.vmSun.position.set(0.45, 0.7, 0.25);
         this.vmSun.target = new THREE.Object3D(); this.vmSun.target.position.set(0, -0.15, -0.55); camera.add(this.vmSun.target);
-        this.vmSun.castShadow = true; this.vmSun.shadow.mapSize.set(1024, 1024);
+        this.vmSun.castShadow = true; this.vmSun.shadow.mapSize.set(512, 512);
         const sc = this.vmSun.shadow.camera; sc.left = -0.5; sc.right = 0.5; sc.top = 0.45; sc.bottom = -0.45; sc.near = 0.01; sc.far = 2.5; sc.layers.set(1);
         this.vmSun.shadow.bias = -0.0006; this.vmSun.shadow.normalBias = 0.004; this.vmSun.layers.set(1); camera.add(this.vmSun);
         this.vmFill = new THREE.HemisphereLight(0xe8eef4, 0x4a4038, 0.25); this.vmFill.layers.set(1); camera.add(this.vmFill);
@@ -158,11 +160,12 @@ export class Game {
             tableLeg:   { pitch: 0.018, yaw: 0.010, roll: 0.03,  vm: 1.0, climb: 0 , kin: { back: 0.1, up: -0.06, pitch: 0.9, roll: 0.5, stiff: 140, damp: 11 } },
             nailgun:    { pitch: 0.012, yaw: 0.005, roll: 0.004, vm: 0.7, climb: 0.004 , kin: { back: 0.22, up: 0.08, pitch: 1.3, roll: 0.18, stiff: 420, damp: 20 } },
             roller:     { pitch: 0.055, yaw: 0.014, roll: 0.02,  vm: 1.6, climb: 0 , kin: { back: 0.4, up: 0.14, pitch: 1.8, roll: 0.45, stiff: 150, damp: 12 } },
-            sprayer:    { pitch: 0.007, yaw: 0.006, roll: 0.003, vm: 0.5, climb: 0.006 , kin: { back: 0.06, up: 0.02, pitch: 0.35, roll: 0.2, stiff: 500, damp: 18 } },
+            sprayer:    { pitch: 0.004, yaw: 0.003, roll: 0.001, vm: 0.25, climb: 0.002, kin: { back: 0.018, up: 0.004, pitch: 0.10, roll: 0.04, stiff: 360, damp: 28 } },
         };
         this.kick = { pitch: 0, yaw: 0, roll: 0, vPitch: 0, vYaw: 0, vRoll: 0, climb: 0 };
         this.aim = 0;               // MODERN: 0 hip … 1 down the sights
         this.quick = { t: 0, struck: false, cd: 0 }; // MODERN M2.6: quick melee state
+        this.clubSwing = { t: 0, struck: false, duration: 0.46 };
         this.barks = new Barks(); // MODERN M4.3: staff callouts
         this.ADS_FOV_DROP = 15;      // degrees
         this.ADS_SPREAD = 0.45;      // spread multiplier while aimed (hip-fire spread unchanged)
@@ -214,7 +217,7 @@ export class Game {
         // MODERN: free per-level GPU resources (classic only removed them)
         const disposeTree = (obj) => obj.traverse(o => {
             if (o.geometry) o.geometry.dispose();
-            if (o.material && !o.material.map) { // keep shared sprite textures (Fritos)
+            if (o.material) { // dispose the material, but keep its shared sprite texture
                 const ms = Array.isArray(o.material) ? o.material : [o.material];
                 ms.forEach(m => { if (!m.userData.shared) m.dispose(); });
             }
@@ -455,6 +458,7 @@ export class Game {
         if (input.cycleWeapon !== 0 && p.weapons.length > 1) {
             const n = p.weapons.length;
             p.currentWeapon = (p.currentWeapon + input.cycleWeapon % n + n) % n;
+            gameLog('weapon.changed', { weapon: p.weapons[p.currentWeapon], source: 'wheel-or-q' });
             playSound('weapon_switch');
             this.updateViewmodel();
             this.cb.onHUD();
@@ -463,6 +467,7 @@ export class Game {
         if (input.melee) this.startQuickMelee();
         if (input.regrip && this.vmAnim.swapPhase === 'idle' && this.quick.t <= 0) this.topUp(true); // R5.3: R re-grips the tool
         this.updateQuickMelee(dt);
+        this.updateClubSwing(dt);
         const w = WEAPONS[p.weapons[p.currentWeapon]];
         const wantFire = input.fire || (w.auto && fireHeld());
         if (wantFire && p.cooldown <= 0 && this.quick.t <= 0) this.fireWeapon(w);
@@ -495,7 +500,8 @@ export class Game {
 
         if (w.type === 'melee') {
             playSound('swing');
-            this.meleeStrike(w);
+            this.clubSwing.t = this.clubSwing.duration;
+            this.clubSwing.struck = false;
         } else {
             playSound(w.sound || (w === WEAPONS.sprayer ? 'spray' : 'shoot'));
             const spreadMul = 1 - (1 - this.ADS_SPREAD) * this.aim; // ADS tightens the cone
@@ -538,7 +544,7 @@ export class Game {
                 } else if (wkey === 'paintbrush') {
                     this.effects.burst(mz, color, 5, 1.8, 0.4, { size: 0.035, gravity: 7, dir: fwd, dirW: 0.9 });
                 } else if (wkey === 'sprayer') {
-                    this.effects.burst(mz, color, 4, 3.0, 0.22, { size: 0.03, gravity: 2, drag: 3, dir: fwd, dirW: 1.4 });
+                    this.effects.burst(mz.clone().addScaledVector(fwd, 0.03), color, 3, 3.2, 0.18, { size: 0.025, gravity: 1.2, drag: 2.5, dir: fwd, dirW: 0.35 });
                 } else if (wkey === 'roller') {
                     this.effects.burst(mz, color, 10, 1.6, 0.5, { size: 0.05, gravity: 3, drag: 2, dir: fwd, dirW: 0.5 });
                     // tank hiss: a steam puff off the pressure tank behind the muzzle (R4.2)
@@ -558,30 +564,31 @@ export class Game {
         const m = e.model;
         if (!m) return;
         e.lastPaint = color.clone ? color.clone() : new THREE.Color(color);
+        if ((e.paintCount || 0) >= 10) return; // suit is saturated
+        // The gameplay hit radius is generous. Only leave paint where the
+        // visible rig has a surface, then clip it to that mesh's triangles.
+        m.group.updateWorldMatrix(true, true);
+        const direction = new THREE.Vector3(hx - e.x, 0, hy - e.y);
+        if (direction.lengthSq() < 0.0001) direction.set(0, 0, 1);
+        direction.normalize();
+        const origin = new THREE.Vector3(e.x, hz, e.y).addScaledVector(direction, 1.5);
+        const ray = new THREE.Raycaster(origin, direction.clone().negate(), 0, 3);
+        const targets = [];
+        m.group.traverse(o => { if (o.isMesh && !o.userData.paintDecal) targets.push(o); });
+        const hit = ray.intersectObjects(targets, false)[0];
+        if (!hit) return;
         e.paintCount = (e.paintCount || 0) + 1;
-        if (e.paintCount > 10) return; // suit is saturated
-        const scale = e.variant === 'boss' ? 1.65 : 1;
-        const localZ = hz / scale;                       // height on the un-scaled rig
-        const part = localZ < 0.42 ? (Math.random() < 0.5 ? m.legL : m.legR) : localZ > 0.78 ? m.headG : m.torso;
-        // outward direction from the enemy axis to the hit, in model space (undo the group yaw)
-        const dx = hx - e.x, dy = hy - e.y;
-        const yaw = m.group.rotation.y;
-        const lx = Math.cos(-yaw) * dx - Math.sin(-yaw) * dy;
-        const lz = Math.sin(-yaw) * dx + Math.cos(-yaw) * dy;
-        const len = Math.hypot(lx, lz) || 1;
-        const nx = lx / len, nz = lz / len;
-        const radius = part === m.headG ? 0.085 : part === m.torso ? 0.1 : 0.06;
+        const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+        const orientation = new THREE.Euler().setFromQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal));
+        const geometry = new DecalGeometry(hit.object, hit.point, orientation, new THREE.Vector3(size, size, 0.08));
+        // DecalGeometry emits world-space vertices; retain the struck limb as parent.
+        geometry.applyMatrix4(hit.object.matrixWorld.clone().invert());
         const texs = getSplatTextures();
         const mat = new THREE.MeshBasicMaterial({ map: texs[Math.floor(Math.random() * texs.length)], color: e.lastPaint, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
-        const quad = new THREE.Mesh(new THREE.PlaneGeometry(size, size), mat);
-        // part-local placement: parts pivot at hip/shoulder/neck; convert the world height to part space
-        part.updateWorldMatrix(true, false);
-        const local = part.worldToLocal(new THREE.Vector3(e.x, hz, e.y));
-        quad.position.set(local.x + nx * radius, local.y, local.z + nz * radius);
-        quad.lookAt(quad.position.clone().add(new THREE.Vector3(nx, 0, nz)));
-        quad.rotateZ(Math.random() * Math.PI * 2);
-        quad.renderOrder = 3;
-        part.add(quad);
+        const decal = new THREE.Mesh(geometry, mat);
+        decal.userData.paintDecal = true;
+        decal.renderOrder = 3;
+        hit.object.add(decal);
     }
 
     /** the table leg's hit resolution (classic numbers: 50 dmg, 1.8 range, 90° arc, wrecks props) */
@@ -613,7 +620,8 @@ export class Game {
             }
         }
         if (hit) {
-            playSound('hit');
+            gameLog('melee.connected', { weapon: 'tableLeg' });
+            playSound(w === WEAPONS.tableLeg ? 'whack' : 'hit');
             playSound('hitmark');
             hud.hitMarker();
             this.shake = Math.max(this.shake, 0.12);
@@ -658,6 +666,17 @@ export class Game {
         }
     }
 
+    updateClubSwing(dt) {
+        const swing = this.clubSwing;
+        if (swing.t <= 0) return;
+        swing.t = Math.max(0, swing.t - dt);
+        // Contact follows the visible downswing instead of landing on mouse-down.
+        if (!swing.struck && swing.t <= swing.duration * 0.58) {
+            swing.struck = true;
+            this.meleeStrike(WEAPONS.tableLeg);
+        }
+    }
+
     /** world-space muzzle of the visible viewmodel (for ejection particles) */
     muzzleWorld(vm) {
         if (!vm?.userData.muzzle) return null;
@@ -681,6 +700,7 @@ export class Game {
         const p = this.player;
         if (slot - 1 >= 0 && slot - 1 < p.weapons.length && slot - 1 !== p.currentWeapon) {
             p.currentWeapon = slot - 1;
+            gameLog('weapon.changed', { weapon: p.weapons[p.currentWeapon], source: 'number-key' });
             playSound('weapon_switch');
             this.updateViewmodel();
             this.cb.onHUD();
@@ -845,12 +865,14 @@ export class Game {
             // wall hit → splat
             if (!dead && this.world.isStructureSolid(Math.floor(nx), Math.floor(ny))) {
                 dead = true;
-                const pos = new THREE.Vector3(pr.x, pr.z, pr.y);
-                const cellX = Math.floor(nx);
-                const prevCellX = Math.floor(pr.x);
-                let normal;
-                if (cellX !== prevCellX) normal = new THREE.Vector3(-Math.sign(pr.vx), 0, 0);
-                else normal = new THREE.Vector3(0, 0, -Math.sign(pr.vy));
+                const cellX = Math.floor(nx), cellY = Math.floor(ny);
+                // Entry time for each slab; the later boundary is the face hit.
+                const tx = nx === pr.x ? -Infinity : ((pr.vx > 0 ? cellX : cellX + 1) - pr.x) / (nx - pr.x);
+                const ty = ny === pr.y ? -Infinity : ((pr.vy > 0 ? cellY : cellY + 1) - pr.y) / (ny - pr.y);
+                const fraction = Math.max(0, Math.min(1, Math.max(tx, ty)));
+                const normal = tx >= ty ? new THREE.Vector3(-Math.sign(pr.vx), 0, 0) : new THREE.Vector3(0, 0, -Math.sign(pr.vy));
+                const pos = new THREE.Vector3(pr.x + (nx - pr.x) * fraction, pr.z, pr.y + (ny - pr.y) * fraction);
+                pr.x = pos.x; pr.y = pos.z;
                 if (pr.owner === 'player') {
                     this.effects.impact(pos, normal, this.surfaceAt(cellX, Math.floor(ny)), pr.color, pr.kind || 'paint');
                     playSound(pr.kind === 'nail' ? 'wood_hit' : 'splat');
@@ -939,6 +961,13 @@ export class Game {
             this.player.score += 5; // demolition bonus
             // the cartel hides cash in the furniture
             if (Math.random() < 0.12) this.spawnEntity({ char: '$', x: res.x, y: res.y });
+            // The original joke returns: wrecking a vending machine spills
+            // real Fritos health pickups, not generic colored boxes.
+            if (res.type === 'vending') {
+                for (const ox of [-0.22, 0.22]) this.spawnEntity({ char: 'H', x: res.x + ox, y: res.y + (ox > 0 ? 0.12 : -0.12), drop: true });
+                hud.toast('FRITOS!  VENDING MACHINE JACKPOT', 1800, 'green');
+                gameLog('prop.vending-fritos', { floor: this.levelIndex + 1, count: 2 });
+            }
             this.cb.onHUD();
         } else {
             playSound('wood_hit');
@@ -1502,13 +1531,35 @@ export class Game {
             const bp = vm.userData.basePos || (vm.userData.basePos = vm.position.clone());
             vm.position.copy(bp);
             const rvm = (this.RECOIL[shownKey] || this.RECOIL.paintbrush).vm;
-            if (w.type === 'melee') { // swing: wrist-led arc with a forward lunge; the arms stay anchored
-                const k = this.recoil;
-                vm.rotation.x = base - k * 0.55 * rvm + sp.px * 0.6;
-                vm.rotation.z = k * 0.35 * rvm + sp.rz;
-                vm.rotation.y = -k * 0.25;
-                vm.position.z = bp.z - k * 0.1 + sp.z;
-                vm.position.y = bp.y - k * 0.03;
+            if (w.type === 'melee') { // shoulder-led wind-up, lateral strike, then recovery
+                const total = this.quick.t > 0 ? 0.5 : this.clubSwing.duration;
+                const left = this.quick.t > 0 ? this.quick.t : this.clubSwing.t;
+                const pSwing = left > 0 ? THREE.MathUtils.clamp(1 - left / total, 0, 1) : 1;
+                const ease = x => x * x * (3 - 2 * x);
+                let yaw = 0, roll = 0, lift = 0, lunge = 0;
+                if (left > 0 && pSwing < 0.2) {
+                    const q = ease(pSwing / 0.2);
+                    yaw = 0.62 * q; roll = -0.34 * q; lift = 0.09 * q;
+                } else if (left > 0 && pSwing < 0.68) {
+                    const q = ease((pSwing - 0.2) / 0.48);
+                    yaw = THREE.MathUtils.lerp(0.62, -1.05, q);
+                    roll = THREE.MathUtils.lerp(-0.34, 0.68, q);
+                    lift = THREE.MathUtils.lerp(0.09, -0.035, q);
+                    lunge = Math.sin(q * Math.PI) * 0.12;
+                } else if (left > 0) {
+                    const q = ease((pSwing - 0.68) / 0.32);
+                    yaw = THREE.MathUtils.lerp(-1.05, 0, q);
+                    roll = THREE.MathUtils.lerp(0.68, 0, q);
+                    lift = THREE.MathUtils.lerp(-0.035, 0, q);
+                }
+                vm.rotation.x = base - Math.abs(yaw) * 0.18 * rvm + sp.px * 0.35;
+                vm.rotation.y = yaw;
+                vm.rotation.z = roll + sp.rz * 0.5;
+                vm.position.x = bp.x + yaw * 0.08;
+                vm.position.z = bp.z - lunge + sp.z * 0.35;
+                vm.position.y = bp.y + lift;
+                root.rotation.y += yaw * 0.18;
+                root.rotation.z += roll * 0.12;
             } else {
                 vm.position.z = bp.z + sp.z; vm.position.y = bp.y + sp.y;
                 vm.rotation.x = base + sp.px;

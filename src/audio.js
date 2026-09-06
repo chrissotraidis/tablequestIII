@@ -17,16 +17,37 @@
  * Everything is synthesized at runtime; there are no audio assets.
  */
 
+import { gameLog } from './logger.js';
+
 let G = null;          // live graph (see buildGraph)
 let audioCtx = null;   // alias of G.ctx, kept for the classic code paths
 let muted = false;
-const MASTER_LEVEL = 0.6;
+// Leave real mix headroom before the safety limiter. Dense combat can stack a
+// full arrangement, weapon transients, barks and reverb in the same 10 ms.
+const MASTER_LEVEL = 0.5;
+const MUSIC_LEVEL = 0.68;
+const SFX_LEVEL = 0.82;
+const AMBIENCE_LEVEL_BUS = 0.68;
+
+function holdParam(param, time) {
+    if (typeof param.cancelAndHoldAtTime === 'function') param.cancelAndHoldAtTime(time);
+    else {
+        const value = param.value;
+        param.cancelScheduledValues(time);
+        param.setValueAtTime(value, time);
+    }
+}
 
 export function isMuted() { return muted; }
 
 export function toggleMute() {
     muted = !muted;
-    if (G) G.master.gain.value = muted ? 0 : MASTER_LEVEL;
+    if (G) {
+        const t = G.ctx.currentTime;
+        holdParam(G.master.gain, t);
+        G.master.gain.setTargetAtTime(muted ? 0.0001 : MASTER_LEVEL, t, 0.012);
+    }
+    gameLog('audio.mute-changed', { muted });
     return muted;
 }
 
@@ -91,9 +112,17 @@ function buildGraph(ctx, offline = false) {
     const g = { ctx, offline };
     const gain = (v) => { const n = ctx.createGain(); n.gain.value = v; return n; };
 
+    // A musical bus compressor catches sustained density; a separate fast
+    // brick-wall-style stage catches the few transients that previously escaped
+    // the compressor attack and reached the browser output as random clipping.
     g.comp = ctx.createDynamicsCompressor();
-    g.comp.threshold.value = -12; g.comp.knee.value = 35; g.comp.ratio.value = 11; g.comp.release.value = 0.25;
-    g.comp.connect(ctx.destination);
+    g.comp.threshold.value = -18; g.comp.knee.value = 12; g.comp.ratio.value = 4;
+    g.comp.attack.value = 0.008; g.comp.release.value = 0.14;
+    g.limiter = ctx.createDynamicsCompressor();
+    g.limiter.threshold.value = -3; g.limiter.knee.value = 0; g.limiter.ratio.value = 20;
+    g.limiter.attack.value = 0.001; g.limiter.release.value = 0.06;
+    g.output = gain(0.94);
+    g.comp.connect(g.limiter); g.limiter.connect(g.output); g.output.connect(ctx.destination);
 
     g.master = gain(muted && !offline ? 0 : MASTER_LEVEL);
     const lowShelf = ctx.createBiquadFilter();
@@ -101,20 +130,24 @@ function buildGraph(ctx, offline = false) {
     const highShelf = ctx.createBiquadFilter();
     highShelf.type = 'highshelf'; highShelf.frequency.value = 5200; highShelf.gain.value = 2.4;
     g.master.connect(lowShelf); lowShelf.connect(highShelf); highShelf.connect(g.comp);
-    g.analyser = ctx.createAnalyser(); g.analyser.fftSize = 1024; highShelf.connect(g.analyser);
+    // Meter the protected output, not the much hotter pre-compressor bus.
+    g.analyser = ctx.createAnalyser(); g.analyser.fftSize = 1024; g.output.connect(g.analyser);
 
     // music: song bus → duck (dynamic mix) → lowpass (low-health muffle) → master
-    g.music = gain(0.74);
+    g.music = gain(MUSIC_LEVEL);
     g.duck = gain(1);
     g.musicLP = ctx.createBiquadFilter(); g.musicLP.type = 'lowpass'; g.musicLP.frequency.value = 20000; g.musicLP.Q.value = 0.4;
     g.music.connect(g.duck); g.duck.connect(g.musicLP); g.musicLP.connect(g.master);
+    g.musicAnalyser = ctx.createAnalyser(); g.musicAnalyser.fftSize = 1024;
+    g.musicLP.connect(g.musicAnalyser);
+    g.sfxAnalyser = ctx.createAnalyser(); g.sfxAnalyser.fftSize = 1024;
 
     // sfx: dry to master, plus a room send whose level follows the floor material
-    g.sfx = gain(1.0); g.sfx.connect(g.master);
+    g.sfx = gain(SFX_LEVEL); g.sfx.connect(g.master); g.sfx.connect(g.sfxAnalyser);
     g.sfxSend = gain(0.3); g.sfx.connect(g.sfxSend);
 
     // ambience bed bus with its own small send
-    g.amb = gain(1.0); g.amb.connect(g.master);
+    g.amb = gain(AMBIENCE_LEVEL_BUS); g.amb.connect(g.master);
     g.ambSend = gain(0.18); g.amb.connect(g.ambSend);
 
     // reverb bus
@@ -135,13 +168,52 @@ function buildGraph(ctx, offline = false) {
 
 export function initAudio() {
     if (G) {
-        if (G.ctx.state === 'suspended') G.ctx.resume();
+        resumeAudio('init');
         return;
     }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    ctx.addEventListener('statechange', () => {
+        gameLog('audio.context-state', { state: ctx.state, song: currentSongName, muted, hidden: document.hidden });
+    });
     G = buildGraph(ctx);
     audioCtx = ctx;
+    if (!audioMonitorTimer) audioMonitorTimer = setInterval(monitorAudioOutput, 1000);
     if (pendingAmbience) { const k = pendingAmbience; pendingAmbience = null; startAmbience(k); }
+}
+
+// A browser/device interruption can happen after the initial start gesture.
+// Resume on later gestures too, and record failures instead of swallowing them.
+let resumePending = false;
+export function resumeAudio(reason = 'gesture') {
+    const ctx = G?.ctx;
+    if (!ctx || G.offline || resumePending || !['suspended', 'interrupted'].includes(ctx.state)) return;
+    resumePending = true;
+    gameLog('audio.resume-requested', { reason, state: ctx.state, song: currentSongName });
+    ctx.resume().then(() => gameLog('audio.resumed', { reason, state: ctx.state }))
+        .catch(error => gameLog('audio.resume-failed', { reason, message: error.message }, 'warn'))
+        .finally(() => { resumePending = false; });
+}
+window.addEventListener('pointerdown', () => resumeAudio(), { passive: true });
+window.addEventListener('keydown', () => resumeAudio(), { passive: true });
+document.addEventListener('visibilitychange', () => {
+    gameLog('audio.visibility', { hidden: document.hidden, state: G?.ctx.state });
+    if (!document.hidden) resumeAudio('visible');
+});
+
+/** User recovery also captures failures beyond the analyser, such as device output. */
+export function recoverAudio() {
+    gameLog('audio.recovery-requested', audioHealth(), 'warn');
+    const song = playing ? currentSongName : null;
+    const old = G;
+    stopAmbience(0);
+    stopMusic();
+    G = null; audioCtx = null; noiseBuffer = null; resumePending = false;
+    if (old) old.ctx.close().catch(error => gameLog('audio.close-failed', { message: error.message }, 'warn'));
+    initAudio();
+    if (song) startSong(song);
+    applyMix('recovery');
+    silentMusicSeconds = 0;
+    gameLog('audio.recovered', audioHealth());
 }
 
 let noiseBuffer = null;
@@ -1020,6 +1092,15 @@ let nextNoteTime = 0;
 let step16 = 0;
 let playing = false;
 let schedTimer = null;
+let schedulerUnderruns = 0;
+let schedulerSkippedSteps = 0;
+let lastUnderrunLogAt = -Infinity;
+let lastSchedulerAt = 0;
+let schedulerErrors = 0;
+// Keep enough music queued to ride through a heavy render/GC frame without an
+// audible hole. Web Audio plays these nodes off the main thread once scheduled.
+const SCHEDULE_AHEAD_SECONDS = 0.85;
+const SCHEDULER_TICK_MS = 40;
 
 /** which ambience bed a song implies (levels pass their own key) */
 const SONG_AMBIENCE = { menu: 'menu', intro: null, lobby: 'lobby', office: 'office', archives: 'archives', showroom: 'showroom', factory: 'factory', boss: 'boss' };
@@ -1028,7 +1109,7 @@ export function startSong(name) {
     initAudio();
     const s = getSongs()[name];
     if (!s) return;
-    stopMusic();
+    stopMusic({ fadeInNew: true });
     currentSong = s;
     currentSongName = name;
     step16 = 0;
@@ -1036,33 +1117,76 @@ export function startSong(name) {
     playing = true;
     if (ROOMS[name]) setRoom(name);              // M6.3: the song's room follows the floor
     if (name in SONG_AMBIENCE) startAmbience(SONG_AMBIENCE[name]);
+    gameLog('audio.song-started', { song: name, state: G.ctx.state });
     scheduler();
 }
 
-export function stopMusic() {
+export function stopMusic({ fadeInNew = false } = {}) {
+    if (playing) gameLog('audio.song-stopped', { song: currentSongName });
     playing = false;
     if (schedTimer) { clearTimeout(schedTimer); schedTimer = null; }
     if (G) {
-        // hard-cut any scheduled tails by swapping the bus
-        G.music.disconnect();
-        G.music = G.ctx.createGain();
-        G.music.gain.value = 0.8;
-        G.music.connect(G.duck);
+        // Scheduled voices cannot be cancelled as a group, so fade their old bus
+        // before disconnecting it. The former hard disconnect was an audible pop.
+        const oldMusic = G.music;
+        const t = G.ctx.currentTime;
+        holdParam(oldMusic.gain, t);
+        oldMusic.gain.setTargetAtTime(0.0001, t, 0.018);
+        const nextMusic = G.ctx.createGain();
+        nextMusic.gain.setValueAtTime(fadeInNew ? 0.0001 : MUSIC_LEVEL, t);
+        if (fadeInNew) nextMusic.gain.setTargetAtTime(MUSIC_LEVEL, t, 0.025);
+        nextMusic.connect(G.duck);
+        G.music = nextMusic;
+        if (!G.offline) setTimeout(() => { try { oldMusic.disconnect(); } catch { /* already gone */ } }, 180);
     }
 }
 
 function scheduler() {
     if (!playing || !G) return;
-    while (nextNoteTime < G.ctx.currentTime + 0.12) {
+    lastSchedulerAt = performance.now();
+    try {
         const step16Dur = (60 / currentSong.bpm) / 4;
-        // swing: every off-16th leans late for a human pocket
-        const lean = (step16 % 2) ? (currentSong.swing || 0) * step16Dur : 0;
-        scheduleStep(currentSong, ORCHESTRATION[currentSongName], step16, nextNoteTime + lean);
-        nextNoteTime += step16Dur;
-        step16++;
-        if (step16 >= currentSong.length * 4) step16 = 0;
+        // A busy render thread can delay this timer. Never replay every missed beat:
+        // doing so creates a burst of audio nodes that makes the CPU stall worse and
+        // can starve the output completely. Skip cleanly to the current musical step.
+        const lag = G.ctx.currentTime - nextNoteTime;
+        if (lag > 0.04) {
+            const skipped = Math.floor(lag / step16Dur) + 1;
+            nextNoteTime += skipped * step16Dur;
+            step16 = (step16 + skipped) % (currentSong.length * 4);
+            schedulerUnderruns += 1;
+            schedulerSkippedSteps += skipped;
+            if (performance.now() - lastUnderrunLogAt > 2000) {
+                lastUnderrunLogAt = performance.now();
+                gameLog('audio.scheduler-underrun', {
+                    song: currentSongName,
+                    lagMs: Math.round(lag * 1000),
+                    skippedSteps: skipped,
+                    lookaheadMs: Math.round(SCHEDULE_AHEAD_SECONDS * 1000),
+                    contextState: G.ctx.state,
+                }, 'warn');
+            }
+        }
+        while (nextNoteTime < G.ctx.currentTime + SCHEDULE_AHEAD_SECONDS) {
+            // swing: every off-16th leans late for a human pocket
+            const lean = (step16 % 2) ? (currentSong.swing || 0) * step16Dur : 0;
+            scheduleStep(currentSong, ORCHESTRATION[currentSongName], step16, nextNoteTime + lean);
+            nextNoteTime += step16Dur;
+            step16++;
+            if (step16 >= currentSong.length * 4) step16 = 0;
+        }
+    } catch (error) {
+        schedulerErrors++;
+        if (schedulerErrors === 1 || performance.now() - lastUnderrunLogAt > 2000) {
+            lastUnderrunLogAt = performance.now();
+            gameLog('audio.scheduler-error', { song: currentSongName, step: step16, message: error.message, count: schedulerErrors }, 'error');
+        }
+        // Skip a bad step and keep the timer alive; one bad voice must not kill music.
+        step16 = (step16 + 1) % (currentSong.length * 4);
+        nextNoteTime = G.ctx.currentTime + 0.05;
+    } finally {
+        if (playing) schedTimer = setTimeout(scheduler, SCHEDULER_TICK_MS);
     }
-    schedTimer = setTimeout(scheduler, 25);
 }
 
 function scheduleStep(song, orch, step, time, bus = null) {
@@ -1108,18 +1232,24 @@ const mix = { combat: false, lowHealth: false, bossPhase2: false, objective: 0 }
 const mixLog = [];
 let mixStartedAt = 0;
 
+function mixDuckTarget() {
+    let target = 1;
+    if (mix.combat) target *= 0.7;
+    if (mix.lowHealth) target *= 0.8;
+    if (mix.bossPhase2) target *= 1.08;
+    return target;
+}
+
 function applyMix(reason) {
     if (!G || G.offline) return;
     const t = G.ctx.currentTime;
-    let target = 1;
-    if (mix.combat) target *= 0.7;        // music sits back so the guns and staff read
-    if (mix.lowHealth) target *= 0.8;
-    if (mix.bossPhase2) target *= 1.08;
-    G.duck.gain.cancelScheduledValues(t);
+    const target = mixDuckTarget();
+    holdParam(G.duck.gain, t);
     G.duck.gain.setTargetAtTime(target, t, mix.combat ? 0.12 : 0.7); // fast in, slow out
-    G.musicLP.frequency.cancelScheduledValues(t);
+    holdParam(G.musicLP.frequency, t);
     G.musicLP.frequency.setTargetAtTime(mix.lowHealth ? 900 : 20000, t, 0.25);
-    G.sfx.gain.setTargetAtTime(mix.lowHealth ? 0.85 : 1, t, 0.3);
+    holdParam(G.sfx.gain, t);
+    G.sfx.gain.setTargetAtTime(mix.lowHealth ? SFX_LEVEL * 0.85 : SFX_LEVEL, t, 0.3);
     mixLog.push({ t: +(t - mixStartedAt).toFixed(2), reason, combat: mix.combat, lowHealth: mix.lowHealth, bossPhase2: mix.bossPhase2, duck: +target.toFixed(2) });
     if (mixLog.length > 80) mixLog.shift();
 }
@@ -1141,12 +1271,11 @@ export function musicSwell(amount = 1.3) {
     mix.objective++;
     if (!G || G.offline) return;
     const t = G.ctx.currentTime;
-    const base = G.duck.gain.value;
-    G.duck.gain.cancelScheduledValues(t);
-    G.duck.gain.setValueAtTime(base, t);
-    G.duck.gain.linearRampToValueAtTime(Math.min(1.4, base * amount), t + 0.1);
+    const base = mixDuckTarget();
+    holdParam(G.duck.gain, t);
+    G.duck.gain.linearRampToValueAtTime(Math.min(1.25, base * amount), t + 0.1);
     G.duck.gain.setTargetAtTime(base, t + 0.5, 0.6);
-    mixLog.push({ t: +(t - mixStartedAt).toFixed(2), reason: 'swell', duck: +Math.min(1.4, base * amount).toFixed(2) });
+    mixLog.push({ t: +(t - mixStartedAt).toFixed(2), reason: 'swell', duck: +Math.min(1.25, base * amount).toFixed(2) });
     if (mixLog.length > 80) mixLog.shift();
 }
 
@@ -1169,7 +1298,7 @@ export function resetMix() {
 // ------------------------------------------------------------------ SFX (M6.3)
 
 /** every classic cue keeps its name and role (30 classic + hitmark/killmark from M3) */
-export const SFX_TYPES = ['shoot', 'spray', 'nail', 'roller_fire', 'roller_boom', 'swing', 'hit', 'hitmark', 'killmark', 'splat',
+export const SFX_TYPES = ['shoot', 'spray', 'nail', 'roller_fire', 'roller_boom', 'swing', 'whack', 'hit', 'hitmark', 'killmark', 'splat',
     'pain', 'enemy_pain', 'door_close', 'wood_hit', 'wood_break', 'heartbeat', 'munch', 'collect', 'money', 'table',
     'step', 'jump', 'land', 'alert', 'door_open', 'gate', 'enemy_death', 'elevator', 'boss_roar', 'fanfare',
     'weapon_switch', 'empty', 'menu_move', 'menu_select'];
@@ -1188,11 +1317,15 @@ export function playSound(type, opts = {}) {
         o.connect(g);
         if (pan) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(out); } else g.connect(out);
         o.type = type;
-        o.frequency.setValueAtTime(f0, now + t0);
-        if (f1) o.frequency[ramp + 'RampToValueAtTime'](Math.max(f1, 1), now + t0 + dur);
-        g.gain.setValueAtTime(vol, now + t0);
-        g.gain.exponentialRampToValueAtTime(0.01, now + t0 + dur);
-        o.start(now + t0); o.stop(now + t0 + dur + 0.05);
+        const start = now + t0, attack = Math.min(0.003, dur * 0.2);
+        o.frequency.setValueAtTime(f0, start);
+        if (f1) o.frequency[ramp + 'RampToValueAtTime'](Math.max(f1, 1), start + dur);
+        // Even a 2 ms ramp removes the square/saw discontinuity that reads as a
+        // random digital click while preserving the intended sharp transient.
+        g.gain.setValueAtTime(0.001, start);
+        g.gain.linearRampToValueAtTime(vol, start + attack);
+        g.gain.exponentialRampToValueAtTime(0.01, start + dur);
+        o.start(start); o.stop(start + dur + 0.05);
         return g;
     };
     const noise = (filterType, freq, t0, dur, vol, q = 1, atk = 0) => {
@@ -1202,10 +1335,11 @@ export function playSound(type, opts = {}) {
         f.type = filterType; f.frequency.value = freq; f.Q.value = q;
         const g = ctx.createGain();
         n.connect(f); f.connect(g); g.connect(out);
-        if (atk) { g.gain.setValueAtTime(0.001, now + t0); g.gain.linearRampToValueAtTime(vol, now + t0 + atk); }
-        else g.gain.setValueAtTime(vol, now + t0);
-        g.gain.exponentialRampToValueAtTime(0.01, now + t0 + atk + dur);
-        n.start(now + t0); n.stop(now + t0 + atk + dur + 0.02);
+        const start = now + t0, attack = atk || Math.min(0.003, dur * 0.2);
+        g.gain.setValueAtTime(0.001, start);
+        g.gain.linearRampToValueAtTime(vol, start + attack);
+        g.gain.exponentialRampToValueAtTime(0.01, start + attack + dur);
+        n.start(start); n.stop(start + attack + dur + 0.02);
         return g;
     };
     const wet = (g, amt = 1) => { const s = ctx.createGain(); s.gain.value = amt; g.connect(s); s.connect(reverbNode); return g; };
@@ -1249,10 +1383,16 @@ export function playSound(type, opts = {}) {
             wet(noise('lowpass', 900, 0.08, 0.5, 0.1), 0.8);
             break;
         }
-        case 'swing': // whoosh with a rising air band
-            noise('bandpass', 700, 0, 0.16, 0.14, 3);
-            noise('bandpass', 1400, 0.03, 0.1, 0.06, 2);
-            osc('sine', 180, 320, 0, 0.14, 0.03, 'linear');
+        case 'swing': // broad, weighty air displacement before the club lands
+            noise('bandpass', 520, 0, 0.24, 0.22, 2.2);
+            noise('bandpass', 1250, 0.025, 0.17, 0.11, 1.7);
+            osc('sine', 210, 85, 0, 0.2, 0.07, 'linear');
+            break;
+        case 'whack': // dry wood crack plus a short low body thump
+            osc('triangle', 170, 58, 0, 0.18, 0.34, 'linear');
+            noise('bandpass', 1550, 0, 0.055, 0.28, 4.5);
+            noise('lowpass', 520, 0.008, 0.14, 0.22);
+            wet(osc('sine', 92, 42, 0.005, 0.24, 0.16, 'linear'), 0.38);
             break;
         case 'hit': // impact: body thud, crack, dust
             osc('sawtooth', 110, 25, 0, 0.16, 0.25, 'linear');
@@ -1485,7 +1625,10 @@ export function startAmbience(key) {
         const o = ctx.createOscillator(), g = ctx.createGain(), p = ctx.createStereoPanner();
         o.type = type; p.pan.value = pan; o.connect(g); g.connect(p); p.connect(out);
         o.frequency.setValueAtTime(f0, now); if (f1) o.frequency.exponentialRampToValueAtTime(f1, now + dur);
-        g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.001, now + dur);
+        const attack = Math.min(0.006, dur * 0.15);
+        g.gain.setValueAtTime(0.001, now);
+        g.gain.linearRampToValueAtTime(vol, now + attack);
+        g.gain.exponentialRampToValueAtTime(0.001, now + dur);
         o.start(now); o.stop(now + dur + 0.02);
     };
     const puff = (ftype, freq, dur, vol, atk = 0.01, pan = 0, q = 1) => {
@@ -1564,6 +1707,11 @@ export function stopAmbience(fade = 0.6) {
 // ------------------------------------------------------------------ DEBUG + OFFLINE RENDERS
 
 const meterBuf = new Float32Array(1024);
+let audioMonitorTimer = null;
+let limiterEvents = 0;
+let maxOutputPeak = 0;
+let worstLimiterReduction = 0;
+let lastLimiterLogAt = -Infinity;
 /** master peak (0..1) for the on-screen meter */
 export function getMeter() {
     if (!G) return { peak: 0, db: -90 };
@@ -1573,8 +1721,54 @@ export function getMeter() {
     return { peak, db: peak > 0 ? 20 * Math.log10(peak) : -90, sfx: lastSfx };
 }
 
-export function audioDebug() {
+let silentMusicSeconds = 0;
+function busDb(analyser) {
+    if (!analyser) return -90;
+    analyser.getFloatTimeDomainData(meterBuf);
+    let peak = 0;
+    for (const value of meterBuf) peak = Math.max(peak, Math.abs(value));
+    return peak > 0 ? Math.max(-90, 20 * Math.log10(peak)) : -90;
+}
+export function audioHealth() {
     return {
+        state: G?.ctx.state ?? 'uninitialized', song: currentSongName, playing, muted,
+        contextTime: +(G?.ctx.currentTime ?? 0).toFixed(2), step: step16,
+        queuedMs: G && playing ? Math.round((nextNoteTime - G.ctx.currentTime) * 1000) : 0,
+        schedulerAgeMs: playing ? Math.round(performance.now() - lastSchedulerAt) : 0,
+        schedulerErrors, underruns: schedulerUnderruns,
+        musicDb: +busDb(G?.musicAnalyser).toFixed(1), sfxDb: +busDb(G?.sfxAnalyser).toFixed(1),
+        outputDb: +getMeter().db.toFixed(1),
+        masterGain: G?.master.gain.value, musicGain: G?.music.gain.value, duckGain: G?.duck.gain.value,
+        hidden: document.hidden,
+    };
+}
+function monitorAudioOutput() {
+    if (G && !G.offline && !document.hidden) resumeAudio('monitor');
+    if (!G || G.offline || G.ctx.state !== 'running') return;
+    const musicDb = busDb(G.musicAnalyser);
+    silentMusicSeconds = playing && !muted && !document.hidden && musicDb < -75 ? silentMusicSeconds + 1 : 0;
+    if (silentMusicSeconds === 5) gameLog('audio.music-silent', audioHealth(), 'warn');
+    const meter = getMeter();
+    const reduction = Number(G.limiter.reduction) || 0;
+    maxOutputPeak = Math.max(maxOutputPeak, meter.peak);
+    worstLimiterReduction = Math.min(worstLimiterReduction, reduction);
+    if ((meter.peak > 0.985 || reduction < -6) && performance.now() - lastLimiterLogAt > 5000) {
+        lastLimiterLogAt = performance.now();
+        limiterEvents += 1;
+        gameLog('audio.limiter-engaged', {
+            peak: +meter.peak.toFixed(3),
+            peakDb: +meter.db.toFixed(1),
+            reductionDb: +reduction.toFixed(1),
+            song: currentSongName,
+            sfx: lastSfx,
+        }, 'warn');
+    }
+}
+
+export function audioDebug() {
+    const meter = getMeter();
+    return {
+        health: audioHealth(),
         ctxState: G?.ctx.state ?? 'uninitialized',
         playing,
         song: currentSongName,
@@ -1583,6 +1777,15 @@ export function audioDebug() {
         muted,
         room: roomKey,
         roomLabel: ROOMS[roomKey]?.label,
+        schedulerUnderruns,
+        schedulerSkippedSteps,
+        outputPeak: +meter.peak.toFixed(3),
+        outputPeakDb: +meter.db.toFixed(1),
+        maxOutputPeak: +maxOutputPeak.toFixed(3),
+        mixReductionDb: +(Number(G?.comp?.reduction) || 0).toFixed(1),
+        limiterReductionDb: +(Number(G?.limiter?.reduction) || 0).toFixed(1),
+        worstLimiterReductionDb: +worstLimiterReduction.toFixed(1),
+        limiterEvents,
         ambience: AMB?.key ?? null,
         mix: { ...mix },
         mixLog: mixLog.slice(),
@@ -1598,11 +1801,13 @@ export function audioDebug() {
 async function withOffline(seconds, fn, rate = 22050) {
     const ctx = new OfflineAudioContext(2, Math.ceil(seconds * rate), rate);
     const saved = { G, audioCtx, noiseBuffer };
-    G = buildGraph(ctx, true); audioCtx = ctx; noiseBuffer = null;
-    try { fn(ctx); } finally { /* restore below even if scheduling threw */ }
-    const bufP = ctx.startRendering();
-    G = saved.G; audioCtx = saved.audioCtx; noiseBuffer = saved.noiseBuffer;
-    return bufP;
+    try {
+        G = buildGraph(ctx, true); audioCtx = ctx; noiseBuffer = null;
+        fn(ctx);
+        return ctx.startRendering();
+    } finally {
+        G = saved.G; audioCtx = saved.audioCtx; noiseBuffer = saved.noiseBuffer;
+    }
 }
 
 function analyse(buf, sliceSec = 0.5) {

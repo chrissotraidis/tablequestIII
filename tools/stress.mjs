@@ -3,16 +3,16 @@
  * 300 direct decals + 200 splinters, then frame time before/after and a
  * screenshot. node tools/stress.mjs [url] [outDir]
  */
-import { chromium } from 'playwright-core';
+import { launchBrowser } from './browser.mjs';
 import { mkdirSync } from 'node:fs';
 const url = process.argv[2] || 'http://127.0.0.1:5174/';
 const out = process.argv[3] || 'docs/evidence/M1.6';
 mkdirSync(out, { recursive: true });
-const b = await chromium.launch({ headless: true, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+const b = await launchBrowser();
 const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
 const errors = []; p.on('pageerror', (e) => errors.push(e.message));
 await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(800);
-await p.evaluate(() => { TQ.skipBoot(); TQ.startGameAt(0); TQ.godmode(true); TQ.giveAll(); TQ.teleport(6.5, 2.5); TQ.player.rot = -1.57; TQ.game.pitch = -0.1; });
+await p.evaluate(async () => { TQ.skipBoot(); await TQ.startGameAt(0); TQ.godmode(true); TQ.giveAll(); TQ.teleport(6.5, 2.5); TQ.player.rot = -1.57; TQ.game.pitch = -0.1; });
 await p.waitForTimeout(1000);
 const frame = () => p.evaluate(() => new Promise((res) => {
     const ts = []; let last = performance.now(); let n = 0;
