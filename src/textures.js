@@ -8,6 +8,7 @@
  * `surfaceMaterial()` hands out MeshStandardMaterials that use all three.
  */
 import * as THREE from 'three';
+import { gameLog } from './logger.js';
 
 const SIZE = 256;           // logical authoring size (unchanged from classic)
 let SCALE = 2;              // raster multiplier for the texture being built
@@ -22,8 +23,8 @@ function makeCanvas(size = SIZE) {
 
 // deterministic-ish noise sprinkle
 function speckle(ctx, size, count, color, alphaMax = 0.1, sizeMax = 2) {
+    ctx.fillStyle = color;
     for (let i = 0; i < count; i++) {
-        ctx.fillStyle = color;
         ctx.globalAlpha = Math.random() * alphaMax;
         const s = 1 + Math.random() * sizeMax;
         ctx.fillRect(Math.random() * size, Math.random() * size, s, s);
@@ -500,8 +501,18 @@ function boxBlur(src, w, h, r) {
  * whole surface, lightly blurred so speckle reads as grain, not spikes.
  */
 function deriveSurfaceMaps(canvas, cfg) {
-    const w = canvas.width, h = canvas.height;
-    const ctx = canvas.getContext('2d');
+    // Colour stays at its high display resolution. Material response is derived
+    // at a compact response resolution: it tiles at the same world scale, keeps
+    // the authored relief, and avoids processing/uploading two extra 512–1024px
+    // maps for every surface during startup.
+    let source = canvas;
+    if (canvas.width > SIZE || canvas.height > SIZE) {
+        source = document.createElement('canvas');
+        source.width = source.height = SIZE;
+        source.getContext('2d').drawImage(canvas, 0, 0, SIZE, SIZE);
+    }
+    const w = source.width, h = source.height;
+    const ctx = source.getContext('2d');
     const img = ctx.getImageData(0, 0, w, h).data;
     const n = w * h;
     let height = new Float32Array(n);
@@ -557,11 +568,10 @@ function dataTex(canvas) {
     return t;
 }
 
-let surfaces = null;
+let surfaces = {};
 
 /** All surfaces: { key: { map, normalMap, roughnessMap, cfg, canvases } } */
 export function getSurfaces() {
-    if (surfaces) return surfaces;
     getTextures();
     return surfaces;
 }
@@ -571,7 +581,8 @@ export function getSurfaces() {
  * (cloned, so callers can set per-mesh repeats without touching the cache).
  */
 export function surfaceMaterial(key, { repeat = null, ...extra } = {}) {
-    const s = getSurfaces()[key];
+    ensureSurface(key);
+    const s = surfaces[key];
     if (!s) throw new Error('unknown surface ' + key);
     let map = s.map, normalMap = s.normalMap, roughnessMap = s.roughnessMap;
     if (repeat) {
@@ -611,7 +622,7 @@ function applyWallAO(canvas) {
     return canvas;
 }
 
-let cache = null;
+let cache = {};
 
 const BUILDERS = {
     brick, wood: woodPanel, stone, metal, metalPlain, office: officePanel, concrete,
@@ -621,29 +632,36 @@ const BUILDERS = {
 // floors are seen up close and tile across whole rooms: rasterise at 4x
 const FLOOR_KEYS = new Set(['marble', 'carpet', 'woodFloor', 'stoneFloor', 'factoryFloor']);
 
-export function getTextures() {
-    if (cache) return cache;
-    const t0 = performance.now();
-    cache = {};
-    surfaces = {};
-    const wallKeys = new Set(['brick', 'wood', 'stone', 'metal', 'office', 'concrete', 'door']);
-    for (const [k, build] of Object.entries(BUILDERS)) {
-        SCALE = FLOOR_KEYS.has(k) ? 4 : 2;
-        const cv = build();
-        const cfg = SURFACE[k];
-        // derive relief before the AO gradient so edge darkening doesn't tilt the normals
-        const maps = deriveSurfaceMaps(cv, cfg);
-        // MODERN: no baked AO band — walls tile vertically now and real
-        // shadows + baseboards/crown do the grounding (applyWallAO kept for reference)
-        void wallKeys;
-        const map = tex(cv);
-        cache[k] = map;
-        surfaces[k] = {
-            map, normalMap: dataTex(maps.normal), roughnessMap: dataTex(maps.roughness),
-            cfg, canvases: { color: cv, normal: maps.normal, roughness: maps.roughness },
-        };
-    }
+function ensureSurface(key) {
+    if (cache[key]) return cache[key];
+    const build = BUILDERS[key];
+    if (!build) throw new Error('unknown surface ' + key);
+    SCALE = FLOOR_KEYS.has(key) ? 4 : 2;
+    const cv = build();
+    const cfg = SURFACE[key];
+    const maps = deriveSurfaceMaps(cv, cfg);
+    const map = tex(cv);
+    cache[key] = map;
+    surfaces[key] = {
+        map, normalMap: dataTex(maps.normal), roughnessMap: dataTex(maps.roughness),
+        cfg, canvases: { color: cv, normal: maps.normal, roughness: maps.roughness },
+    };
     SCALE = 2;
-    console.log(`[textures] ${Object.keys(cache).length} surfaces + normal/roughness maps in ${(performance.now() - t0).toFixed(0)} ms`);
+    return map;
+}
+
+/** Build every surface only for callers that explicitly need the complete set.
+ * Normal gameplay asks for surfaces through surfaceMaterial(), so booting the
+ * Lobby no longer spends several seconds generating textures for later floors. */
+export function getTextures() {
+    const t0 = performance.now();
+    const before = Object.keys(cache).length;
+    for (const key of Object.keys(BUILDERS)) ensureSurface(key);
+    const built = Object.keys(cache).length - before;
+    if (built) {
+        const ms = Math.round(performance.now() - t0);
+        console.log(`[textures] ${built} surfaces + normal/roughness maps in ${ms} ms`);
+        gameLog('assets.procedural-textures-built', { surfaces: built, ms });
+    }
     return cache;
 }

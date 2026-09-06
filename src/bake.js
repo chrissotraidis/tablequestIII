@@ -46,7 +46,7 @@ const emissiveKey = (m) => (m.emissive && m.emissive.getHex() !== 0 && m.emissiv
  * the same position/rotation/scale as the input (the input is disposed of
  * where its geometry was consumed).
  */
-export function bakeStatic(group, { fresh = false, quantize = 0, single = false } = {}) {
+export function bakeStatic(group, { fresh = false, quantize = 0, single = false, include = null } = {}) {
     group.updateMatrixWorld(true);
     // quantize: snap roughness/metalness to a grid so near-identical finishes
     // share one bucket (characters: 0.25 → ~3 buckets per limb instead of ~10)
@@ -57,9 +57,26 @@ export function bakeStatic(group, { fresh = false, quantize = 0, single = false 
     const color = new THREE.Color();
 
     group.traverse((o) => {
+        if (include && !include(o)) return;
+        // Billboard pickups are renderable too. They cannot be merged into
+        // triangle meshes, but must survive the bake with their transform.
+        if (o.isSprite) { keep.push(o); return; }
         if (!o.isMesh) return;
         if (!mergeable(o)) { keep.push(o); return; }
-        const g = o.geometry.clone();
+        // Geometry.clone() invokes its subclass constructor first. For a
+        // cylinder/sphere that builds an entire default primitive just to
+        // overwrite it; hundreds of props made each re-bake hitch badly.
+        const source = o.geometry;
+        const g = new THREE.BufferGeometry();
+        // Only position/normal are transformed. UVs and indices are read-only
+        // during the merge, so sharing those avoids thousands of extra copies.
+        g.setIndex(source.index);
+        for (const name of ['position', 'normal']) {
+            const a = source.attributes[name];
+            if (a) g.setAttribute(name, a.isInterleavedBufferAttribute ? a.clone()
+                : new THREE.BufferAttribute(a.array.slice(), a.itemSize, a.normalized));
+        }
+        if (source.attributes.uv) g.setAttribute('uv', source.attributes.uv);
         if (!g.index) g.setIndex([...Array(g.attributes.position.count).keys()]); // O5: non-indexed sources (RoundedBoxGeometry) merge with indexed ones
         // bake transform relative to the group root
         g.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, o.matrixWorld));
@@ -68,14 +85,11 @@ export function bakeStatic(group, { fresh = false, quantize = 0, single = false 
         color.copy(o.material.color);
         const n = g.attributes.position.count;
         const cols = new Float32Array(n * 3);
-        const pre = o.material.vertexColors && g.attributes.color ? g.attributes.color.array : null;
+        const pre = o.material.vertexColors && source.attributes.color ? source.attributes.color.array : null;
         for (let i = 0; i < n; i++) {
             cols[i * 3] = color.r * (pre ? pre[i * 3] : 1); cols[i * 3 + 1] = color.g * (pre ? pre[i * 3 + 1] : 1); cols[i * 3 + 2] = color.b * (pre ? pre[i * 3 + 2] : 1);
         }
         g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-        // drop attributes that differ between geometries and would block the merge
-        for (const name of Object.keys(g.attributes))
-            if (!['position', 'normal', 'uv', 'color'].includes(name)) g.deleteAttribute(name);
         // single: one bucket per emissive state regardless of finish (characters: one mesh per limb, M7.2)
         const k = single ? `0.55|0.10${emissiveKey(o.material)}` : `${q(o.material.roughness).toFixed(2)}|${q(o.material.metalness).toFixed(2)}${emissiveKey(o.material)}`;
         (buckets.get(k) || buckets.set(k, []).get(k)).push(g);

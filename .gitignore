@@ -9,3 +9,12 @@ node_modules/
 
 # reference copy of the original game (lives in its own repo)
 ref/
+
+# local VPS scoreboard state
+data/leaderboard.json
+data/telemetry.jsonl
+data/*.tmp
+
+# Downloaded player-session reports stay local
+data/*.jsonl
+data/incident*.json

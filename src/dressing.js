@@ -36,9 +36,16 @@ function textPlane(text, { w = 1, h = 0.3, bg = '#101214', fg = '#f2f0e8', font 
     const ctx = c.getContext('2d');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, c.width, c.height);
     if (border) { ctx.strokeStyle = border; ctx.lineWidth = 10; ctx.strokeRect(8, 8, c.width - 16, c.height - 16); }
-    ctx.fillStyle = fg; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const fitFont = (value, template, maxWidth, minPx = 15) => {
+        const original = Number(template.match(/(\d+(?:\.\d+)?)px/)?.[1] || 48);
+        let px = original;
+        do { ctx.font = template.replace(/\d+(?:\.\d+)?px/, `${px}px`); px -= 1; }
+        while (px >= minPx && ctx.measureText(value).width > maxWidth);
+        return ctx.font;
+    };
+    ctx.fillStyle = fg; ctx.font = fitFont(text, font, c.width - 42); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText(text, c.width / 2, sub ? c.height * 0.4 : c.height / 2);
-    if (sub) { ctx.font = '28px Arial, sans-serif'; ctx.fillStyle = 'rgba(242,240,232,.7)'; ctx.fillText(sub, c.width / 2, c.height * 0.72); }
+    if (sub) { ctx.font = fitFont(sub, '28px Arial, sans-serif', c.width - 42, 12); ctx.fillStyle = 'rgba(242,240,232,.7)'; ctx.fillText(sub, c.width / 2, c.height * 0.72); }
     const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
     const m = new THREE.MeshStandardMaterial({ map: t, roughness: 0.6, emissive: emissive ? 0xffffff : 0x000000, emissiveMap: emissive ? t : null, emissiveIntensity: emissive });
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), m);
@@ -200,7 +207,7 @@ function dressFactory(w, g, anim) {
     anim.push({ mesh: hangers, update: (dt, t) => { for (const h of hangers.children) { h.position.x = 3 + ((h.userData.offset + t * 0.5) % (w.w - 6)); h.rotation.y = Math.sin(t + h.userData.offset) * 0.15; } } });
     // hazard striping along the assembly band edges (floor decals)
     const stripe = (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 32; const ctx = c.getContext('2d'); ctx.fillStyle = '#c9a227'; ctx.fillRect(0, 0, 256, 32); ctx.fillStyle = '#111'; for (let x = -32; x < 256; x += 48) { ctx.beginPath(); ctx.moveTo(x, 32); ctx.lineTo(x + 24, 32); ctx.lineTo(x + 48, 0); ctx.lineTo(x + 24, 0); ctx.fill(); } const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.repeat.set((w.w - 4) / 2, 1); t.colorSpace = THREE.SRGBColorSpace; return t; })();
-    for (const z of [7.08, 9.92]) { const s = new THREE.Mesh(new THREE.PlaneGeometry(w.w - 4, 0.16), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -1 })); s.rotation.x = -Math.PI / 2; s.position.set(w.w / 2, 0.006, z); g.add(s); }
+    for (const z of [7.08, 9.92]) { const s = new THREE.Mesh(new THREE.PlaneGeometry(w.w - 4, 0.16), new THREE.MeshStandardMaterial({ map: stripe, roughness: 0.8, polygonOffset: true, polygonOffsetFactor: -1 })); s.userData.dressingTexture = stripe; s.rotation.x = -Math.PI / 2; s.position.set(w.w / 2, 0.006, z); g.add(s); }
     // wall paint vats with pipes on the paint-stock wall (row 11 wall, facing south)
     const vatCols = [0x2a6acc, 0xcc3322, 0x2d7a35, 0xc9a227];
     vatCols.forEach((col, i) => {

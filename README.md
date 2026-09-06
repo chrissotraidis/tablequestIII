@@ -32,7 +32,7 @@
 ![The workbench main menu of Sandy's Table Quest](docs/readme/modern-menu.jpg)
 
 **Sandy's Table Quest** started life as a 320×200 browser raycaster from Artisan Software. This repository holds every
-generation the game has been through since, and ships all of them in **one self-contained HTML file**: the current
+generation the game has been through since, and ships them together in **one downloadable package**: the current
 **MODERN** build (generation 3), the classic 3D remaster (2.1), the very first WebGL build (2.0), and the story of the
 199X original (1). Pick **Versions** on the main menu and click between them.
 
@@ -47,23 +47,23 @@ particle board.
 | **Arsenal** | Paintbrush, table leg, nail gun, roller launcher, paint sprayer |
 | **Enemies** | Guards, Managers, Executives, and the Head Designer, with pack AI that flanks, leads shots and breaches doors |
 | **Presentation** | Lit and shadowed rooms, post-processing, a carved-workbench HUD with Sandy's reacting portrait, nine procedural songs |
-| **Delivery** | `dist/index.html`: one file, no installer, no server, no network |
+| **Delivery** | Four self-contained HTML builds in one package; no installer or network |
 
 ## Play
 
 1. [Download the repository as a ZIP](https://github.com/chrissotraidis/tablequestIII/archive/refs/heads/main.zip) and extract it.
 2. Open **`dist/index.html`** in Chrome, Firefox, Safari or Edge.
-3. Press a key through the memory screen and title card, pick **New Game**, and reclaim the tables.
+3. Press a key or click through the memory screen and title card, pick **New Game**, and reclaim the tables.
 
 Click the game once to capture the mouse. `Esc` pauses. Everything else is on the **How to Play** screen and in
 [Controls](#controls) below.
 
-## Four generations, one file
+## Four generations, one package
 
 ![The Versions screen listing every generation of the game](docs/readme/modern-versions.jpg)
 
 The game has been rebuilt three times, each generation on top of the last, and they ship together so you can see how
-far AI-built games have come. **Versions** on the main menu (or **Options → Generation**) lists them; the bundled ones
+far AI-built games have come. **Versions** on the main menu (or **Options → Generation**) lists them; the older builds
 open inside the page in a player with a **BACK TO MODERN** bar, so you can hop between versions without leaving.
 
 | Generation | What it is | Where it lives |
@@ -71,7 +71,7 @@ open inside the page in a player with a **BACK TO MODERN** bar, so you can hop b
 | **3 · MODERN** | This build. A mid-2000s shooter presentation of the same game: lit and shadowed rooms with trim, windows and set dressing; materials with normal and roughness maps; floating hard-surface weapons with aim-down-sights, recoil and swap animation; animated staff with callouts; a re-orchestrated score with ambience beds; post-processing; the workbench menu, the story crawl and the bench HUD restored from the classic. | Repository root → `dist/index.html` |
 | **2.1 · 3D Remaster** | The classic. Fritos, five weapons, destructible furniture, zone-designed floors, the workbench presentation. Frozen byte-for-byte and guarded by `npm run check:classic`. | `classic/` (source), bundled as `generations/v2/index.html` |
 | **2.0 · First 3D Remaster** | The first WebGL build and the first commit of this repository. Three weapons. | bundled as `generations/v1/index.html` |
-| **1 · Original 199X** | The CPU raycaster: 320×200, four levels, a paintbrush and a table leg, billboard staff, four synth songs. Its boot screens, title card, box art and story are the images every later generation still ships unchanged. | its own repository; the Versions screen shows a card |
+| **1 · Original 199X** | The CPU raycaster: 320×200, four levels, a paintbrush and a table leg, billboard staff, four synth songs. Its boot screens, title card, box art and story are the images every later generation still ships unchanged. | bundled as `generations/original/index.html` |
 
 ![Generation 2.1 booting inside the in-page player with its BACK TO MODERN bar](docs/readme/modern-player-gen21.jpg)
 
@@ -199,8 +199,11 @@ The full crawl plays after New Game, verbatim from the original, over a satellit
 | `U` | Mute |
 | `Esc` | Pause (losing focus also pauses) |
 
-Options: generation, post-processing, field of view, mouse sensitivity, look smoothing, aim sensitivity, aim and
+The main menu opens the persistent global scoreboard directly. Options also includes generation, scoreboard, post-processing, field of view, mouse sensitivity, look smoothing, aim sensitivity, aim and
 sprint hold/toggle, invert look, head bob, sound. Settings persist in the browser.
+
+The global scoreboard accepts the top 20 scores from complete **New Game** campaigns. Floor Select runs remain
+unranked. On victory, an eligible player can sign the score with a name of up to 10 characters.
 
 ## Build from source
 
@@ -217,15 +220,46 @@ npm ci
 | `npm run dev` | Modern build, dev server with hot reload on `http://localhost:5174` |
 | `npm run build` | Modern single-file build → `dist/index.html` (the shipped game) |
 | `npm run preview` | Serve the built file on `http://localhost:4174` |
+| `npm run serve:scoreboard` | Serve `dist/` plus the persistent scoreboard API on `http://localhost:4176` |
+| `npm run test:scoreboard` | Verify eligibility, concurrent writes and restart persistence using an isolated temporary database |
+| `npm run test:sanity` | Check controls, delayed state changes, artwork and GPU resource cleanup against the local game |
+| `node tools/perf_sanity.mjs http://127.0.0.1:5174/` | Measure all six floors at 2654×1738 and stress furniture destruction |
+| `npm run report:telemetry` | Summarize sessions, play time, floors, performance, audio underruns and errors from the VPS telemetry log |
 | `npm run dev:classic` / `build:classic` | The frozen 2.1 generation from `classic/` → `dist/classic/index.html` |
 | `npm run build:all` | Both |
 | `npm run check:classic` | Verify the classic generation is byte-identical to its tag |
 | `npm run validate:levels` | Map enclosure and reachability for all six floors |
 | `npm run smoke` | Headless boot → menu → crawl → every floor, with screenshots; fails on console errors |
 
-The build inlines the game code, the seven original artwork files and both bundled generations into one HTML
-document (about 15 MB). Everything else the game shows, from wall textures to enemies to the soundtrack, is generated
-by code at runtime.
+The build inlines the modern game code and artwork into `dist/index.html` (about 11.6 MB). Older generations ship
+beside it in `dist/generations/`; keep that directory when copying the package. Wall textures, models and the
+soundtrack are generated by code at runtime.
+
+`npm run dev` also serves the local scoreboard and telemetry API using the same file-backed service as the packaged
+server. Opening `dist/index.html` directly supports offline play; global rankings require the hosted service.
+The browser checks use installed Chrome or Brave when available. Set `TQ_BROWSER_PATH` for another Chromium build,
+or `TQ_SOFTWARE_RENDERER=1` for software rendering; software frame timings do not measure the hardware GPU.
+
+The scoreboard server stores its small JSON database in `data/leaderboard.json` using atomic writes. Set `HOST`, `PORT` and
+`TQ_DATA_FILE` to choose the VPS bind address, port and persistent volume. It exposes `/api/health`, issues a run token when New Game begins, and accepts
+sequential floor checkpoints before allowing one final submission; this keeps Floor Select and duplicate submissions
+out of the rankings. Put the service behind HTTPS and a reverse proxy when it is hosted publicly.
+
+Runtime diagnostics are privacy-light. The game keeps a bounded local log and sends anonymous technical events to the
+same-origin server every 15 seconds. Those events cover session duration, floor loads, frame pacing, adaptive-quality
+changes, audio scheduler underruns, pointer lock, weapon changes, ranked-run requests and uncaught errors. The server
+appends them to `data/telemetry.jsonl`; set `TQ_TELEMETRY_FILE` to place that file on a persistent VPS volume. It records
+timezone and, when supplied by a trusted reverse proxy, a two-letter country code. It never stores a raw IP address.
+Setting a private `TQ_TELEMETRY_IP_SALT` adds a non-reversible short network identifier for repeat-session estimates.
+Run `npm run report:telemetry` for a readable operational summary. In the browser console, `TQ.logs()` returns the local
+entries and `TQ.downloadLogs()` exports them as JSON for a bug report. The VPS server also writes one structured JSON
+line per HTTP request to standard output.
+
+The Escape menu includes persisted mouse and aim sensitivity, look smoothing and keyboard remapping. Rendering starts
+with a capped pixel ratio, reduced shadow cost and fewer dynamic lights; after two sustained slow measurement windows it
+automatically disables bloom and lowers internal resolution. Music is scheduled 500 ms ahead to survive ordinary render
+hitches; longer stalls skip missed beats instead of scheduling a CPU-heavy catch-up burst. Music transitions crossfade,
+synthesized effects use short de-click ramps, and the output passes through a headroom-aware compressor and safety limiter.
 
 ## Documentation
 
@@ -286,10 +320,11 @@ Generation 2.1 is still here, untouched, and still documented. Its source is und
 ```text
 tablequestIII/
 |-- index.html, src/            MODERN (generation 3) — UI shell and engine
-|-- dist/index.html             the shipped single-file game (all generations inside)
-|-- public/generations/         v1 (2.0) and v2 (2.1) single-file builds, bundled beside the main build
+|-- dist/index.html             the MODERN single-file shell and generation player
+|-- public/generations/         Original 1, v1 (2.0), and v2 (2.1) single-file builds, bundled beside the main build
 |-- classic/                    generation 2.1 source, frozen byte-for-byte (npm run dev:classic)
 |-- tools/                      smoke, collision hashes, campaign bot, screenshot sheets, validators
+|-- server/                     static production server and persistent global scoreboard API
 |-- docs/modern/                goal loops, progress log, design, hands reintroduction, INDEX.md
 |-- docs/evidence/              the screenshots every verdict was written from
 |-- docs/smoke/modern/          latest smoke run on the built file
@@ -313,3 +348,42 @@ Released under the [MIT License](LICENSE).
 <p align="center">
   <strong>Fight the Cartel. Recover the tables. Defeat the Head Designer.</strong>
 </p>
+
+### Daily play reports and incident logs on a VPS
+
+Serve the built game with `npm run serve:scoreboard` behind your HTTPS reverse proxy. Set
+`TQ_DATA_FILE=/srv/tablequest-data/leaderboard.json` and
+`TQ_TELEMETRY_FILE=/srv/tablequest-data/telemetry.jsonl` to keep both files on persistent storage outside `dist/`.
+A static-only host does not collect these logs. The service appends anonymous session events to JSONL;
+logs are retrieved over your existing SSH access, not a public HTTP download endpoint.
+
+```sh
+npm run pull:telemetry -- --host YOUR_SSH_ALIAS --remote /srv/tablequest-data/telemetry.jsonl
+npm run report:telemetry -- data/vps-telemetry.jsonl --date 2026-09-06 --timezone Asia/Tokyo
+npm run report:telemetry -- data/vps-telemetry.jsonl --session SESSION_ID
+npm run report:telemetry -- data/vps-telemetry.jsonl --session SESSION_ID --json > data/incident.json
+```
+
+The pull command uses your SSH configuration and replaces the local copy only after a successful transfer.
+`TQ_VPS_HOST` and `TQ_VPS_TELEMETRY_FILE` can replace the corresponding arguments. No VPS address or credentials
+are stored in the game. Set a retention/rotation policy for the append-only file on your server.
+
+Reports distinguish **played sessions**, **unique browsers that played**, and **opened-only sessions**.
+A random ID in local storage estimates returning browsers; it cannot identify individual people, and clearing storage
+or using another browser counts separately. Older logs without this ID cannot supply that estimate. Automated browser
+runs are excluded by default (`--include-tests` includes them); older automation logs without the flag cannot be classified.
+Dates use the requested timezone, defaulting to UTC. Active minutes exclude pauses and time in hidden tabs; these are
+observed client events and can be incomplete if the browser crashes or cannot reach the service.
+
+Each current-build event includes its floor/state, sequence, session ID, and source-build fingerprint. The timeline
+includes floor changes, warnings/errors, frame timings, song starts/stops, mute changes, interruptions/resume attempts,
+and separate music/effects/output levels in performance samples. Retries are deduplicated in the report. An incomplete
+last JSONL line is skipped and counted, so a live-server copy remains usable.
+
+If sound cuts out, **Pause → Recover Audio** records the current audio state and recreates the sound engine without
+resetting the floor. It preserves the sound toggle. `TQ.audioHealth()` inspects the current state; `TQ.downloadLogs()`
+exports the local recent-event buffer. The browser analyser cannot prove that audio reached the speakers, so a running
+context alone does not close an audio report. The server log retains the longer timeline.
+
+`npm run test:telemetry` checks report counting and downloads; `npm run test:incidents` checks Floor 3 audio continuity,
+interruption recovery, paint placement, and the pause menu.

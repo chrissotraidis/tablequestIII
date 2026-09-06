@@ -2,12 +2,12 @@
  * Per-floor render stats for the §3.2-4 budget (draw calls < 400, frame time).
  *   node tools/perf.mjs [url]
  * `calls` is the main pass; `callsWithShadow` adds the shadow-map pass
- * (the §3.2-4 budget of 400 applies to the whole frame). Frame time is SwiftShader (software)
- * and only meaningful relative to the M0 baseline in PROGRESS.md.
+ * (the §3.2-4 budget of 400 applies to the whole frame). Uses the installed GPU
+ * renderer by default; TQ_SOFTWARE_RENDERER=1 opts into SwiftShader.
  */
-import { chromium } from 'playwright-core';
+import { launchBrowser } from './browser.mjs';
 const url = process.argv[2] || 'http://127.0.0.1:5174/';
-const b = await chromium.launch({ headless: true, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist'] });
+const b = await launchBrowser();
 const p = await b.newPage({ viewport: { width: 1280, height: 800 } });
 await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(800);
 await p.evaluate(() => TQ.skipBoot());
@@ -15,7 +15,7 @@ await p.evaluate(() => TQ.skipBoot());
 if (process.env.PRE) await p.evaluate((js) => eval(js), process.env.PRE);
 const rows = [];
 for (const f of [0, 1, 2, 3, 4, 5]) {
-    await p.evaluate((f) => { TQ.startGameAt(f); TQ.godmode(true); }, f);
+    await p.evaluate(async (f) => { await TQ.startGameAt(f); TQ.godmode(true); }, f);
     await p.waitForTimeout(1000);
     await p.keyboard.down('w'); await p.waitForTimeout(800); await p.keyboard.up('w');
     const r = await p.evaluate(() => new Promise((res) => {

@@ -11,23 +11,44 @@ import { Game } from './game.js';
 import { makeHand } from './handrig.js';
 import { hud } from './hud.js';
 import { drawFace as paintFace, FACE_DEFAULTS, FACE_STATES } from './face.js';
-import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys } from './input.js';
-import { initAudio, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug, stopAmbience, getMeter, renderDemo, renderSong, renderSfx, songData, setMix } from './audio.js';
+import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameInput, input, releaseAllKeys, getBindings, setBinding, resetBindings, bindingLabel } from './input.js';
+import { initAudio, recoverAudio, audioHealth, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug, stopAmbience, getMeter, renderDemo, renderSong, renderSfx, songData, setMix } from './audio.js';
+import { gameLog, flushTelemetry, setLogContext, getGameLogs, downloadGameLogs, installErrorLogging } from './logger.js';
+import { loadScores, startRankedRun, checkpointRankedRun, submitScore, cleanPlayerName } from './leaderboard.js';
+
+installErrorLogging();
+window.addEventListener('load', () => gameLog('boot.window-loaded', {
+    ms: Math.round(performance.now()),
+    transferBytes: performance.getEntriesByType('resource').reduce((sum, entry) => sum + (entry.transferSize || 0), 0),
+}));
 
 // original artwork, preserved from the 199X release
-import memoryScreenUrl from './assets/memory_screen.png'; // DOS boot/memory screen
-import titleScreenUrl from './assets/title_screen.png';   // pixel-art title card
-import boxArtUrl from './assets/tableboxart2.png';        // box art (remaster edition)
-import menuWorkbenchUrl from './assets/menu_workbench_bg.png';
-import menuBrushUrl from './assets/menu_paintbrush_cursor.png';
+import memoryScreenUrl from './assets/memory_screen.webp'; // lossless DOS boot/memory screen
+import titleScreenUrl from './assets/title_screen.webp';   // lossless pixel-art title card
+import boxArtUrl from './assets/tableboxart2.webp';        // lossless box art (remaster edition)
+import menuWorkbenchUrl from './assets/menu_workbench_bg.webp';
+import menuBrushUrl from './assets/menu_paintbrush_cursor.webp';
 
 const $ = (id) => document.getElementById(id);
 
 // ------------------------------------------------------------------ RENDERER
 
 const canvas = $('game-canvas');
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const MAX_RENDER_PIXELS = 3_200_000;
+let adaptiveRenderScale = 1;
+let adaptivePerformanceMode = false;
+const cssPixelCount = () => Math.max(1, window.innerWidth * window.innerHeight);
+const preferredPixelRatio = () => Math.min(
+    window.devicePixelRatio,
+    1.25,
+    Math.sqrt(MAX_RENDER_PIXELS / cssPixelCount())
+) * adaptiveRenderScale;
+// Full-display Retina/MSAA was shading far more pixels than the game can use
+// and could stall both Level 2 and Web Audio. Keep AA on at ordinary sizes and
+// trade a little resolution for stable pacing on very large canvases.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: cssPixelCount() <= MAX_RENDER_PIXELS });
+let renderPixelRatio = preferredPixelRatio();
+renderer.setPixelRatio(renderPixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -35,6 +56,9 @@ renderer.toneMappingExposure = 1.1;
 // MODERN: shadow maps on (one directional key per floor, see lighting.js)
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Accumulate all world, viewmodel and post-processing passes for one frame so
+// performance telemetry reports the real scene cost instead of only the final quad.
+renderer.info.autoReset = false;
 
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
@@ -55,10 +79,13 @@ const postfx = new PostFX(renderer, scene, camera);
 postfx.enabled = localStorage.getItem('tq3d-postfx') !== 'off';
 
 window.addEventListener('resize', () => {
+    renderPixelRatio = preferredPixelRatio();
+    renderer.setPixelRatio(renderPixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     postfx.setSize(window.innerWidth, window.innerHeight);
+    postfx.setPixelRatio(renderPixelRatio);
 });
 
 function applyFloorLook() {
@@ -71,40 +98,73 @@ function applyFloorLook() {
 let state = 'boot-memory'; // boot-memory, boot-title, menu, intro, play, pause, transition, gameover, victory
 let menuIdx = 0;
 let pauseIdx = 0;
+let pauseSub = null;
+let pauseControlIdx = 0;
+let captureBinding = null;
 let levelIdx = 0;
-let menuSub = null; // null | 'instructions' | 'levels'
+let menuSub = null; // null | 'instructions' | 'levels' | 'options' | 'scoreboard' | 'versions'
+let scoreboardReturn = 'menu';
 let introTimer = null;
 let introFrame = null;
 let introStartedAt = 0;
+let introScrollSeconds = 72;
 let levelSnapshot = null;
 let menuBackdrop = false; // MODERN: Floor 1 loaded as the menu's live scene
+let generationPlayerOpen = false; // suspend hidden modern rendering while an older build owns the screen
 let audioMeterOn = false;  // MODERN M6.3: on-screen audio debug meter (harness)
 let turbo = 1;             // MODERN M7.1: simulation steps per frame in test mode (harness only)
 let menuCamT = 0;
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 let highScore = Number(localStorage.getItem('tq3d-highscore') || 0);
+let rankedRun = { eligible: false, token: null, queue: Promise.resolve(), submitted: false };
+
+function resetRankedRun(eligible) {
+    const run = { eligible, token: null, queue: Promise.resolve(), submitted: false };
+    rankedRun = run;
+    if (!eligible) return;
+    run.queue = startRankedRun().then(token => {
+        run.token = token;
+        gameLog('ranked-run.started', { available: true });
+        return token;
+    }).catch(() => null);
+}
+
+function markRankedFloor(floor) {
+    if (!rankedRun.eligible) return Promise.resolve(false);
+    rankedRun.queue = rankedRun.queue.then(async token => {
+        if (!token) return null;
+        await checkpointRankedRun(token, floor);
+        gameLog('ranked-run.checkpoint', { floor });
+        return token;
+    }).catch(error => { gameLog('ranked-run.checkpoint-failed', { floor, message: error.message }, 'warn'); return null; });
+    return rankedRun.queue;
+}
 
 const game = new Game(scene, camera, {
     onHUD: () => hud.update(game.player, game),
     onDeath: () => {
+        const player = game.player;
         setTimeout(() => {
-            if (state !== 'play') return;
+            if (state !== 'play' || game.player !== player || player.alive) return;
             setState('gameover');
         }, 900);
     },
     onLevelComplete: (stats) => {
+        const world = game.world;
+        markRankedFloor(game.levelIndex + 1);
         setState('transition');
         $('transition-stats').textContent =
             `Cartel staff splattered: ${stats.kills}/${stats.total} · Time: ${stats.time}s`;
         $('transition-bonus').textContent = `FLOOR BONUS +${stats.bonus}`;
         setTimeout(() => {
+            if (game.world !== world || state !== 'transition') return;
             const next = game.levelIndex + 1;
             noteFloorReached(next + 1);
             if (next < LEVELS.length) {
                 window.TQ?.botCancel?.();
+                stopMusic();
                 game.loadLevel(next, { keepStats: true, silent: true });
                 applyFloorLook();
-                renderer.compile(scene, camera); // pre-warm shaders behind the card
                 snapshotLevel();
                 showLoading(next, () => { setState('play'); startSong(LEVELS[next].music); hud.floorCard(next + 1, LEVELS[next].name, LEVELS[next].subtitle); });
             }
@@ -114,14 +174,18 @@ const game = new Game(scene, camera, {
         postfx.applyGrade({ ...(game.world?.rig?.grade || {}), tint: [1.12, 0.92, 0.9], contrast: 1.14, saturation: 0.95, vignette: 0.6, grain: 0.08, bloom: { strength: 0.6, threshold: 0.84 } });
     },
     onBossDefeated: () => {
+        const world = game.world;
         playSound('fanfare');
         stopMusic();
         stopAmbience(1.5);
         setTimeout(() => {
+            if (game.world !== world || !['play', 'pause'].includes(state)) return;
+            markRankedFloor(LEVELS.length);
             game.player.score += 5000; // masterpiece bonus
             saveHighScore();
             $('victory-score').textContent = `FINAL SCORE: ${game.player.score.toLocaleString()}` +
                 (game.player.score >= highScore ? '  ★ NEW RECORD ★' : '');
+            prepareVictoryScoreEntry();
             setState('victory');
         }, 1800);
     },
@@ -142,7 +206,7 @@ function saveHighScore() {
     }
 }
 
-const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'menu-versions', 'gen-card', 'screen-loading', // T6: gen-card was missing here, so the Gen 1 card could never show
+const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'menu-versions', 'menu-scoreboard', 'screen-loading',
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
@@ -150,6 +214,14 @@ function showOnly(...ids) {
 }
 
 function setState(next) {
+    if (state === 'loading' && next !== 'loading') {
+        clearTimeout(loadingTimer);
+        loadingNext = null;
+    }
+    if (state !== next) {
+        setLogContext({ state: next, floor: game.levelIndex + 1 });
+        gameLog('state.changed', { from: state, to: next });
+    }
     state = next;
     // leaving play must never carry held movement keys into the next context
     if (next !== 'play') {
@@ -173,8 +245,17 @@ function setState(next) {
             renderMenu();
             break;
         case 'intro': showOnly('intro-screen'); break;
-        case 'loading': showOnly('screen-loading'); hud.hide(); exitPointerLock(); break;
+        // Keep an existing pointer lock across floor cards. Releasing it here made every
+        // level transition require an extra click before the player could look around.
+        case 'loading': showOnly('screen-loading'); hud.hide(); break;
         case 'play':
+            if (!game.player.alive) { setState('gameover'); return; }
+            releaseAllKeys();
+            // Loading/pause time is not gameplay frame time, and must not
+            // advance the simulation or trigger a permanent quality drop.
+            lastTime = performance.now();
+            perfWindow.startedAt = lastTime;
+            perfWindow.frames = 0; perfWindow.frameMs.length = 0;
             showOnly();
             hud.show();
             hud.update(game.player, game);
@@ -183,7 +264,12 @@ function setState(next) {
             showOnly('screen-pause');
             exitPointerLock();
             pauseIdx = 0;
+            pauseSub = null;
+            captureBinding = null;
+            $('pause-menu-panel').classList.remove('hidden');
+            $('pause-controls-panel').classList.add('hidden');
             $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
+            $('pause-floor').textContent = `FLOOR ${game.levelIndex + 1} · ${game.level.name.toUpperCase()}`;
             renderPause();
             break;
         case 'transition': showOnly('screen-transition'); break;
@@ -205,26 +291,25 @@ function setState(next) {
 
 // ------------------------------------------------------------------ MENU
 
-const MENU_ITEMS = ['New Game', 'Level Select', 'Options', 'Instructions', 'Toggle Sound', 'Versions'];
+const MENU_ITEMS = ['New Game', 'Level Select', 'Scoreboard', 'Options', 'Instructions', 'Toggle Sound', 'Versions'];
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
     ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
-    ['FIELD SETTINGS', 'OPTIONS', 'Pick a generation of the game (three so far), post-processing, field of view, mouse, sound.'],
+    ['GLOBAL RANKINGS', 'TOP 20 ARTISANS', 'View persistent scores from complete New Game campaigns.'],
+    ['FIELD SETTINGS', 'OPTIONS', 'Pick any generation of the game, post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
     ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
-    ['THE ARCHIVE', 'EVERY GENERATION', 'Play the original 3D remaster builds inside this page, or read about the 199X original.'],
+    ['THE ARCHIVE', 'EVERY GENERATION', 'Play the 199X original and every 3D release inside this page.'],
 ];
 
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
-const OPTIONS = ['generation', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
-// G5: the three generations of the game, each a single-file build served beside this one
-// H1: what each generation really is. Gen 1 is the original browser raycaster, which lives in
-// its own repository and is not bundled here; it gets a card instead of a wrong link.
+const OPTIONS = ['generation', 'scoreboard', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
+// Every release is a single-file build served beside this one.
 const GENERATIONS = [
     { key: 'v3', label: 'GEN 3 · MODERN', note: 'THIS BUILD · 2026 · LIT 3D, MODERN GUNPLAY, WORKBENCH CHARM', url: null },
     { key: 'v21', label: 'GEN 2.1 · 3D REMASTER', note: 'CLASSIC · FIVE WEAPONS, DESTRUCTIBLE FURNITURE, WORKBENCH UI', url: 'generations/v2/index.html' },
     { key: 'v20', label: 'GEN 2.0 · FIRST 3D REMASTER', note: 'THE FIRST WEBGL BUILD · THREE WEAPONS · FIRST COMMIT', url: 'generations/v1/index.html' },
-    { key: 'v1', label: 'GEN 1 · ORIGINAL 199X', note: 'THE CPU RAYCASTER · FOUR LEVELS · NOT BUNDLED HERE', url: null, card: true },
+    { key: 'v1', label: 'GEN 1 · ORIGINAL 199X', note: 'THE CPU RAYCASTER · FOUR LEVELS · BRUSH AND TABLE LEG', url: 'generations/original/index.html' },
 ];
 let genIdx = 0;
 let optIdx = 0;
@@ -243,9 +328,53 @@ function renderOptions() {
     $('opt-bob').textContent = ['OFF', 'LOW', 'FULL'][Math.round(game.bobAmount * 2)];
     $('opt-sound').textContent = isMuted() ? 'OFF' : 'ON';
 }
+function renderScoreRows(scores) {
+    const list = $('scoreboard-list');
+    list.replaceChildren();
+    if (!scores.length) {
+        const empty = document.createElement('div'); empty.className = 'lb-empty';
+        empty.textContent = 'NO RANKED RUNS YET — THE FIRST MASTERPIECE IS YOURS.';
+        list.appendChild(empty); return;
+    }
+    scores.slice(0, 20).forEach((score, i) => {
+        const row = document.createElement('div'); row.className = `lb-row${i < 3 ? ` top-${i + 1}` : ''}`;
+        const rank = document.createElement('span'); rank.textContent = String(i + 1).padStart(2, '0');
+        const name = document.createElement('b'); name.textContent = cleanPlayerName(score.name) || 'ANON';
+        const value = document.createElement('strong'); value.textContent = Number(score.score || 0).toLocaleString();
+        row.append(rank, name, value); list.appendChild(row);
+    });
+}
+async function openScoreboard(from = 'options') {
+    scoreboardReturn = from;
+    menuSub = 'scoreboard';
+    showOnly('menu-scoreboard');
+    $('btn-scoreboard-back').textContent = from === 'menu' ? '← BACK TO MAIN MENU' : '← BACK TO OPTIONS';
+    $('scoreboard-status').textContent = 'CONTACTING CARTEL MAINFRAME…';
+    $('scoreboard-list').replaceChildren();
+    try {
+        const scores = await loadScores();
+        renderScoreRows(scores);
+        $('scoreboard-status').textContent = 'GLOBAL TOP 20 · COMPLETED NEW GAME RUNS ONLY';
+    } catch {
+        $('scoreboard-status').textContent = 'SCOREBOARD OFFLINE · START THE VPS SCOREBOARD SERVER TO CONNECT';
+        renderScoreRows([]);
+    }
+}
+function closeScoreboard() {
+    if (scoreboardReturn === 'menu') {
+        menuSub = null;
+        renderMenu();
+        showOnly('menu-screen');
+        return;
+    }
+    menuSub = 'options';
+    renderOptions();
+    showOnly('menu-options');
+}
 function adjustOption(dir) {
     const key = OPTIONS[optIdx];
     if (key === 'generation') { genIdx = (genIdx + (dir || 1) + GENERATIONS.length) % GENERATIONS.length; }
+    else if (key === 'scoreboard') { openScoreboard('options'); return; }
     else if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
     else if (key === 'fov') {
         game.baseFov = Math.max(60, Math.min(100, game.baseFov + (dir || 1) * 2));
@@ -265,20 +394,26 @@ function adjustOption(dir) {
 }
 /** G5.2 / T6: play the selected generation inside this page — each is a single-file build served beside this one.
  *  The player is an overlay with a BACK TO MODERN bar, so switching between versions never navigates away. */
-function launchGeneration(idx = genIdx, from = 'options') {
+function launchGeneration(idx = genIdx) {
     const g = GENERATIONS[idx];
     playSound('menu_select');
-    if (g.card) { showOnly(from === 'versions' ? 'menu-versions' : 'menu-options', 'gen-card'); return; }
-    if (!g.url) return; // gen 3 is this build
+    if (!g.url) { // Modern is this build: selecting it returns to its main menu.
+        menuSub = null;
+        versionIdx = 0;
+        setState('menu');
+        return;
+    }
     stopMusic();
     $('gp-title').textContent = g.label;
     $('gp-newtab').href = g.url;
     $('gp-loading').textContent = `LOADING ${g.label} …`; $('gp-loading').classList.remove('hidden');
+    generationPlayerOpen = true;
     $('gp-frame').src = g.url;
     $('gen-player').classList.remove('hidden');
     setTimeout(() => $('gp-frame').focus(), 50);
 }
 function closeGenerationPlayer() {
+    generationPlayerOpen = false;
     $('gp-frame').src = 'about:blank';
     $('gen-player').classList.add('hidden');
     startSong('menu');
@@ -292,12 +427,12 @@ function renderVersions() {
     if (!list.childElementCount) {
         list.innerHTML = GENERATIONS.map((g, i) => {
             const [gen, ...rest] = g.label.split(' · ');
-            const action = g.card ? 'ABOUT' : g.url ? 'PLAY ▶' : 'YOU ARE HERE';
-            return `<button class="vs-item${g.url || g.card ? '' : ' current'}" type="button" data-idx="${i}"><span class="vs-gen">${gen.replace('GEN ', '')}<small>GENERATION</small></span><span class="vs-name">${rest.join(' · ')}<small>${g.note.replace(' · ENTER', '')}</small></span><span class="vs-action">${action}</span></button>`;
+            const action = g.url ? 'PLAY ▶' : 'YOU ARE HERE';
+            return `<button class="vs-item${g.url ? '' : ' current'}" type="button" data-idx="${i}"><span class="vs-gen">${gen.replace('GEN ', '')}<small>GENERATION</small></span><span class="vs-name">${rest.join(' · ')}<small>${g.note.replace(' · ENTER', '')}</small></span><span class="vs-action">${action}</span></button>`;
         }).join('');
         list.querySelectorAll('.vs-item').forEach(el => {
             el.addEventListener('mouseenter', () => { versionIdx = Number(el.dataset.idx); renderVersions(); });
-            el.addEventListener('click', () => { versionIdx = Number(el.dataset.idx); launchGeneration(versionIdx, 'versions'); });
+            el.addEventListener('click', () => { versionIdx = Number(el.dataset.idx); launchGeneration(versionIdx); });
         });
     }
     list.querySelectorAll('.vs-item').forEach((el, i) => el.classList.toggle('selected', i === versionIdx));
@@ -308,6 +443,7 @@ document.querySelectorAll('#option-rows .opt-row').forEach((el, i) => {
         optIdx = i;
         const arrows = [...el.querySelectorAll('.opt-arrow')];
         const which = arrows.indexOf(e.target);
+        if (OPTIONS[i] === 'scoreboard') { openScoreboard('options'); return; }
         if (which < 0 && OPTIONS[i] === 'generation') { launchGeneration(); return; }
         adjustOption(which === 0 ? -1 : 1);
     });
@@ -326,13 +462,75 @@ function renderMenu() {
     $('menu-detail-title').textContent = title;
     $('menu-detail-copy').textContent = copy;
     $('menu-sound-value').textContent = isMuted() ? 'OFF' : 'ON';
-    items[4].setAttribute('aria-pressed', String(isMuted()));
+    items[5].setAttribute('aria-pressed', String(isMuted()));
 }
 
 function renderPause() {
     document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
         el.classList.toggle('selected', i === pauseIdx);
     });
+}
+
+const PAUSE_CONTROLS = [
+    { key: 'sens', label: 'Mouse Sensitivity' },
+    { key: 'ads', label: 'Aim Sensitivity' },
+    { key: 'smooth', label: 'Look Smoothing' },
+    { action: 'forward', label: 'Move Forward' }, { action: 'back', label: 'Move Back' },
+    { action: 'left', label: 'Strafe Left' }, { action: 'right', label: 'Strafe Right' },
+    { action: 'jump', label: 'Jump' }, { action: 'interact', label: 'Interact' },
+    { action: 'melee', label: 'Quick Melee' }, { action: 'sprint', label: 'Sprint' },
+    { action: 'fire', label: 'Keyboard Fire' }, { key: 'reset', label: 'Reset Controls' },
+];
+function pauseControlValue(row) {
+    if (row.key === 'sens') return (game.sens * 1000).toFixed(1);
+    if (row.key === 'ads') return `${Math.round(game.adsSens * 100)}%`;
+    if (row.key === 'smooth') return ['RAW', 'LIGHT', 'MEDIUM', 'HEAVY'][Math.round(game.lookSmooth * 3)];
+    if (row.key === 'reset') return 'DEFAULTS';
+    return captureBinding === row.action ? 'PRESS A KEY…' : bindingLabel(getBindings()[row.action]);
+}
+function renderPauseControls() {
+    const list = $('pause-controls-list');
+    list.replaceChildren();
+    PAUSE_CONTROLS.forEach((row, i) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `pause-control-row${i === pauseControlIdx ? ' selected' : ''}${captureBinding === row.action ? ' capture' : ''}`;
+        button.innerHTML = `<span>${row.label}</span><b>${pauseControlValue(row)}</b>`;
+        button.addEventListener('mousemove', () => {
+            if (pauseControlIdx === i) return;
+            pauseControlIdx = i;
+            list.querySelectorAll('.pause-control-row').forEach((item, index) => item.classList.toggle('selected', index === i));
+        });
+        button.addEventListener('click', () => { pauseControlIdx = i; activatePauseControl(); });
+        list.appendChild(button);
+    });
+    $('pause-controls-hint').textContent = captureBinding ? 'PRESS A KEY · ESC CANCELS' : '↑↓ SELECT · ←→ ADJUST · ENTER REMAP · ESC BACK';
+}
+function adjustPauseControl(dir) {
+    const row = PAUSE_CONTROLS[pauseControlIdx];
+    if (row.key === 'sens') game.adjustSensitivity(dir * 0.0002);
+    else if (row.key === 'ads') { game.adsSens = Math.max(0.3, Math.min(1.2, +(game.adsSens + dir * 0.1).toFixed(2))); localStorage.setItem('tq3d-adssens', String(game.adsSens)); }
+    else if (row.key === 'smooth') { game.lookSmooth = Math.max(0, Math.min(1, Math.round(game.lookSmooth * 3 + dir) / 3)); localStorage.setItem('tq3d-smooth', String(game.lookSmooth)); }
+    renderPauseControls();
+}
+function activatePauseControl() {
+    const row = PAUSE_CONTROLS[pauseControlIdx];
+    if (row.action) captureBinding = row.action;
+    else if (row.key === 'reset') { resetBindings(); hud.toast('CONTROLS RESET', 1000); }
+    else adjustPauseControl(1);
+    renderPauseControls();
+}
+function openPauseControls() {
+    pauseSub = 'controls'; pauseControlIdx = 0; captureBinding = null;
+    $('pause-menu-panel').classList.add('hidden');
+    $('pause-controls-panel').classList.remove('hidden');
+    renderPauseControls();
+}
+function closePauseControls() {
+    pauseSub = null; captureBinding = null;
+    $('pause-controls-panel').classList.add('hidden');
+    $('pause-menu-panel').classList.remove('hidden');
+    renderPause();
 }
 
 // MODERN M3.4: floor facts read straight from the canonical maps
@@ -361,7 +559,7 @@ function buildLevelList() {
         el.className = 'level-item' + (i === levelIdx ? ' selected' : '') + (i + 1 > best ? ' uncharted' : '') + (lvl.boss ? ' boss' : '');
         el.style.order = String(LEVELS.length - i); // flex order draws floor 6 at the top
         el.innerHTML = `<span class="fs-num">FLOOR ${i + 1}</span><span class="fs-name">${lvl.name}</span>${i + 1 > best ? '<span class="fs-tag">UNCHARTED</span>' : ''}<span class="fs-windows"></span>`;
-        el.addEventListener('click', () => { levelIdx = i; startGameAt(i); });
+        el.addEventListener('click', () => { levelIdx = i; startGameAt(i); requestPointerLock(); });
         el.addEventListener('mouseenter', () => { levelIdx = i; renderLevelList(); });
         list.appendChild(el);
     });
@@ -388,7 +586,7 @@ function renderLevelList() {
         <div class="fd-row">FIELD FIND <b>${f.finds.length ? f.finds.join(' · ') : (lvl.boss ? 'THE HEAD DESIGNER' : 'NONE')}</b></div>
         <div class="fd-row">PALETTE <span class="fd-palette"><i style="background:${hex(lvl.fogColor)}"></i><i style="background:${hex(lvl.ambient)}"></i><i style="background:${hex(lvl.accent)}"></i><i style="background:${hex(lvl.decor?.rugColor ?? 0x333333)}"></i></span></div>
         <div class="fd-row">SCORE <b>${lvl.music.toUpperCase()}</b></div>
-        <div class="fd-note">FLOOR SELECT GRANTS THE ARSENAL A RUN WOULD HAVE FOUND BY NOW. HIGH SCORES COUNT.</div>`;
+        <div class="fd-note">FLOOR SELECT GRANTS THE ARSENAL A RUN WOULD HAVE FOUND BY NOW. GLOBAL RANKING REQUIRES NEW GAME.</div>`;
 }
 
 function menuSelect() {
@@ -396,6 +594,7 @@ function menuSelect() {
     const item = MENU_ITEMS[menuIdx];
     if (item === 'New Game') startIntro();
     else if (item === 'Level Select') { menuSub = 'levels'; levelIdx = 0; buildLevelList(); showOnly('menu-levels'); }
+    else if (item === 'Scoreboard') openScoreboard('menu');
     else if (item === 'Options') { menuSub = 'options'; optIdx = 0; renderOptions(); showOnly('menu-options'); }
     else if (item === 'Instructions') { menuSub = 'instructions'; showOnly('menu-instructions'); }
     else if (item === 'Toggle Sound') updateMute(toggleMute());
@@ -405,7 +604,7 @@ function menuSelect() {
 function updateMute(m) {
     $('mute-indicator').classList.toggle('hidden', !m);
     $('menu-sound-value').textContent = m ? 'OFF' : 'ON';
-    document.querySelectorAll('#menu-items .menu-item')[4].setAttribute('aria-pressed', String(m));
+    document.querySelectorAll('#menu-items .menu-item')[5].setAttribute('aria-pressed', String(m));
     if ($('opt-sound')) $('opt-sound').textContent = m ? 'OFF' : 'ON';
 }
 
@@ -423,53 +622,43 @@ document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
 // ------------------------------------------------------------------ FLOW
 
 function startIntro() {
+    resetRankedRun(true);
     setState('intro');
     startSong('intro');
-    // R1.2: the classic six-beat crawl. The container scrolls from below the screen to above it
-    // over 56 s, driven by wall-clock JS (deterministic under any frame rate). Words get
-    // wrapped once so each beat can reveal kinetically when it takes focus.
+    // One continuous film-reel crawl, driven by wall-clock time so its speed is
+    // independent of frame rate. The story remains grouped semantically, but every
+    // line is visible as part of the same uninterrupted scroll.
     const container = document.querySelector('.intro-container');
     const beats = [...document.querySelectorAll('.intro-beat')];
-    if (!container.dataset.wrapped) {
-        container.dataset.wrapped = '1';
-        let i = 0;
-        for (const el of container.querySelectorAll('p, h1, h2')) {
-            i = 0;
-            for (const node of [...el.childNodes]) {
-                if (node.nodeType === 3) {
-                    const frag = document.createDocumentFragment();
-                    node.textContent.split(/(\s+)/).forEach(tok => {
-                        if (!tok) return;
-                        if (/^\s+$/.test(tok)) { frag.appendChild(document.createTextNode(' ')); return; }
-                        const w = document.createElement('span'); w.className = 'w'; w.style.setProperty('--i', String(i++)); w.textContent = tok; frag.appendChild(w);
-                    });
-                    node.replaceWith(frag);
-                } else if (node.nodeType === 1 && node.tagName !== 'BR') { node.classList.add('w'); node.style.setProperty('--i', String(i++)); }
-            }
-        }
-    }
     beats.forEach((beat) => beat.classList.remove('is-focus', 'was-focus'));
-    container.style.top = '105%';
+    container.style.top = '0';
     $('intro-cut').classList.remove('go');
     $('intro-splat').classList.remove('go');
-    brief.focus = -1; brief.satFloor = -1; brief.cut = false;
+    brief.focus = -1; brief.satFloor = -1;
+    // Scale the runtime to the actual story height. This keeps the last lines
+    // readable on short screens, then holds the payoff before deployment.
+    introScrollSeconds = Math.max(72, Math.min(105, (window.innerHeight + container.offsetHeight) / 42));
     introStartedAt = performance.now();
     if (introFrame) cancelAnimationFrame(introFrame);
     updateIntroPresentation();
     if (introTimer) clearTimeout(introTimer);
-    introTimer = setTimeout(finishIntro, CRAWL_SECONDS * 1000 + 700);
+    introTimer = setTimeout(finishIntro, (introScrollSeconds + INTRO_END_HOLD_SECONDS) * 1000);
 }
 
-const CRAWL_SECONDS = 56;
-const brief = { focus: -1, satFloor: -1, satT0: 0, cut: false };
+const INTRO_END_HOLD_SECONDS = 4.5;
+const brief = { focus: -1, satFloor: -1, satT0: 0 };
 
 function updateIntroPresentation() {
     if (state !== 'intro') return;
     const T = (performance.now() - introStartedAt) / 1000;
     const container = document.querySelector('.intro-container');
-    const progress = Math.min(1, T / CRAWL_SECONDS);
-    container.style.top = `${105 - progress * 465}%`;
-    // beat focus: whichever beat is nearest the screen centre
+    const progress = Math.min(1, T / introScrollSeconds);
+    // End with the final lines sitting inside the lower-middle picture area,
+    // not already disappearing past the top edge.
+    const endY = window.innerHeight * 0.56 - container.offsetHeight;
+    const y = THREE.MathUtils.lerp(window.innerHeight, endY, progress);
+    container.style.transform = `translate(-50%, ${y}px)`;
+    // Follow the nearest passage for the satellite plan without changing the text.
     const beats = [...document.querySelectorAll('.intro-beat')];
     const focusLine = window.innerHeight * 0.5;
     let nearest = -1, nearestDistance = Infinity;
@@ -481,15 +670,11 @@ function updateIntroPresentation() {
         if (distance < nearestDistance) { nearest = i; nearestDistance = distance; }
     });
     if (nearest !== brief.focus) {
-        beats.forEach((beat, i) => { beat.classList.toggle('is-focus', i === nearest); beat.classList.toggle('was-focus', i < nearest); });
-        if (brief.focus >= 0) { const sp = $('intro-splat'); sp.classList.remove('go'); void sp.offsetWidth; sp.classList.add('go'); }
         brief.focus = nearest;
     }
     $('intro-screen').style.setProperty('--intro-progress', `${(progress * 100).toFixed(2)}%`);
     // satellite inset scans the floor named by the beat (one floor per beat)
     drawSatPlan(Math.max(0, Math.min(LEVELS.length - 1, nearest)), T);
-    // smash cut into the loading card just before the crawl leaves the screen
-    if (!brief.cut && T > CRAWL_SECONDS - 0.5) { brief.cut = true; $('intro-cut').classList.add('go'); }
     introFrame = requestAnimationFrame(updateIntroPresentation);
 }
 
@@ -535,10 +720,11 @@ function drawSatPlanTo(c, floor, reveal, scanEl = null) {
     }
 }
 
-function finishIntro() {
+function finishIntro(capturePointer = false) {
     if (introTimer) { clearTimeout(introTimer); introTimer = null; }
     if (introFrame) { cancelAnimationFrame(introFrame); introFrame = null; }
-    startGameAt(0);
+    startGameAt(0, { ranked: true });
+    if (capturePointer) requestPointerLock();
 }
 
 // ------------------------------------------------------------------ LOADING CARD (MODERN M3.6)
@@ -551,6 +737,8 @@ const FLOOR_TIPS = [
     'The Head Designer rages under half health and knocks supplies loose. Keep moving.',
 ];
 let loadingTimer = null, loadingNext = null, loadingStart = 0, loadingDur = 0;
+let loadingReady = false, loadingRequested = false;
+const nextPaint = () => new Promise(resolve => requestAnimationFrame(resolve));
 const WEAPON_LABEL = { paintbrush: 'BRUSH', tableLeg: 'LEG', nailgun: 'NAILS', roller: 'ROLLER', sprayer: 'SPRAYER' };
 function showLoading(idx, then, dur = 3400) {
     const lvl = LEVELS[idx];
@@ -564,27 +752,69 @@ function showLoading(idx, then, dur = 3400) {
     const owned = game.player?.weapons || ['paintbrush'];
     $('ml-arsenal').innerHTML = Object.entries(WEAPON_LABEL).map(([k, l]) => `<span class="${owned.includes(k) ? 'have' : ''}">${l}</span>`).join('');
     loadingNext = then; loadingStart = performance.now(); loadingDur = dur;
+    loadingReady = false; loadingRequested = false;
+    document.querySelector('.ml-hint').textContent = 'PREPARING FLOOR…';
     setState('loading');
     if (loadingTimer) clearTimeout(loadingTimer);
-    loadingTimer = setTimeout(finishLoading, dur);
     drawSatPlanTo($('loading-sat'), idx, 0);
     const tick = () => {
-        if (state !== 'loading') return;
+        if (state !== 'loading' || loadingNext !== then) return;
         const t = (performance.now() - loadingStart) / 1000;
         $('screen-loading').style.setProperty('--ml-progress', `${Math.min(100, t / (loadingDur / 1000) * 100).toFixed(1)}%`);
         drawSatPlanTo($('loading-sat'), idx, Math.min(1, t / 2.0));
         requestAnimationFrame(tick);
     };
     tick();
+    // Paint the card before touching the GPU. compile() alone misses shadow,
+    // viewmodel and post-processing passes and defers texture uploads to play.
+    return (async () => {
+        await nextPaint(); await nextPaint();
+        if (loadingNext !== then) return;
+        const started = performance.now();
+        game.vmRoot.visible = true;
+        game.updateCameraAndViewmodel(0, game.time);
+        await renderer.compileAsync(scene, camera);
+        if (loadingNext !== then) return;
+        await renderer.compileAsync(scene, postfx.vmCamera);
+        if (loadingNext !== then) return;
+        postfx.render(game.time, 0);
+        await nextPaint(); await nextPaint();
+        if (loadingNext !== then) return;
+        gameLog('level.render-ready', { floor: idx + 1, ms: Math.round(performance.now() - started) });
+        loadingReady = true;
+        document.querySelector('.ml-hint').textContent = 'PRESS ENTER OR CLICK TO DEPLOY';
+        if (loadingRequested) finishLoading();
+        else loadingTimer = setTimeout(finishLoading, Math.max(0, dur - (performance.now() - loadingStart)));
+    })().catch(error => {
+        gameLog('level.prepare-failed', { floor: idx + 1, message: error.message }, 'error');
+        if (loadingNext === then) {
+            setState('menu');
+            hud.toast('COULD NOT PREPARE FLOOR — PLEASE TRY AGAIN', 4000);
+        }
+    });
 }
-function finishLoading() {
+function finishLoading(capturePointer = false) {
+    if (state !== 'loading' || !loadingNext) return;
+    if (!loadingReady) {
+        loadingRequested = true;
+        if (capturePointer) requestPointerLock();
+        return;
+    }
     if (loadingTimer) { clearTimeout(loadingTimer); loadingTimer = null; }
     const fn = loadingNext; loadingNext = null;
     if (fn) fn();
+    // A mouse click or key press on the deploy card is a valid user activation,
+    // so use it to enter the level ready to look around immediately.
+    if (capturePointer && state === 'play') requestPointerLock();
 }
 
-function startGameAt(idx) {
+function startGameAt(idx, { ranked = false } = {}) {
+    const prepStarted = performance.now();
     initAudio();
+    // Do not ask the music scheduler to compete with synchronous world/shader
+    // preparation. The floor starts from a fully primed schedule on deploy.
+    stopMusic();
+    if (!ranked) resetRankedRun(false);
     window.TQ?.botCancel?.();
     menuBackdrop = false;
     game.player = null; // fresh run
@@ -595,14 +825,15 @@ function startGameAt(idx) {
     if (idx >= 4 && !game.player.weapons.includes('roller')) game.player.weapons.push('roller');
     if (idx >= 5 && !game.player.weapons.includes('sprayer')) game.player.weapons.push('sprayer');
     applyFloorLook();
-    renderer.compile(scene, camera); // pre-warm shaders so play starts hitch-free
+    gameLog('level.prepared', { floor: idx + 1, ranked, ms: Math.round(performance.now() - prepStarted) });
     snapshotLevel();
     // MODERN M3.6: floor card first, then deploy (Enter skips)
-    showLoading(idx, () => { setState('play'); startSong(LEVELS[idx].music); hud.floorCard(idx + 1, LEVELS[idx].name, LEVELS[idx].subtitle); });
+    return showLoading(idx, () => { setState('play'); startSong(LEVELS[idx].music); hud.floorCard(idx + 1, LEVELS[idx].name, LEVELS[idx].subtitle); });
 }
 
 function retryFloor() {
     window.TQ?.botCancel?.();
+    stopMusic();
     // restore the stats the player had when the floor began (with a mercy floor)
     if (levelSnapshot) {
         game.player = { ...game.newPlayer(), ...levelSnapshot, weapons: [...levelSnapshot.weapons] };
@@ -611,34 +842,70 @@ function retryFloor() {
     }
     game.loadLevel(game.levelIndex, { keepStats: true, silent: true });
     applyFloorLook();
-    renderer.compile(scene, camera);
-    showLoading(game.levelIndex, () => { setState('play'); startSong(game.level.music); hud.floorCard(game.levelIndex + 1, game.level.name, game.level.subtitle); }, 1800);
+    return showLoading(game.levelIndex, () => { setState('play'); startSong(game.level.music); hud.floorCard(game.levelIndex + 1, game.level.name, game.level.subtitle); }, 1800);
 }
 
 function pauseSelect() {
     playSound('menu_select');
-    const items = ['Resume', 'Restart Floor', 'Toggle Sound', 'Post FX', 'Quit to Menu'];
+    const items = ['Resume', 'Restart Floor', 'Controls', 'Toggle Sound', 'Post FX', 'Recover Audio', 'Quit to Menu'];
     const item = items[pauseIdx];
     if (item === 'Resume') { setState('play'); requestPointerLock(); }
     else if (item === 'Restart Floor') retryFloor();
+    else if (item === 'Controls') openPauseControls();
     else if (item === 'Toggle Sound') updateMute(toggleMute());
     else if (item === 'Post FX') {
         postfx.enabled = !postfx.enabled;
         localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off');
         $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
     }
+    else if (item === 'Recover Audio') { recoverAudio(); flushTelemetry(); }
     else if (item === 'Quit to Menu') { stopMusic(); setState('menu'); startSong('menu'); }
 }
 
 $('btn-retry').addEventListener('click', () => { playSound('menu_select'); retryFloor(); });
 $('btn-quit-menu').addEventListener('click', () => { setState('menu'); startSong('menu'); });
 $('btn-victory-menu').addEventListener('click', () => { setState('menu'); startSong('menu'); });
+$('btn-scoreboard-back').addEventListener('click', closeScoreboard);
+
+function prepareVictoryScoreEntry() {
+    const form = $('victory-score-form');
+    const note = $('victory-score-note');
+    form.classList.toggle('hidden', !rankedRun.eligible);
+    note.classList.toggle('hidden', rankedRun.eligible);
+    $('victory-submit-status').textContent = rankedRun.eligible ? 'TOP 20 SCORES ARE SAVED GLOBALLY' : '';
+    $('victory-name').value = cleanPlayerName(localStorage.getItem('tq3d-player-name') || '');
+    $('btn-submit-score').disabled = false;
+}
+
+$('victory-name').addEventListener('input', e => { e.target.value = cleanPlayerName(e.target.value); });
+$('victory-score-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!rankedRun.eligible || rankedRun.submitted) return;
+    const name = cleanPlayerName($('victory-name').value);
+    if (!name) { $('victory-submit-status').textContent = 'ENTER A NAME'; return; }
+    $('btn-submit-score').disabled = true;
+    $('victory-submit-status').textContent = 'SUBMITTING…';
+    try {
+        const token = await rankedRun.queue;
+        if (!token) throw new Error('Scoreboard unavailable');
+        const result = await submitScore(token, name, game.player.score);
+        rankedRun.submitted = true;
+        localStorage.setItem('tq3d-player-name', name);
+        $('victory-submit-status').textContent = result.rank > 0 ? `RANK #${result.rank} RECORDED` : 'RUN RECORDED';
+        gameLog('ranked-run.submitted', { rank: result.rank, score: game.player.score });
+    } catch (error) {
+        $('btn-submit-score').disabled = false;
+        $('victory-submit-status').textContent = error.message.toUpperCase();
+    }
+});
 
 // ------------------------------------------------------------------ INPUT
 
 initInput(canvas);
 
 onKeyPress((e) => {
+    if (e.target?.matches?.('input, textarea')) return;
+    const wasPlaying = state === 'play';
     switch (state) {
         case 'boot-memory':
             setState('boot-title');
@@ -655,24 +922,24 @@ onKeyPress((e) => {
                 if (['Enter', 'Escape', 'Space'].includes(e.code)) { menuSub = null; showOnly('menu-screen'); }
             } else if (!$('gen-player').classList.contains('hidden')) {
                 if (e.code === 'Escape') closeGenerationPlayer(); // keys only reach here while the iframe is not focused
-            } else if ((menuSub === 'options' || menuSub === 'versions') && !$('gen-card').classList.contains('hidden')) {
-                if (['Enter', 'Escape', 'Space'].includes(e.code)) showOnly(menuSub === 'versions' ? 'menu-versions' : 'menu-options');
             } else if (menuSub === 'versions') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { versionIdx = (versionIdx + GENERATIONS.length - 1) % GENERATIONS.length; playSound('menu_move'); renderVersions(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { versionIdx = (versionIdx + 1) % GENERATIONS.length; playSound('menu_move'); renderVersions(); }
-                else if (e.code === 'Enter' || e.code === 'Space') launchGeneration(versionIdx, 'versions');
+                else if (e.code === 'Enter' || e.code === 'Space') launchGeneration(versionIdx);
                 else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
+            } else if (menuSub === 'scoreboard') {
+                if (['Enter', 'Escape', 'Space'].includes(e.code)) closeScoreboard();
             } else if (menuSub === 'options') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { optIdx = (optIdx + OPTIONS.length - 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { optIdx = (optIdx + 1) % OPTIONS.length; playSound('menu_move'); renderOptions(); }
                 else if (e.code === 'ArrowLeft' || e.code === 'KeyA') adjustOption(-1);
                 else if (e.code === 'ArrowRight' || e.code === 'KeyD') adjustOption(1);
-                else if (e.code === 'Enter' || e.code === 'Space') { if (OPTIONS[optIdx] === 'generation') launchGeneration(); else adjustOption(1); }
+                else if (e.code === 'Enter' || e.code === 'Space') { if (OPTIONS[optIdx] === 'generation') launchGeneration(); else if (OPTIONS[optIdx] === 'scoreboard') openScoreboard('options'); else adjustOption(1); }
                 else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
             } else if (menuSub === 'levels') {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { levelIdx = (levelIdx + LEVELS.length - 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
                 else if (e.code === 'ArrowDown' || e.code === 'KeyS') { levelIdx = (levelIdx + 1) % LEVELS.length; playSound('menu_move'); renderLevelList(); }
-                else if (e.code === 'Enter') startGameAt(levelIdx);
+                else if (e.code === 'Enter') { startGameAt(levelIdx); requestPointerLock(); }
                 else if (e.code === 'Escape') { menuSub = null; showOnly('menu-screen'); }
             } else {
                 if (e.code === 'ArrowUp' || e.code === 'KeyW') { menuIdx = (menuIdx + MENU_ITEMS.length - 1) % MENU_ITEMS.length; playSound('menu_move'); renderMenu(); }
@@ -681,13 +948,15 @@ onKeyPress((e) => {
             }
             break;
         case 'intro':
-            if (e.code === 'Enter' || e.code === 'Escape' || e.code === 'Space') finishIntro();
+            if (e.code === 'Enter' || e.code === 'Space') finishIntro(true);
+            else if (e.code === 'Escape') finishIntro();
             break;
         case 'loading':
-            if (e.code === 'Enter' || e.code === 'Space') finishLoading();
+            if (e.code === 'Enter' || e.code === 'Space') finishLoading(true);
             break;
         case 'play':
             if (e.code === 'Escape') setState('pause');
+            else if (Object.values(getBindings()).includes(e.code)) break;
             else if (e.code === 'Digit1') game.switchWeapon(1);
             else if (e.code === 'Digit2') game.switchWeapon(2);
             else if (e.code === 'Digit3') game.switchWeapon(3);
@@ -699,9 +968,20 @@ onKeyPress((e) => {
             else if (e.code === 'BracketRight') game.adjustSensitivity(0.0004);
             break;
         case 'pause':
-            if (e.code === 'Escape') setState('play');
-            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 4) % 5; playSound('menu_move'); renderPause(); }
-            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 5; playSound('menu_move'); renderPause(); }
+            if (pauseSub === 'controls') {
+                if (captureBinding) {
+                    if (e.code === 'Escape') captureBinding = null;
+                    else if (setBinding(captureBinding, e.code)) { gameLog('controls.remapped', { action: captureBinding, code: e.code }); captureBinding = null; }
+                    renderPauseControls();
+                } else if (e.code === 'Escape') closePauseControls();
+                else if (e.code === 'ArrowUp') { pauseControlIdx = (pauseControlIdx + PAUSE_CONTROLS.length - 1) % PAUSE_CONTROLS.length; renderPauseControls(); }
+                else if (e.code === 'ArrowDown') { pauseControlIdx = (pauseControlIdx + 1) % PAUSE_CONTROLS.length; renderPauseControls(); }
+                else if (e.code === 'ArrowLeft') adjustPauseControl(-1);
+                else if (e.code === 'ArrowRight') adjustPauseControl(1);
+                else if (e.code === 'Enter' || e.code === 'Space') activatePauseControl();
+            } else if (e.code === 'Escape') setState('play');
+            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 6) % 7; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 7; playSound('menu_move'); renderPause(); }
             else if (e.code === 'Enter') pauseSelect();
             break;
         case 'gameover':
@@ -711,6 +991,9 @@ onKeyPress((e) => {
             if (e.code === 'Enter') { setState('menu'); startSong('menu'); }
             break;
     }
+    // Confirmation/navigation keys belong to the screen that received them.
+    // Space to deploy must not also jump on the first gameplay frame.
+    return !wasPlaying || state !== 'play';
 });
 
 // click anywhere advances boot screens; click canvas during play locks pointer
@@ -720,12 +1003,19 @@ $('boot-memory').addEventListener('click', () => {
 $('boot-title').addEventListener('click', () => {
     if (state === 'boot-title') { clearTimeout(bootTimer); setState('menu'); }
 });
+$('intro-screen').addEventListener('click', () => {
+    if (state === 'intro') finishIntro(true);
+});
+$('screen-loading').addEventListener('click', () => {
+    if (state === 'loading') finishLoading(true);
+});
 canvas.addEventListener('click', () => {
-    if (state === 'play') requestPointerLock();
+    if (state === 'play') { initAudio(); requestPointerLock(); }
 });
 
 // losing pointer lock during play = pause (browser Esc behavior)
 document.addEventListener('pointerlockchange', () => {
+    gameLog('pointer-lock.changed', { locked: document.pointerLockElement === canvas, state });
     if (!document.pointerLockElement && state === 'play' && input.everLocked) {
         setState('pause');
     }
@@ -773,8 +1063,58 @@ let elapsed = 0;
 let testMode = false; // lets automated playtests run while the tab is hidden
 
 let frameNo = 0; const frameWaiters = []; // harness: TQ.settle(n) resolves after n rendered frames
+const perfWindow = { startedAt: performance.now(), frames: 0, frameMs: [], slowWindows: 0 };
+let lastFaceDrawAt = 0;
+function samplePerformance(now, rawFrameMs) {
+    if (state !== 'play' || testMode) { perfWindow.startedAt = now; perfWindow.frames = 0; perfWindow.frameMs.length = 0; return; }
+    perfWindow.frames += 1;
+    perfWindow.frameMs.push(rawFrameMs);
+    if (now - perfWindow.startedAt < 5000) return;
+    const seconds = (now - perfWindow.startedAt) / 1000;
+    const sorted = [...perfWindow.frameMs].sort((a, b) => a - b);
+    const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 0;
+    const p99 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.99))] || 0;
+    const max = sorted[sorted.length - 1] || 0;
+    const longFrames = sorted.filter(ms => ms > 50).length;
+    const fps = perfWindow.frames / seconds;
+    const audio = audioDebug();
+    gameLog('performance.sample', {
+        floor: game.levelIndex + 1,
+        fps: +fps.toFixed(1),
+        p95FrameMs: +p95.toFixed(1),
+        p99FrameMs: +p99.toFixed(1),
+        maxFrameMs: +max.toFixed(1),
+        longFrames,
+        drawCalls: renderer.info.render.calls,
+        triangles: renderer.info.render.triangles,
+        pixelRatio: renderPixelRatio,
+        postfx: postfx.enabled,
+        audio: audio.health,
+        audioState: audio.ctxState,
+        audioUnderruns: audio.schedulerUnderruns,
+        audioPeakDb: audio.outputPeakDb,
+        limiterReductionDb: audio.limiterReductionDb,
+        limiterEvents: audio.limiterEvents,
+    }, fps < 52 || p95 > 24 || p99 > 45 || max > 100 ? 'warn' : 'info');
+    perfWindow.slowWindows = fps < 50 || p95 > 28 ? perfWindow.slowWindows + 1 : 0;
+    if (perfWindow.slowWindows >= 2 && !adaptivePerformanceMode) {
+        adaptivePerformanceMode = true;
+        adaptiveRenderScale = 0.82;
+        renderPixelRatio = preferredPixelRatio();
+        renderer.setPixelRatio(renderPixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        postfx.setPixelRatio(renderPixelRatio);
+        postfx.setSize(window.innerWidth, window.innerHeight);
+        postfx.setPerformanceMode(true);
+        gameLog('performance.quality-reduced', { floor: game.levelIndex + 1, pixelRatio: +renderPixelRatio.toFixed(2), bloom: false }, 'warn');
+        hud.toast('PERFORMANCE MODE ENABLED', 1600);
+        perfWindow.slowWindows = 0;
+    }
+    perfWindow.startedAt = now; perfWindow.frames = 0; perfWindow.frameMs.length = 0;
+}
 function step(now, render = true) {
-    const dt = Math.min(0.05, (now - lastTime) / 1000);
+    const rawFrameMs = Math.max(0, now - lastTime);
+    const dt = Math.min(0.05, rawFrameMs / 1000);
     lastTime = now;
     frameNo++;
     for (let i = frameWaiters.length - 1; i >= 0; i--) if (frameWaiters[i].at <= frameNo) { frameWaiters[i].res(frameNo); frameWaiters.splice(i, 1); }
@@ -784,7 +1124,7 @@ function step(now, render = true) {
         bot.sleep -= dt * (testMode && turbo > 1 && state === 'play' ? turbo : 1);
         if (bot.sleep <= 0 && bot.sleepResolve) { bot.sleepResolve(); bot.sleepResolve = null; }
     }
-    if ((state === 'menu' || state === 'intro') && menuBackdrop) {
+    if ((state === 'menu' || state === 'intro') && menuBackdrop && !generationPlayerOpen) {
         // slow dolly along the Lobby entry hall toward the reception, gentle yaw sway
         if (!reducedMotion()) menuCamT += dt;
         const t = menuCamT;
@@ -804,15 +1144,17 @@ function step(now, render = true) {
             game.update(dt, elapsed);
         }
         hud.update(game.player, game);
-        hud.drawFace(game.player, elapsed, game); // portrait lives on the pause panel now; cheap when hidden
+        if (now - lastFaceDrawAt > 66) { hud.drawFace(game.player, elapsed, game); lastFaceDrawAt = now; }
         hud.drawMinimap(game, game.player);
         hud.setLockHint(!input.pointerLocked);
     }
     if (audioMeterOn) hud.audioMeter(audioDebug(), getMeter());
     if (state === 'pause') hud.drawFace(game.player, elapsed, game);
-    if (render && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || ((state === 'menu' || state === 'intro') && menuBackdrop))) {
+    if (render && !generationPlayerOpen && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || ((state === 'menu' || state === 'intro') && menuBackdrop))) {
+        renderer.info.reset();
         postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
     }
+    samplePerformance(now, rawFrameMs);
     clearFrameInput();
 }
 
@@ -939,17 +1281,19 @@ window.TQ = {
     get renderer() { return renderer; },
     get postfx() { return postfx; },
     get hud() { return hud; },
-    openOptions() { setState('menu'); menuIdx = 2; renderMenu(); menuSelect(); return 'options'; },
+    openOptions() { setState('menu'); menuIdx = 3; renderMenu(); menuSelect(); return 'options'; },
     setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
     get scene() { return scene; },
     get player() { return game.player; },
     get input() { return input; }, // R5 harness: drive look/move directly
+    logs: getGameLogs,
+    downloadLogs: downloadGameLogs,
     get THREE() { return THREE; },   // harness probes build vectors/matrices from the same three.js
     get frameNo() { return frameNo; },
     /** harness: resolves after n more rendered frames (headless renders ~1 frame/s, so timers are not enough) */
     settle(n = 3) { return new Promise(res => frameWaiters.push({ at: frameNo + n, res })); },
     setState,
-    startGameAt(idx) { startGameAt(idx); finishLoading(); }, // harness: skip the loading card
+    async startGameAt(idx) { await startGameAt(idx); finishLoading(); }, // harness: await render readiness, then deploy
     deploy() { finishLoading(); return state; },                   // harness: dismiss a loading card
     get propBuilders() { return PROP_BUILDERS; },
     /** MODERN M5.7 harness: lay every prop out in three rows (intact / damaged / wreck) */
@@ -998,6 +1342,8 @@ window.TQ = {
         return [x, y];
     },
     audioDebug,
+    audioHealth,
+    recoverAudio,
     renderDemo, renderSong, renderSfx, songData, setMix, // MODERN M6: offline evidence renders + mix control
     showAudioMeter(on = true) { audioMeterOn = on; $('audio-meter').classList.toggle('hidden', !on); return on; },
     setTestMode(on = true) { testMode = on; return 'testMode ' + on; },

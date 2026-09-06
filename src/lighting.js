@@ -123,7 +123,7 @@ export function getRig(levelIndex) {
 
 /** Shadow-map budget shared by every floor. */
 export const SHADOW = {
-    mapSize: 2048,
+    mapSize: 1024,
     bias: -0.0006,
     normalBias: 0.02,
     radius: 2.5,

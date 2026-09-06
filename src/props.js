@@ -314,12 +314,16 @@ export function buildVending(state = 'intact') {
 
 export function buildFridge(state = 'intact') {
     const g = new THREE.Group();
-    const white = mat(0xd8d4ca, { roughness: 0.35 }), trim = mat(0x8a867c);
+    const white = mat(0xd8d4ca, { roughness: 0.62 }), trim = mat(0x8a867c);
     if (state === 'wreck') { const h = box(0.5, 1.05, 0.45, white); h.position.set(0, 0.23, 0.1); h.rotation.x = Math.PI / 2; g.add(h); const door = box(0.48, 0.7, 0.03, white); door.position.set(0.3, 0.02, -0.2); door.rotation.x = Math.PI / 2; door.rotation.z = 0.4; g.add(door); return g; }
     const dmg = state === 'damaged';
-    g.add(at(box(0.5, 1.05, 0.45, white), 0, 0.525, 0));
+    // Keep the cabinet clear of the floor and make the toe kick a front-facing
+    // piece. The old full-depth kick occupied the same space as the cabinet's
+    // bottom, which produced soft, flickering shadow/z-fighting artifacts.
+    g.add(at(box(0.5, 1.01, 0.45, white), 0, 0.545, 0));
     g.add(at(box(0.5, 0.015, 0.46, trim), 0, 0.72, 0));
-    g.add(at(box(0.5, 0.04, 0.45, mat(0x2a2a2e)), 0, 0.02, 0)); // kick
+    g.add(at(box(0.46, 0.055, 0.025, mat(0x2a2a2e, { roughness: 0.88 })), 0, 0.0275, 0.238)); // recessed kick plate
+    for (const x of [-0.19, 0.19]) g.add(at(box(0.06, 0.025, 0.34, trim), x, 0.0125, 0));
     const door = box(0.48, 0.32, 0.03, white); if (dmg) { door.position.set(0.2, 0.89, 0.35); door.rotation.y = -0.9; } else door.position.set(0, 0.89, 0.235); g.add(door); // freezer door (ajar when damaged)
     for (const [y, h] of [[0.85, 0.18], [0.45, 0.3]]) g.add(at(box(0.03, h, 0.03, metal(0x9a968c, 0.35)), 0.2, y, dmg && y > 0.8 ? 0.4 : 0.25));
     g.add(at(box(0.08, 0.06, 0.004, mat(0xc9a227)), -0.12, 0.6, 0.227)); g.add(at(box(0.06, 0.08, 0.004, mat(0x3a6acc)), -0.05, 0.5, 0.227)); // magnets

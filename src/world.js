@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
 import { CELL, WALL_HEIGHT } from './config.js';
-import { getTextures, surfaceMaterial } from './textures.js';
+import { surfaceMaterial } from './textures.js';
 import { buildPainting, buildRug } from './models.js';
 import { PROP_BUILDERS } from './props.js'; // MODERN M5.7: prop library with damage states
 import { playSound } from './audio.js';
@@ -82,6 +82,7 @@ export class World {
         this.gatesUnlocked = false;
         this.spawn = { x: 1.5, y: 1.5 };
         this.entities = [];       // {char, x, y}
+        this.objectiveCells = new Set(); // table objectives need visual breathing room
         this.elevatorCells = [];
         this.propCells = new Set();  // cells blocked by furniture
         this.tallProps = new Set();  // furniture tall enough to stop shots
@@ -89,6 +90,8 @@ export class World {
         this.propStore = new THREE.Group(); // MODERN M5.7: prop groups live here (not in the scene) and are batched
         this.wrecks = [];
         this.batchDirty = false;
+        this.dirtyPropRegions = new Set();
+        this.propBatches = new Map();
 
         this.build();
     }
@@ -96,7 +99,6 @@ export class World {
     key(x, y) { return `${x},${y}`; }
 
     build() {
-        const tex = getTextures();
         const lvl = this.level;
         const rows = lvl.map;
         const w = this.w = Math.max(...rows.map(r => r.length));
@@ -179,6 +181,7 @@ export class World {
                     this.spawn = { x: x + 0.5, y: y + 0.5 };
                 } else if (ch !== '.' && ch !== ' ') {
                     this.entities.push({ char: ch, x: x + 0.5, y: y + 0.5 });
+                    if (ch === 'T') this.objectiveCells.add(this.key(x, y));
                 }
                 grid[y * w + x] = type;
             }
@@ -295,6 +298,16 @@ export class World {
     placeProp(x, y, type, rotY) {
         const def = PROP_BUILDERS[type];
         if (!def || !this.propEligible(x, y)) return false;
+        // The large showroom/factory layouts looked procedurally cluttered when
+        // dressing landed beside an objective or another banquet table. Leave a
+        // one-cell presentation aisle around objectives and two around big tables.
+        if (this.levelIndex === 3 || this.levelIndex === 4) {
+            const radius = type === 'bigTable' ? 2 : 1;
+            for (let oy = -radius; oy <= radius; oy++) for (let ox = -radius; ox <= radius; ox++) {
+                if (this.objectiveCells.has(this.key(x + ox, y + oy))) return false;
+                if (type === 'bigTable' && this.props.get(this.key(x + ox, y + oy))?.type === 'bigTable') return false;
+            }
+        }
         const k = this.key(x, y);
         this.propCells.add(k);
         const after = this.floodCount();
@@ -310,7 +323,7 @@ export class World {
         mesh.position.set(x + 0.5, 0, y + 0.5);
         mesh.rotation.y = rotY;
         this.propStore.add(mesh);
-        this.batchDirty = true;
+        this.markPropDirty(mesh);
         if (def.tall) this.tallProps.add(k);
         this.props.set(k, { x, y, type, def, hp: def.hp, mesh, state: 'intact', rotY });
         return true;
@@ -325,22 +338,39 @@ export class World {
         old.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
         this.propStore.add(fresh);
         rec.mesh = fresh; rec.state = state;
+        this.markPropDirty(fresh);
+    }
+
+    markPropDirty(mesh) {
+        // Four regions bound draw calls and keep a furniture hit from
+        // reallocating the entire floor's vertex/index buffers on the GPU.
+        const region = (mesh.position.x >= this.w / 2 ? 1 : 0) + (mesh.position.z >= this.h / 2 ? 2 : 0);
+        mesh.traverse(o => { o.userData.propRegion = region; });
+        this.dirtyPropRegions.add(region);
         this.batchDirty = true;
     }
 
     /** MODERN M5.7: bake every prop group in the store into a few merged meshes */
     rebuildPropBatch() {
         this.batchDirty = false;
-        if (this.propBatch) {
-            this.group.remove(this.propBatch);
-            this.propBatch.traverse(o => { if (o.isMesh && !o.userData.cloneOf) { o.geometry.dispose(); if (!o.material.userData.shared) o.material.dispose(); } });
+        if (!this.propBatch) {
+            this.propBatch = new THREE.Group();
+            this.group.add(this.propBatch);
         }
         this.propStore.updateMatrixWorld(true);
-        const batch = bakeStatic(this.propStore, { quantize: 0.25 });
-        setShadow(batch);
-        this.propBatch = batch;
-        this.group.add(batch);
-        this.propDrawCalls = 0; batch.traverse(o => { if (o.isMesh) this.propDrawCalls++; });
+        for (const region of this.dirtyPropRegions.size ? this.dirtyPropRegions : [0, 1, 2, 3]) {
+            const old = this.propBatches.get(region);
+            if (old) {
+                this.propBatch.remove(old);
+                old.traverse(o => { if (o.isMesh && !o.userData.cloneOf) { o.geometry.dispose(); if (!o.material.userData.shared) o.material.dispose(); } });
+            }
+            const batch = bakeStatic(this.propStore, { quantize: 0.25, include: o => (o.userData.propRegion ?? 0) === region });
+            setShadow(batch);
+            this.propBatches.set(region, batch);
+            this.propBatch.add(batch);
+        }
+        this.dirtyPropRegions.clear();
+        this.propDrawCalls = 0; this.propBatch.traverse(o => { if (o.isMesh) this.propDrawCalls++; });
     }
 
     /** MODERN: is this wall cell drawn as glass? (impact FX) */
@@ -577,7 +607,6 @@ export class World {
     }
 
     makeDoor(x, y, rows, w, h, lvl) {
-        const tex = getTextures();
         const isWallAt = (cx, cy) => {
             if (cx < 0 || cy < 0 || cx >= w || cy >= h) return true;
             const ch = (rows[cy] || '').padEnd(w, lvl.wallChar)[cx];
@@ -601,7 +630,6 @@ export class World {
     }
 
     makeGate(x, y) {
-        const tex = getTextures();
         const mesh = new THREE.Mesh(
             new THREE.BoxGeometry(1, DOOR_H, 0.1),
             surfaceMaterial('gate', { transparent: true })
@@ -635,8 +663,6 @@ export class World {
             [this.w * 0.25, this.h * 0.25], [this.w * 0.75, this.h * 0.25],
             [this.w * 0.25, this.h * 0.75], [this.w * 0.75, this.h * 0.75],
             [this.w * 0.5, this.h * 0.5],
-            [this.w * 0.5, this.h * 0.15], [this.w * 0.5, this.h * 0.85],
-            [this.w * 0.12, this.h * 0.5], [this.w * 0.88, this.h * 0.5],
         ];
         // fixture housings + lenses + ceiling panels are static: build them as
         // three merged meshes (3 draw calls instead of ~70)
@@ -697,7 +723,6 @@ export class World {
 
     addElevatorDressing() {
         if (!this.elevatorCells.length) return;
-        const tex = getTextures();
         // glowing pad + green light over the elevator
         let cx = 0, cy = 0;
         for (const [x, y] of this.elevatorCells) { cx += x + 0.5; cy += y + 0.5; }
@@ -921,6 +946,7 @@ export class World {
         this.propStore.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && !o.material.userData.shared) o.material.dispose(); });
         this.scene.remove(this.group);
         this.group.traverse(o => {
+            if (o.isLight) o.shadow?.dispose();
             if (o.geometry) o.geometry.dispose();
             if (o.material) {
                 const ms = Array.isArray(o.material) ? o.material : [o.material];

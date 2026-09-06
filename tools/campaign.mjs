@@ -4,22 +4,23 @@
  * a grid pathfinder over the live world and the classic retry on death.
  *   node tools/campaign.mjs [url] [outJson]     (TURBO=8 sim steps per frame)
  */
-import { chromium } from 'playwright-core';
+import { launchBrowser } from './browser.mjs';
 import fs from 'node:fs';
 const url = process.argv[2] || 'http://127.0.0.1:5174/';
 const outPath = process.argv[3] || 'docs/evidence/M7.1/campaign.json';
 const turbo = Number(process.env.TURBO || 8);
 const firstFloor = Number(process.env.START || 0);
 fs.mkdirSync(outPath.replace(/\/[^/]+$/, ''), { recursive: true });
-const b = await chromium.launch({ headless: true, args: ['--no-sandbox', '--use-gl=swiftshader', '--enable-webgl', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+const b = await launchBrowser();
 const p = await b.newPage({ viewport: { width: 320, height: 200 } });
 const errors = [];
 p.on('pageerror', e => errors.push(String(e)));
+p.on('console', m => { if (m.text().startsWith('[campaign]')) console.log(m.text()); });
 await p.goto(url, { waitUntil: 'load' }); await p.waitForTimeout(600);
 const t0 = Date.now();
 const result = await p.evaluate(async ({ turbo, firstFloor }) => {
     TQ.skipBoot(); TQ.setTestMode(true); TQ.setTurbo(turbo);
-    TQ.startGameAt(firstFloor); if (TQ.state === 'loading') TQ.deploy();
+    await TQ.startGameAt(firstFloor); if (TQ.state === 'loading') TQ.deploy();
     const g = TQ.game;
     const wall = (ms) => new Promise(r => setTimeout(r, ms));
     const floors = [];
@@ -82,7 +83,7 @@ const result = await p.evaluate(async ({ turbo, firstFloor }) => {
         return 'arrived';
     };
     const nearest = (items) => items.sort((a, b) => Math.hypot(a.x - g.player.x, a.y - g.player.y) - Math.hypot(b.x - g.player.x, b.y - g.player.y))[0];
-    const startFloor = () => { cur = { floor: g.levelIndex + 1, name: g.level.name, t0: g.time, deathsBefore: deaths, staff: g.enemies.length, tablesNeeded: g.requiredTables, legs: [] }; };
+    const startFloor = () => { console.log('[campaign] floor ' + (g.levelIndex + 1)); cur = { floor: g.levelIndex + 1, name: g.level.name, t0: g.time, deathsBefore: deaths, staff: g.enemies.length, tablesNeeded: g.requiredTables, legs: [] }; };
     startFloor();
     while (TQ.state !== 'victory' && guard++ < 2500) {
         const st = TQ.state;
@@ -131,3 +132,4 @@ result.errors = errors;
 fs.writeFileSync(outPath, JSON.stringify(result, null, 1));
 console.log(JSON.stringify({ won: result.won, state: result.state, deaths: result.deaths, gameTime: result.gameTime, score: result.score, wallMinutes: result.wallMinutes, floors: result.floors.map(f => `${f.floor}:${f.time}s/${f.deaths}d`), errors }));
 await b.close();
+if (!result.won || errors.length) process.exitCode = 1;

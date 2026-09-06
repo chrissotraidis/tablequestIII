@@ -130,7 +130,7 @@ export const hud = {
         $('fc-sub').textContent = subtitle || '';
         cardShownAt = null; // armed: first update() stamps the game time
         cardPending = true;
-        setText('hud-floor-name', name.toUpperCase());
+        setText('hud-floor-name', `FLOOR ${num} · ${name.toUpperCase()}`);
         poke();
     },
 
@@ -224,7 +224,7 @@ export const hud = {
             if (lastVals._boss !== false) { lastVals._boss = false; $('boss-bar-wrap').classList.add('hidden'); }
             setText('objective-text', done ? 'TABLES SECURED — REACH THE ELEVATOR' : `COLLECT ${game.requiredTables} TABLES`);
         }
-        setText('hud-floor-name', game.level.name.toUpperCase());
+        setText('hud-floor-name', `FLOOR ${game.levelIndex + 1} · ${game.level.name.toUpperCase()}`);
 
         // ---- low health pulse (classic overlay)
         const lowhp = !(player.health > 25 || player.health <= 0);
