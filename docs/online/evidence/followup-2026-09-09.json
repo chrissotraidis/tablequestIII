@@ -1,0 +1,131 @@
+{
+  "bossMenuTransitions": {
+    "samples": 150,
+    "maxNodes": 642,
+    "maxVoices": 62,
+    "finalPlayback": {
+      "underrunDuration": 0,
+      "underrunEvents": 0,
+      "totalDuration": 155.3718,
+      "averageLatency": 0.028,
+      "minimumLatency": 0,
+      "maximumLatency": 0.028
+    },
+    "schedulerErrors": 0
+  },
+  "concurrentActiveOffice": {
+    "samples": 90,
+    "maxNodes": 268,
+    "maxVoices": 28,
+    "finalPlayback": {
+      "underrunDuration": 0,
+      "underrunEvents": 0,
+      "totalDuration": 92.2249,
+      "averageLatency": 0.028,
+      "minimumLatency": 0,
+      "maximumLatency": 0.028
+    },
+    "schedulerErrors": 0
+  },
+  "concurrentActiveBoss": {
+    "samples": 90,
+    "maxNodes": 645,
+    "maxVoices": 64,
+    "finalPlayback": {
+      "underrunDuration": 0,
+      "underrunEvents": 0,
+      "totalDuration": 91.2279,
+      "averageLatency": 0.028,
+      "minimumLatency": 0,
+      "maximumLatency": 0.028
+    },
+    "schedulerErrors": 0
+  },
+  "menuAndFocusChecks": [
+    "local best has readable unpadded formatting",
+    "floor list starts with Floor 1",
+    "selection previews the floor before explicit launch",
+    "Play Floor launches the selected boss floor",
+    "recapture event clears residual smoothing and ignores cursor-warp delta",
+    "normal mouse look resumes after recapture",
+    "boss and phase-two soundtrack keep a bounded live graph",
+    "boss output underruns remain below one percent during transitions",
+    "hide/return resumes the existing audio context",
+    "no runtime exceptions"
+  ],
+  "gameplayChecks": [
+    "two active floors with continuous sprayer fire keep audio running and bounded",
+    "active Office and boss output underruns below one percent",
+    "sprayer flash and paint start at the projected nozzle in hip/aim and both FOVs, preserving collision origin",
+    "defeated New Game offers campaign submission",
+    "retry after defeat is practice",
+    "scoreboard shows partial campaign progress",
+    "scoreboard fits a narrow viewport",
+    "floor select fits a narrow viewport",
+    "no runtime exceptions"
+  ],
+  "sprayerAlignment": [
+    {
+      "fov": 70,
+      "aim": 0,
+      "projectionError": 2.7755575615628914e-16,
+      "flashError": 0,
+      "projectileError": 0,
+      "physicsUnchanged": true
+    },
+    {
+      "fov": 70,
+      "aim": 1,
+      "projectionError": 3.7238012298709097e-16,
+      "flashError": 0,
+      "projectileError": 0,
+      "physicsUnchanged": true
+    },
+    {
+      "fov": 100,
+      "aim": 0,
+      "projectionError": 2.7755575615628914e-16,
+      "flashError": 0,
+      "projectileError": 0,
+      "physicsUnchanged": true
+    },
+    {
+      "fov": 100,
+      "aim": 1,
+      "projectionError": 4.0412728104402656e-16,
+      "flashError": 0,
+      "projectileError": 0,
+      "physicsUnchanged": true
+    }
+  ],
+  "limitations": [
+    "Local Chromium measurements; physical speaker playback and subjective hiss still require user listening.",
+    "Pointer-lock event replay passed; native automated recapture sometimes rejected by Chrome with WrongDocumentError. Rejection is now logged.",
+    "Active audio test used continuous fire, godmode and two browser contexts, not two human playthroughs."
+  ],
+  "finalFocusAndAmbienceChecks": [
+    "local best has readable unpadded formatting",
+    "floor list starts with Floor 1",
+    "selection previews the floor before explicit launch",
+    "Play Floor launches the selected boss floor",
+    "recapture event clears residual smoothing and ignores cursor-warp delta",
+    "normal mouse look resumes after recapture",
+    "boss and phase-two soundtrack keep a bounded live graph",
+    "boss output underruns remain below one percent during transitions",
+    "hidden ambient timers cannot stack new sounds on a suspended clock",
+    "hide/return resumes the existing audio context",
+    "visible ambience timers still produce their sounds",
+    "no runtime exceptions"
+  ],
+  "audioFaultAndRecoveryChecks": [
+    "two concurrent Level 2 note schedulers survive the soak (device underruns recorded separately)",
+    "live voice nodes stay bounded during music and firing",
+    "paused game sends audio heartbeat with floor and game state",
+    "device underrun is detected even when note scheduler reports zero",
+    "stale device-output clock is detected while context remains running",
+    "pause action exports build, session, transport status and current audio incident",
+    "audio recovery preserves Level 2, score and pause state",
+    "pause menu keyboard wraps after adding log download",
+    "no runtime exceptions"
+  ]
+}

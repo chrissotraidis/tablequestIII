@@ -133,6 +133,13 @@ async function loadState() {
                 || !Number.isInteger(run.completedFloor) || run.completedFloor < 0 || run.completedFloor > 6 || typeof run.submitted !== 'boolean')) {
             throw new Error('Invalid scoreboard state');
         }
+        // Records written before progress ranking were completed campaigns.
+        for (const score of parsed.scores) {
+            if (score.completedFloor === undefined) score.completedFloor = 6;
+            if (!Number.isInteger(score.completedFloor) || score.completedFloor < 0 || score.completedFloor > 6) throw new Error('Invalid campaign progress');
+            score.floorReached = Math.min(6, score.completedFloor + 1);
+        }
+        parsed.scores.sort((a, b) => b.completedFloor - a.completedFloor || b.score - a.score || a.createdAt.localeCompare(b.createdAt));
         return parsed;
     } catch (error) {
         if (error.code === 'ENOENT') return { scores: [], runs: {} };
@@ -256,7 +263,7 @@ async function handleRequest(req, res, url, input) {
         const state = await loadState(), run = state.runs[checkpoint[1]];
         if (!run || Date.now() - run.startedAt > MAX_RUN_AGE) return json(res, 404, { error: 'Ranked run expired' });
         if (Number.isInteger(floor) && floor >= 1 && floor === run.completedFloor) return json(res, 200, { completedFloor: floor });
-        if (!Number.isInteger(floor) || floor !== run.completedFloor + 1 || floor > 6) return json(res, 409, { error: 'Invalid floor sequence' });
+        if (run.submitted || !Number.isInteger(floor) || floor !== run.completedFloor + 1 || floor > 6) return json(res, 409, { error: 'Invalid floor sequence' });
         run.completedFloor = floor; await saveState(state);
         return json(res, 200, { completedFloor: floor });
     }
@@ -265,11 +272,11 @@ async function handleRequest(req, res, url, input) {
         if (!name) return json(res, 400, { error: 'Enter a name' });
         if (!Number.isSafeInteger(score) || score < 0 || score > MAX_SCORE) return json(res, 400, { error: 'Invalid score' });
         const state = await loadState(), run = state.runs[String(input.runToken || '')];
-        if (!run || run.submitted || run.completedFloor !== 6 || Date.now() - run.startedAt > MAX_RUN_AGE) return json(res, 403, { error: 'Only completed New Game runs can be ranked' });
+        if (!run || run.submitted || Date.now() - run.startedAt > MAX_RUN_AGE) return json(res, 403, { error: 'A valid unsubmitted New Game run is required' });
         run.submitted = true;
-        const entry = { id: randomUUID(), name, score, createdAt: new Date().toISOString() };
+        const entry = { id: randomUUID(), name, score, completedFloor: run.completedFloor, floorReached: Math.min(6, run.completedFloor + 1), createdAt: new Date().toISOString() };
         state.scores.push(entry);
-        state.scores.sort((a, b) => b.score - a.score || a.createdAt.localeCompare(b.createdAt));
+        state.scores.sort((a, b) => b.completedFloor - a.completedFloor || b.score - a.score || a.createdAt.localeCompare(b.createdAt));
         state.scores = state.scores.slice(0, 20);
         pruneRuns(state); await saveState(state);
         return json(res, 201, { entry, rank: state.scores.findIndex(item => item.id === entry.id) + 1, scores: state.scores });

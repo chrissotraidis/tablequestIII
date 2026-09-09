@@ -12,7 +12,7 @@ Menu Tab navigation and native activation now coexist with the game's controls. 
 
 Server changes keep one Node process and the existing JSON state format. Static downloads no longer compete with API limits; telemetry, reads, starts, checkpoints and scores have distinct shared-peer budgets. Requests are byte-limited and have an upload deadline before entering the serialized write queue. Corrupt/unreadable state is preserved and fails visibly. Health checks actual storage access. Telemetry rotates with a configured size bound. Static responses support HEAD and ETag revalidation. Exact limits and environment settings are in [ZO_DEPLOYMENT.md](ZO_DEPLOYMENT.md).
 
-The scoreboard updates every 15 seconds while visible, refreshes on focus, and has a manual Refresh scores button. Closing it stops the timer; stale responses cannot update a reopened screen. Offline/failure copy is visitor-facing, and results outside the retained top 20 no longer claim to have been saved.
+The scoreboard updates every minute while visible (revised in the follow-up), refreshes on focus, and has a manual Refresh scores button. Closing it stops the timer; stale responses cannot update a reopened screen. Offline/failure copy is visitor-facing, and results outside the retained top 20 no longer claim to have been saved.
 
 Score requests have an eight-second per-attempt deadline. Reads get one retry and checkpoints two; invalid requests are not retried. The server accepts the same latest checkpoint again. A 429's numeric Retry-After is honored up to 60 seconds. Run creation and final score submission are never automatically repeated after an ambiguous response. Exhausted checkpoint failures clearly mark the run unavailable for ranking while the campaign can continue.
 
@@ -77,3 +77,7 @@ Arena still needs its separately specified implementation and host/playtest mile
 [Incident report](AUDIO_INCIDENT_2026-09-09.md): captured real output underruns missed by the old scheduler-only logs, reproduced sustained stalls with two Level 2 contexts, and isolated delayed per-voice graph cleanup. Finished note/drum/SFX nodes now disconnect explicitly. Added device-output health/clock/voice counters, paused-session heartbeats, bounded upload/resume deadlines, error stacks and a pause-menu log download. The stable baseline and previous preparation commit remain recoverable.
 
 Build `fa08c054dee7` passed a 180-sample two-tab music/firing run: 0.144 s and 0.1333 s total playback underruns across about 200 s, no scheduler errors, bounded live nodes and no sustained cutout. Floor 3 regression, diagnostic fault injection, export/recovery/navigation and hosted log persistence passed. [Validation summary](evidence/audio-2026-09-09.json). Physical replay by the original reporter remains open; existing user tabs were not reset. Current local port 4176 serves the new bundle.
+
+## Gameplay follow-up
+
+The subsequent audio, menu, input, sprayer and campaign progress fixes are recorded in [FOLLOWUP_2026-09-09.md](FOLLOWUP_2026-09-09.md). That report supersedes earlier audio acceptance observations; the user reproduced severe boss output underruns after the first audio pass.

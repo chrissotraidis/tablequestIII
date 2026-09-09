@@ -203,11 +203,10 @@ The main menu opens the persistent global scoreboard directly. Options also incl
 sprint hold/toggle, invert look, head bob, sound. Settings persist in the browser.
 
 The upper-right menu icons link to [Chris on X](https://x.com/ChrisSotraidis) and
-[GitHub](https://github.com/chrissotraidis). Global scores refresh every 15 seconds while the scoreboard is visible;
+[GitHub](https://github.com/chrissotraidis). Global scores refresh every minute while the scoreboard is visible;
 the Refresh scores button checks immediately. The hosted game currently requires a keyboard and mouse.
 
-The global scoreboard accepts the top 20 scores from complete **New Game** campaigns. Floor Select runs remain
-unranked. On victory, an eligible player can sign the score with a name of up to 10 characters.
+The global scoreboard accepts **New Game** results on defeat or victory, ranking the top 20 by campaign progress, then score. Each row shows the furthest floor reached or COMPLETE. Floor Select and retries after defeat are practice. Eligible players can sign a result with a name of up to 10 characters. Existing completed-campaign scores retain their completed status.
 
 ## Build from source
 
@@ -233,6 +232,8 @@ npm ci
 | `npm run dev:classic` / `build:classic` | The frozen 2.1 generation from `classic/` → `dist/classic/index.html` |
 | `npm run build:all` | Both |
 | `npm run check:classic` | Verify the classic generation is byte-identical to its tag |
+| `node tools/followup_sanity.mjs http://127.0.0.1:4178/` | Boss audio, menu cycles, mouse recapture event regression and visibility recovery |
+| `node tools/followup_gameplay_sanity.mjs http://127.0.0.1:4178/` | Two active audio sessions, sprayer alignment, defeat submissions and menu layout (use isolated test data) |
 | `npm run validate:levels` | Map enclosure and reachability for all six floors |
 | `npm run smoke` | Headless boot → menu → crawl → every floor, with screenshots; fails on console errors |
 
@@ -407,3 +408,5 @@ context alone does not close an audio report. The server log retains the longer 
 interruption recovery, paint placement, and the pause menu.
 
 For the Level 2 output-underrun investigation and validation limits, see [the incident report](docs/online/AUDIO_INCIDENT_2026-09-09.md).
+
+The September 9 follow-up reduces dense music synthesis and high-frequency hiss, fixes sprayer muzzle alignment and mouse recapture, improves Floor Select and adjusts the boss encounter. See [the follow-up report](docs/online/FOLLOWUP_2026-09-09.md) for changes, evidence and remaining listening checks.

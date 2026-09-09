@@ -79,11 +79,16 @@ function puffTexture() {
 
 function coneTexture() {
     return canvasTex((ctx) => {
-        // mist cone pointing +X
-        const g = ctx.createLinearGradient(20, 0, 128, 0);
-        g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.moveTo(20, 64); ctx.lineTo(128, 24); ctx.lineTo(128, 104); ctx.closePath(); ctx.fill();
+        // Feather the spray across its width so it reads as mist, not a triangle.
+        const pixels = ctx.createImageData(128, 128);
+        for (let x = 20; x < 128; x++) for (let y = 0; y < 128; y++) {
+            const u = (x - 20) / 108, width = 2 + u * 28;
+            const alpha = Math.min(1, (x - 20) / 3) * Math.pow(1 - u, 1.3) * Math.exp(-2 * Math.pow((y - 64) / width, 2));
+            const i = (y * 128 + x) * 4;
+            pixels.data[i] = pixels.data[i + 1] = pixels.data[i + 2] = 255;
+            pixels.data[i + 3] = Math.round(alpha * 210);
+        }
+        ctx.putImageData(pixels, 0, 0);
     });
 }
 
@@ -103,7 +108,7 @@ function getTextures() {
 const RECIPE = {
     paintbrush: { tex: 'flick', scale: 0.15, life: 0.07, tint: null, light: 2.4 },
     nailgun:    { tex: 'flash', scale: 0.22, life: 0.05, tint: 0xfff0c0, light: 6.5 },
-    sprayer:    { tex: 'cone', scale: 0.3, life: 0.06, tint: null, light: 2.0, forward: true },
+    sprayer:    { tex: 'cone', scale: 0.14, life: 0.06, tint: null, light: 0.35, forward: true },
     roller:     { tex: 'puff', scale: 0.28, life: 0.12, tint: null, light: 3.5 },
 };
 
@@ -122,6 +127,7 @@ export class MuzzleFlash {
             });
             const s = new THREE.Sprite(mat);
             s.visible = false;
+            if (r.forward) s.center.set(20 / 128, 0.5);
             s.renderOrder = 20;
             s.layers.set(1); // rides the viewmodel camera
             s.scale.setScalar(r.scale);
@@ -148,27 +154,45 @@ export class MuzzleFlash {
         if (!r.tint && color) s.material.color.copy(color).lerp(new THREE.Color(1, 1, 1), 0.35);
         // muzzle in vmRoot space: weapon local muzzle through the weapon's transform
         const m = vm.userData.muzzle || new THREE.Vector3(0, 0, -0.3);
+        vm.updateMatrix();
         s.position.copy(m).applyMatrix4(vm.matrix);
-        if (r.forward) s.position.z -= 0.04;
+
         s.material.rotation = r.forward ? 0 : Math.random() * Math.PI * 2;
         const k = r.scale * (0.8 + Math.random() * 0.5);
         s.scale.set(k * (r.forward ? 1.6 : 1), k, 1);
         s.visible = true;
-        s.material.opacity = 1;
+        s.material.opacity = r.forward ? 0.45 : 1;
         this.active = s;
+        this.weapon = vm; this.recipe = r;
+        this.followMuzzle();
         this.life = r.life;
         this.fresh = true; // guarantee one rendered frame even at long dt
         return r.light;
     }
 
+    followMuzzle() {
+        const vm = this.weapon, s = this.active;
+        if (!vm || !s) return;
+        vm.updateMatrix(); this.parent.updateMatrix();
+        const muzzle = vm.userData.muzzle || new THREE.Vector3(0, 0, -.3);
+        s.position.copy(muzzle).applyMatrix4(vm.matrix);
+        if (this.recipe.forward) {
+            const camera = this.parent.parent;
+            const a = s.position.clone().applyMatrix4(this.parent.matrix).applyMatrix4(camera.projectionMatrix);
+            const b = muzzle.clone().add(new THREE.Vector3(0, 0, -.2)).applyMatrix4(vm.matrix).applyMatrix4(this.parent.matrix).applyMatrix4(camera.projectionMatrix);
+            s.material.rotation = Math.atan2(b.y - a.y, (b.x - a.x) * camera.aspect);
+        }
+    }
+
     update(dt) {
         if (!this.active) return;
+        this.followMuzzle();
         if (this.fresh) { this.fresh = false; return; }
         this.life -= dt;
         if (this.life <= 0) { this.active.visible = false; this.active = null; return; }
         // decay: shrink and fade a little each frame
         this.active.scale.multiplyScalar(0.92);
-        this.active.material.opacity = Math.max(0.25, this.active.material.opacity * 0.9);
-        if (this.life > 0.03) this.active.material.opacity = 1;
+        this.active.material.opacity = Math.max(this.recipe.forward ? 0.08 : 0.25, this.active.material.opacity * 0.9);
+        if (this.life > 0.03) this.active.material.opacity = this.recipe.forward ? 0.45 : 1;
     }
 }

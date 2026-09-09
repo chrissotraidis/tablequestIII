@@ -489,7 +489,7 @@ export function buildSprayerViewmodel() {
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.1, -0.105, -0.03); g.rotation.y = 0.24; // S1: grip behind the bench
-    return finish(g, 'sprayer', -0.08, V(0, 0.0, -0.14), { pos: V(0.05, -0.08, -0.45), rotX: 0.0, rotY: -0.24 }, { trigger: R.trigger, offHand: off });
+    return finish(g, 'sprayer', -0.08, V(0, 0.06, -0.135), { pos: V(0.05, -0.08, -0.45), rotX: 0.0, rotY: -0.24 }, { trigger: R.trigger, offHand: off });
 }
 
 export function buildViewmodels() {

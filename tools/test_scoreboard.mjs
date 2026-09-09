@@ -118,6 +118,22 @@ try {
         throw new Error('Concurrent checkpoints were lost');
     }
 
+    // A defeat is a valid campaign result. Progress takes priority over score.
+    const partial = await request(port, '/api/scores', { method: 'POST', body: JSON.stringify({runToken: concurrentRuns[0].value.runToken, name: 'FLOOR2', score: 999999}) });
+    assert.equal(partial.status, 201);
+    assert.equal(partial.value.rank, 2, 'completed campaign outranks a larger partial score');
+    const early = await request(port, '/api/runs', {method:'POST',body:'{}'});
+    assert.equal((await request(port, '/api/scores', {method:'POST',body:JSON.stringify({runToken:early.value.runToken,name:'FLOOR1',score:999999})})).status,201);
+    const ranked = (await request(port, '/api/scores')).value.scores;
+    assert.deepEqual(ranked.slice(0,3).map(s=>[s.name,s.completedFloor,s.floorReached]), [['PERSIST',6,6],['FLOOR2',1,2],['FLOOR1',0,1]]);
+    assert.equal((await request(port, `/api/runs/${concurrentRuns[0].value.runToken}/checkpoint`, {method:'POST',body:'{"floor":2}'})).status,404,'submitted runs cannot advance');
+    assert.equal((await request(port, '/api/scores', {method:'POST',body:JSON.stringify({runToken:early.value.runToken,name:'AGAIN',score:1})})).status,403,'one result per run');
+    // Old completed-only records have no progress fields; retain their ranking.
+    const legacy = JSON.parse(await readFile(dataFile,'utf8'));
+    delete legacy.scores[0].completedFloor; delete legacy.scores[0].floorReached;
+    await writeFile(dataFile,JSON.stringify(legacy));
+    assert.equal((await request(port,'/api/scores')).value.scores[0].completedFloor,6);
+
     const telemetry = await request(port, '/api/telemetry', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({

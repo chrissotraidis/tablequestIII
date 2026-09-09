@@ -61,8 +61,11 @@ let canvas = null;
 let wheelAccum = 0;
 let wheelDirection = 0;
 let lastWheelCycle = -Infinity;
+let discardNextMouseMove = false;
+let pointerLockError = () => {};
 
-export function initInput(canvasEl, { isPlaying = () => true } = {}) {
+export function initInput(canvasEl, { isPlaying = () => true, onPointerLockError = () => {} } = {}) {
+    pointerLockError = onPointerLockError;
     canvas = canvasEl;
 
     window.addEventListener('keydown', (e) => {
@@ -85,16 +88,22 @@ export function initInput(canvasEl, { isPlaying = () => true } = {}) {
     window.addEventListener('blur', releaseAllKeys);
 
     document.addEventListener('pointerlockchange', () => {
+        releaseAllKeys();
+        discardNextMouseMove = true;
         input.pointerLocked = document.pointerLockElement === canvas;
         if (input.pointerLocked) input.everLocked = true;
     });
     document.addEventListener('mousemove', (e) => {
-        if (input.pointerLocked) {
+        if (input.pointerLocked && isPlaying()) {
+            // The first event after capture can be an OS cursor-warp delta.
+            if (discardNextMouseMove) { discardNextMouseMove = false; return; }
+            if (!Number.isFinite(e.movementX) || !Number.isFinite(e.movementY)) return;
             input.mouseDX += e.movementX;
             input.mouseDY += e.movementY;
         }
     });
     canvas.addEventListener('mousedown', (e) => {
+        if (!input.pointerLocked || !isPlaying()) return;
         if (e.button === 0) { input.fire = true; input.mouseHeld = true; }
         if (e.button === 2) input.aimHeld = true;
     });
@@ -139,8 +148,8 @@ export function requestPointerLock() {
         // changed focus. A later click can retry; it must not become an
         // unhandled runtime error or interrupt the game/audio loop.
         const request = canvas.requestPointerLock?.();
-        request?.catch?.(() => {});
-    } catch { /* pointer lock remains available on the next user click */ }
+        request?.catch?.(pointerLockError);
+    } catch (error) { pointerLockError(error); }
 }
 
 export function exitPointerLock() {
