@@ -1,0 +1,35 @@
+[smoke:modern] file:///Users/chrissotraidis/GitHub/tablequestIII/dist/index.html
+{
+  "label": "modern",
+  "url": "file:///Users/chrissotraidis/GitHub/tablequestIII/dist/index.html",
+  "failures": [],
+  "errors": [],
+  "frameTimes": [
+    {
+      "floor": 1,
+      "avgMs": 16.7
+    },
+    {
+      "floor": 2,
+      "avgMs": 16.7
+    },
+    {
+      "floor": 3,
+      "avgMs": 16.7
+    },
+    {
+      "floor": 4,
+      "avgMs": 16.7
+    },
+    {
+      "floor": 5,
+      "avgMs": 16.7
+    },
+    {
+      "floor": 6,
+      "avgMs": 16.7
+    }
+  ],
+  "screenshots": "/tmp/tablequest-zo-review-20260909/offline"
+}
+[smoke:modern] OK

@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-09 — Social links and Zo hosting preparation
+
+- Added main-menu X/GitHub links, native keyboard activation and narrow-screen spacing.
+- Separated shared-network API limits, bounded request uploads and telemetry storage, protected malformed score data, and added real storage readiness plus static cache revalidation.
+- Added visible scoreboard polling/manual refresh, bounded checkpoint retries and timeouts, and isolated delayed score submissions from later games.
+- Documented the Zo deployment/rollback recipe and a proposed eight-player Arena using all six modern maps. Arena is not implemented; no public Zo deployment is claimed.
+- Preserved the previous build at `codex/stable-before-zo-2026-09-09`; campaign rules/maps and frozen legacy generations are unchanged. See [the goal-loop evidence](docs/online/PROGRESS.md) for verification.
+
 ## 2026-09-04 — 4.0: MODERN is the game
 
 Fifteen goal-based rounds later, the modern build is the main version, `main` carries it, and every generation ships inside it.

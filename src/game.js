@@ -378,6 +378,11 @@ export class Game {
         this.checkElevator();
     }
 
+    resetLookInput() {
+        this.smDX = 0; this.smDY = 0; this.turnVel = 0; this.yawRate = 0;
+        input.mouseDX = 0; input.mouseDY = 0;
+    }
+
     updatePlayer(dt) {
         const p = this.player;
 
@@ -513,6 +518,8 @@ export class Game {
             this.muzzleColor = color;
             const speed = w.speed || PROJECTILE_SPEED;
             const wkey = p.weapons[p.currentWeapon];
+            const vm = this.viewmodels[wkey];
+            const mz = this.muzzleWorld(vm);
             this.spawnProjectile({
                 x: p.x + Math.cos(ang) * 0.3,
                 y: p.y + Math.sin(ang) * 0.3,
@@ -526,16 +533,16 @@ export class Game {
                 light: !!w.light,
                 splash: w.splash,
                 splashDamage: w.splashDamage,
-                tracer: wkey === 'nailgun' || wkey === 'sprayer',   // MODERN: streaks
+                visualOrigin: wkey === 'sprayer' ? mz : null,
+                size: wkey === 'sprayer' ? 0.015 : undefined,
+                tracer: wkey === 'nailgun',   // MODERN: streaks
                 trail: wkey === 'paintbrush' || wkey === 'roller',  // MODERN: paint arcs
                 kind: wkey === 'nailgun' ? 'nail' : 'paint',
             });
             // MODERN: muzzle flash sprite + light, ejection at the muzzle
-            const vm = this.viewmodels[wkey];
             this.muzzleBoost = this.flash.fire(wkey, vm, color);
-            const mz = this.muzzleWorld(vm);
             if (mz) {
-                const fwd = new THREE.Vector3(Math.cos(p.rot), 0, Math.sin(p.rot));
+                const fwd = this.camera.getWorldDirection(new THREE.Vector3());
                 const right = new THREE.Vector3(-Math.sin(p.rot), 0, Math.cos(p.rot));
                 if (wkey === 'nailgun') {
                     // strip fragment kicks out to the right; exhaust puffs up from the cap (R4.2)
@@ -680,7 +687,12 @@ export class Game {
     /** world-space muzzle of the visible viewmodel (for ejection particles) */
     muzzleWorld(vm) {
         if (!vm?.userData.muzzle) return null;
+        vm.updateMatrix(); this.vmRoot.updateMatrix();
         const v = vm.userData.muzzle.clone().applyMatrix4(vm.matrix).applyMatrix4(this.vmRoot.matrix);
+        // World particles and the tool use different lenses; preserve the
+        // muzzle's screen position when crossing between those render passes.
+        const ratio = Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2)) / Math.tan(THREE.MathUtils.degToRad(this.viewCamera?.fov || 56) / 2);
+        v.x *= ratio; v.y *= ratio;
         this.camera.updateMatrixWorld();
         return v.applyMatrix4(this.camera.matrixWorld);
     }
@@ -828,12 +840,13 @@ export class Game {
         mesh.material.toneMapped = !opts.tracer;
         mesh.material.opacity = opts.tracer ? 0.9 : 1;
         mesh.material.needsUpdate = true;
-        mesh.position.set(opts.x, opts.z, opts.y);
+        const visualOffset = opts.visualOrigin ? opts.visualOrigin.clone().sub(new THREE.Vector3(opts.x, opts.z, opts.y)) : null;
+        mesh.position.copy(opts.visualOrigin || new THREE.Vector3(opts.x, opts.z, opts.y));
         if (shape !== 'sphere') mesh.lookAt(opts.x + opts.vx, opts.z, opts.y + opts.vy);
         this.scene.add(mesh);
         const light = opts.light ? this.acquireLight(opts.color) : null;
         if (light) light.position.set(opts.x, opts.z, opts.y);
-        this.projectiles.push({ ...opts, mesh, pLight: light, life: 3 });
+        this.projectiles.push({ ...opts, mesh, visualOffset, pLight: light, life: 3 });
     }
 
     removeProjectileMesh(pr) {
@@ -915,6 +928,7 @@ export class Game {
             } else {
                 pr.x = nx; pr.y = ny;
                 pr.mesh.position.set(nx, pr.z, ny);
+                if (pr.visualOffset) pr.mesh.position.addScaledVector(pr.visualOffset, Math.max(0, 1 - (3 - pr.life) / 0.18));
                 if (pr.pLight) pr.pLight.position.set(nx, pr.z, ny);
             }
         }
@@ -1467,7 +1481,6 @@ export class Game {
             this.muzzleLight.color.copy(this.muzzleColor);
             this.muzzleLight.intensity = this.muzzleBoost || 5;
         }
-        this.flash.update(dt);
 
         // viewmodel: whole-arm motion on vmRoot, recoil on the weapon
         this.recoil = Math.max(0, this.recoil - dt * 6);
@@ -1614,6 +1627,7 @@ export class Game {
             this.wallK = (this.wallK || 0) + (ahead - (this.wallK || 0)) * Math.min(1, dt * 8);
             root.position.z += this.wallK * 0.11; root.position.y -= this.wallK * 0.05; root.rotation.x += this.wallK * 0.35; root.rotation.y += this.wallK * 0.15;
         }
+        this.flash.update(dt);
         // R4.3: dynamic crosshair
         {
             const w = WEAPONS[p.weapons[p.currentWeapon]];

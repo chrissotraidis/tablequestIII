@@ -963,6 +963,7 @@
         .menu-workbench .menu-title span {
             display: block;
             margin: 0 0 -2px 8px;
+            transform: translateY(-6px);
             color: #d9ae68;
             font-family: Georgia, serif;
             font-size: 0.46em;
@@ -1102,7 +1103,7 @@
             color: #2b1908;
             font-family: 'Arial Narrow', Impact, sans-serif;
             text-align: center;
-            transform: rotate(-0.5deg);
+            transform: none;
         }
 
         .menu-score-plate span { font-size: 9px; font-weight: 800; letter-spacing: 3px; }
@@ -1116,10 +1117,14 @@
             border-radius: 0;
             box-shadow: none;
             color: #241205 !important;
-            font-family: 'Arial Narrow', Impact, sans-serif;
+            font-family: "Roboto Condensed", Arial, sans-serif;
+            font-variant-numeric: tabular-nums lining-nums;
+            font-weight: 700;
+            line-height: 1.15;
+            white-space: nowrap;
             font-size: clamp(20px, 2vw, 28px) !important;
-            letter-spacing: 2px;
-            text-shadow: 0 1px 0 rgba(255, 228, 164, 0.48);
+            letter-spacing: 0.5px;
+            text-shadow: none;
         }
 
         .menu-case-file {
@@ -1197,6 +1202,16 @@
             .menu-workbench .menu-footer-bar span:first-child { display: none; }
         }
         .menu-workbench#menu-screen::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+        .menu-socials { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 20; display: flex; gap: 8px; }
+        .menu-socials a { display: grid; place-items: center; width: 44px; height: 44px; box-sizing: border-box; border: 1px solid #a97b3c; border-radius: 3px; background: #27160a; color: #e6c68c; box-shadow: inset 0 1px 0 #ffffff14, 0 3px 8px #0008; }
+        .menu-socials a:hover { color: #fff0cf; border-color: #e6c68c; background: #432913; }
+        .menu-socials a:focus-visible { outline: 3px solid #ffd35a; outline-offset: 3px; }
+        .menu-socials svg { width: 22px; height: 22px; fill: currentColor; }
+        .lb-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .lb-actions button:focus-visible { outline: 2px solid #ffd35a; outline-offset: 3px; }
+        @media (max-width: 680px) {
+            .menu-workbench#menu-screen { padding-top: 78px; }
+        }
         /* R1.1 modern touches: sawdust motes, a slow warm light sweep, film grain */
         .menu-workbench .menu-dust { display: block; position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
         .menu-workbench .menu-dust span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 224, 170, .55); box-shadow: 0 0 6px rgba(255, 210, 140, .6); opacity: 0; animation: menuDust 11s linear infinite; }
@@ -1233,16 +1248,17 @@
         .opt-note { display: block; font-size: 9px; letter-spacing: 2px; color: rgba(242,240,232,.4); text-transform: uppercase; margin-top: 2px; }
         .opt-row[data-opt="generation"] .opt-value { min-width: 250px; }
         .opt-row[data-opt="scoreboard"] .opt-value b { min-width: 110px; }
-        .lb-panel { width: min(760px, 88vw); max-height: min(760px, 86vh); display: flex; flex-direction: column; }
+        .lb-panel { min-width: 0; width: min(760px, 88vw); max-height: min(760px, 86vh); display: flex; flex-direction: column; }
         .lb-panel h2 small { display: block; margin-top: 6px; color: rgba(242,240,232,.48); font-size: 10px; font-weight: 400; letter-spacing: 3px; }
         .lb-status { padding: 9px 12px; border: 1px solid rgba(58,138,230,.35); background: rgba(17,47,84,.28); color: #92bdf2; font-size: 10px; letter-spacing: 2px; text-align: center; }
-        .lb-head, .lb-row { display: grid; grid-template-columns: 58px 1fr 150px; align-items: center; gap: 14px; }
+        .lb-head, .lb-row { display: grid; grid-template-columns: 48px minmax(0, 1fr) 100px 110px; align-items: center; gap: 14px; }
         .lb-head { padding: 12px 14px 7px; color: rgba(242,240,232,.38); font-size: 9px; letter-spacing: 3px; }
         .lb-head span:last-child { text-align: right; }
         .lb-list { min-height: 180px; overflow-y: auto; border-top: 1px solid rgba(255,255,255,.12); border-bottom: 1px solid rgba(255,255,255,.12); }
         .lb-row { min-height: 34px; padding: 0 14px; border-bottom: 1px solid rgba(255,255,255,.07); color: rgba(242,240,232,.72); font-size: 13px; letter-spacing: 2px; }
         .lb-row span { color: rgba(242,240,232,.35); font-variant-numeric: tabular-nums; }
-        .lb-row b { color: #fff; }
+        .lb-row .lb-progress { font-size: 11px; letter-spacing: 1px; color: #d4cdbb; }
+        .lb-row b { color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .lb-row strong { color: #ffd35a; text-align: right; font-variant-numeric: tabular-nums; }
         .lb-row.top-1 { background: linear-gradient(90deg, rgba(255,211,90,.15), transparent); }
         .lb-row.top-1 b, .lb-row.top-1 span { color: #ffd35a; }
@@ -1251,6 +1267,13 @@
         .lb-empty { display: grid; min-height: 180px; place-items: center; padding: 20px; color: rgba(242,240,232,.44); font-size: 11px; letter-spacing: 2px; text-align: center; }
         .lb-back { align-self: center; margin-top: 16px; padding: 9px 18px; border: 1px solid rgba(255,211,90,.55); background: rgba(255,211,90,.08); color: #ffd35a; font: inherit; font-size: 11px; letter-spacing: 3px; cursor: pointer; }
         .lb-back:hover, .lb-back:focus-visible { background: #ffd35a; color: #181208; }
+        @media (max-width: 600px) {
+            .lb-panel { padding: 20px 12px; width: 94vw; box-sizing: border-box; }
+            .lb-head, .lb-row { grid-template-columns: 28px minmax(0,1fr) 62px 72px; gap: 6px; padding-left: 4px; padding-right: 4px; letter-spacing: .5px; }
+            .lb-head { font-size: 8px; }
+            .lb-row { font-size: 12px; }
+            .lb-row .lb-progress { font-size: 9px; letter-spacing: .3px; }
+        }
         /* T6: versions screen + in-page generation player */
         .vs-panel { min-width: 640px; max-width: 860px; }
         .vs-panel h2 small { display: block; font-size: 10px; letter-spacing: 3px; color: rgba(242,240,232,.5); margin-top: 6px; }
@@ -1323,6 +1346,31 @@
         .fs-detail .fd-palette { display: flex; gap: 4px; }
         .fs-detail .fd-palette i { width: 26px; height: 14px; border: 1px solid rgba(255,255,255,.25); }
         .fs-detail .fd-note { margin-top: auto; font-size: 10px; letter-spacing: 2px; color: rgba(242,240,232,.4); }
+
+        /* Floor practice: reading order and keyboard order both run 1 → 6. */
+        .mm-floors { min-width: 0; width: min(900px, 92vw); box-sizing: border-box; max-height: 92vh; overflow-y: auto; }
+        .fs-wrap { grid-template-columns: minmax(240px, .9fr) minmax(0, 1.1fr); gap: 24px; }
+        .fs-building { padding: 0; }
+        .fs-roof, .fs-ground, .fs-shaft { display: none; }
+        .fs-floors { gap: 8px; }
+        .fs-floors .level-item { border-radius: 3px; height: 48px; margin: 0; text-shadow: none; color: #ddd; }
+        .fs-floors .level-item.uncharted { color: #ddd; }
+        .fs-floors .level-item.selected { transform: none; box-shadow: none; }
+        .fs-floors .level-item .fs-num { color: #bbb; }
+        .fs-floors .level-item .fs-tag { position: static; font-size: 9px; letter-spacing: 0.5px; color: #c3b78e; }
+        .fs-floors .level-item:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+        .fs-detail .fd-name { font-size: clamp(24px, 3vw, 34px); letter-spacing: 2px; }
+        .fs-detail .fd-note { margin-top: 8px; color: #b9b7ae; line-height: 1.6; letter-spacing: 1px; }
+        .fs-actions { display: flex; gap: 12px; margin-top: 12px; }
+        .fs-actions button { padding: 12px 16px; font: inherit; font-size: 13px; letter-spacing: 1px; border: 1px solid #ffd35a; background: #ffd35a; color: #17130b; cursor: pointer; }
+        .fs-actions button:last-child { color: #e0d9c9; background: transparent; border-color: #655c48; }
+        .fs-actions button:focus-visible { outline: 2px solid white; outline-offset: 3px; }
+        @media (max-width: 680px) {
+            .fs-wrap { grid-template-columns: 1fr; gap: 18px; }
+            .fs-detail { padding: 16px 0 0; border-left: 0; border-top: 1px solid #555; }
+            .fs-floors .level-item { height: 40px; }
+            .mm-floors h2 { margin-bottom: 16px; }
+        }
 
         /* ======================= STORY CRAWL (R1.2: the classic cinematic crawl returns, modernized) ======================= */
         /* ---- Story intro crawl ---- */
@@ -1913,6 +1961,14 @@
         <!-- MODERN M3.3: front-end over the live Lobby scene -->
         <!-- R1.1: the classic v2 workbench cover is the menu again (five items, modern touches layered on) -->
         <div id="menu-screen" class="overlay hidden menu-workbench" aria-label="Main menu">
+            <nav class="menu-socials" aria-label="Find Chris online">
+                <a href="https://x.com/ChrisSotraidis" target="_blank" rel="noopener noreferrer" aria-label="Chris Sotraidis on X (opens in a new tab)" title="Find me on X">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.5 22H2.3l7.2-8.3L.8 2h6.5l4.5 6.7L18.9 2ZM17.8 20h1.8L6.3 4H4.4l13.4 16Z"/></svg>
+                </a>
+                <a href="https://github.com/chrissotraidis" target="_blank" rel="noopener noreferrer" aria-label="Chris Sotraidis on GitHub (opens in a new tab)" title="Find me on GitHub">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.64-1.25-1.64-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.93.1-.73.4-1.22.72-1.5-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.09 1.15a10.77 10.77 0 0 1 5.62 0c2.14-1.45 3.08-1.15 3.08-1.15.62 1.55.24 2.7.12 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.63 5.28-5.14 5.56.4.35.76 1.03.76 2.08v3.09c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z"/></svg>
+                </a>
+            </nav>
             <div class="menu-sweep" aria-hidden="true"></div>
             <div class="menu-dust" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
             <div class="menu-grain" aria-hidden="true"></div>
@@ -1931,13 +1987,13 @@
                         <div class="menu-rule"></div>
                     </header>
                     <nav id="menu-items" aria-label="Main menu" role="listbox">
-                        <button class="menu-item selected" type="button" role="option" aria-selected="true"><span class="menu-item-number">01</span><span class="menu-item-label">New Game</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">02</span><span class="menu-item-label">Floor Select</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">03</span><span class="menu-item-label">Scoreboard</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">04</span><span class="menu-item-label">Options</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">05</span><span class="menu-item-label">How to Play</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false" aria-pressed="false"><span class="menu-item-number">06</span><span class="menu-item-label">Sound: <span id="menu-sound-value">ON</span></span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">07</span><span class="menu-item-label">Versions</span></button>
+                        <button class="menu-item selected" type="button" data-native-keys role="option" aria-selected="true"><span class="menu-item-number">01</span><span class="menu-item-label">New Game</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">02</span><span class="menu-item-label">Floor Select</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">03</span><span class="menu-item-label">Scoreboard</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">04</span><span class="menu-item-label">Options</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">05</span><span class="menu-item-label">How to Play</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false" aria-pressed="false"><span class="menu-item-number">06</span><span class="menu-item-label">Sound: <span id="menu-sound-value">ON</span></span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">07</span><span class="menu-item-label">Versions</span></button>
                     </nav>
                     <div class="menu-workbench-meta">
                         <div class="menu-score-plate"><span>LOCAL BEST</span><strong id="menu-highscore">000,000</strong></div>
@@ -1980,10 +2036,13 @@
             <div class="mm-panel lb-panel">
                 <h2>Scoreboard <small>CARTEL HQ GLOBAL RANKINGS</small></h2>
                 <div id="scoreboard-status" class="lb-status" aria-live="polite">CONTACTING CARTEL MAINFRAME…</div>
-                <div class="lb-head"><span>RANK</span><span>ARTISAN</span><span>SCORE</span></div>
+                <div class="lb-head"><span>RANK</span><span>ARTISAN</span><span>PROGRESS</span><span>SCORE</span></div>
                 <div id="scoreboard-list" class="lb-list"></div>
-                <button id="btn-scoreboard-back" class="lb-back" type="button">← BACK TO OPTIONS</button>
-                <div class="mm-panel-footer">ONLY COMPLETE NEW GAME RUNS CAN BE SUBMITTED · ESC BACK</div>
+                <div class="lb-actions">
+                    <button id="btn-scoreboard-refresh" class="lb-back" type="button" data-native-keys>Refresh scores</button>
+                    <button id="btn-scoreboard-back" class="lb-back" type="button" data-native-keys>← BACK TO OPTIONS</button>
+                </div>
+                <div class="mm-panel-footer">NEW GAME CAMPAIGNS · PROGRESS FIRST, THEN SCORE · ESC BACK</div>
             </div>
         </div>
 
@@ -2025,7 +2084,7 @@
         <!-- MODERN M3.4: mission select as the Cartel HQ elevation -->
         <div id="menu-levels" class="overlay hidden mm-sub-overlay">
             <div class="mm-panel mm-floors">
-                <h2>FLOOR SELECT <small>CARTEL HQ · OPERATIONS BOARD</small></h2>
+                <h2>FLOOR SELECT <small>PRACTICE · CHOOSE A FLOOR</small></h2>
                 <div class="fs-wrap">
                     <div class="fs-building">
                         <div class="fs-roof"></div>
@@ -2035,7 +2094,7 @@
                     </div>
                     <div class="fs-detail" id="fs-detail"></div>
                 </div>
-                <div class="mm-panel-footer">↑↓ SELECT FLOOR · ENTER BEGIN OPERATION · ESC BACK</div>
+                <div class="mm-panel-footer">↑↓ CHOOSE · ENTER PLAY · ESC BACK</div>
             </div>
         </div>
 
@@ -2139,6 +2198,7 @@
                 <h1>FIRED!</h1>
                 <p>The critics were too harsh.</p>
                 <p class="stat-line" id="gameover-score"></p>
+                <div id="gameover-score-slot"></div>
                 <div class="mc-buttons"><button id="btn-retry">Retry Floor</button><button id="btn-quit-menu">Main Menu</button></div>
                 <p class="mc-dim">ENTER · RETRY FLOOR</p>
             </div>
@@ -2156,6 +2216,7 @@
                     <div class="menu-item">Toggle Sound</div>
                     <div class="menu-item">Post FX: <span id="pause-postfx-value">ON</span></div>
                     <div class="menu-item">Recover Audio</div>
+                    <div class="menu-item">Download Error Logs</div>
                     <div class="menu-item">Quit to Menu</div>
                 </div>
                 <div class="panel-footer">↑↓ SELECT · ENTER CONFIRM · ESC RESUME</div>
@@ -2174,15 +2235,15 @@
                     <p style="color:var(--wood);font-size:18px">The Head Designer has been splattered.</p>
                     <p>Sandy reclaimed every table and saved the furniture industry.</p>
                     <p class="stat-line" id="victory-score"></p>
-                    <form id="victory-score-form" class="victory-rank hidden">
+                    <div id="victory-score-slot"><form id="victory-score-form" class="victory-rank hidden">
                         <label for="victory-name">Sign the global scoreboard · 10 characters</label>
                         <div class="victory-rank-row">
                             <input id="victory-name" name="name" maxlength="10" autocomplete="nickname" inputmode="text" aria-label="Scoreboard name">
-                            <button id="btn-submit-score" type="submit">Submit Score</button>
+                            <button id="btn-submit-score" type="submit" data-native-keys>Submit Score</button>
                         </div>
                         <p id="victory-submit-status" aria-live="polite"></p>
                     </form>
-                    <p id="victory-score-note" class="hidden">FLOOR SELECT RUNS ARE NOT ELIGIBLE FOR THE GLOBAL SCOREBOARD.</p>
+                    <p id="victory-score-note" class="hidden">FLOOR SELECT RUNS ARE NOT ELIGIBLE FOR THE GLOBAL SCOREBOARD.</p></div>
                     <div style="margin-top:30px;color:#888">
                         <p style="font-size:12px">— CREDITS —</p>
                         <p style="margin-top:12px;font-size:15px;color:#ccc">SANDY'S TABLE QUEST 3D</p>

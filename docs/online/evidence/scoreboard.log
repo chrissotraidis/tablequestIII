@@ -1,0 +1,5 @@
+
+> sandys-table-quest-modern@4.0.0 test:scoreboard
+> node tools/test_scoreboard.mjs
+
+Scoreboard integration: PASS (restart persistence, 30 shared-peer visitors, isolated rate budgets, checkpoint retries, bounded telemetry rotation, static protection/cache, bounded bodies, corrupt-state preservation/readiness)

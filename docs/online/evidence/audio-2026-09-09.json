@@ -1,0 +1,86 @@
+{
+  "date": "2026-09-09",
+  "build": "fa08c054dee7",
+  "scope": "Modern local build; no physical-speaker acceptance",
+  "checks": [
+    "two concurrent Level 2 note schedulers survive the soak (device underruns recorded separately)",
+    "live voice nodes stay bounded during music and firing",
+    "paused game sends audio heartbeat with floor and game state",
+    "device underrun is detected even when note scheduler reports zero",
+    "stale device-output clock is detected while context remains running",
+    "pause action exports build, session, transport status and current audio incident",
+    "audio recovery preserves Level 2, score and pause state",
+    "pause menu keyboard wraps after adding log download",
+    "no runtime exceptions",
+    "hosted server persisted health, playback underrun, output stall, user report, recovery and activity events",
+    "both playback paths delivered more than 99 percent of frames during soak",
+    "firing produced SFX signal"
+  ],
+  "soak": [
+    {
+      "tab": 1,
+      "samples": 180,
+      "finalPlayback": {
+        "underrunDuration": 0.144,
+        "underrunEvents": 27,
+        "totalDuration": 199.6221,
+        "averageLatency": 0.028,
+        "minimumLatency": 0,
+        "maximumLatency": 0.028
+      },
+      "audioClockAdvanceSeconds": 196.27,
+      "peakOwnedNodes": 523,
+      "peakSfxDb": -8.1,
+      "schedulerErrors": 0,
+      "schedulerUnderruns": 0
+    },
+    {
+      "tab": 2,
+      "samples": 180,
+      "finalPlayback": {
+        "underrunDuration": 0.1333,
+        "underrunEvents": 25,
+        "totalDuration": 198.6197,
+        "averageLatency": 0.028,
+        "minimumLatency": 0,
+        "maximumLatency": 0.028
+      },
+      "audioClockAdvanceSeconds": 196.26,
+      "peakOwnedNodes": 482,
+      "peakSfxDb": -90,
+      "schedulerErrors": 0,
+      "schedulerUnderruns": 0
+    }
+  ],
+  "floor3Checks": [
+    "pause names Floor 3",
+    "persistent objective names Floor 3",
+    "enemy paint clipped to mesh and follows moving rig",
+    "wall splat lies on hit face at three projectile speeds",
+    "music bus signal persists through a complete Floor 3 loop",
+    "post-start audio suspension recovers and logs",
+    "scheduler continues after an injected voice error",
+    "Recover Audio restarts sound without resetting Floor 3",
+    "pause keyboard wraps to final item",
+    "no runtime exceptions"
+  ],
+  "unitTests": [
+    "audio-health",
+    "audio-voice",
+    "logger"
+  ],
+  "distSha256": "fbad987c9fe4ad64977c64eba18e3144b17d77c6cfcaef7a1905e507a69b4fe9",
+  "runtimeArchive": {
+    "path": "artifacts/audio-2026-09-09/tablequest-runtime.tgz",
+    "sha256": "bc0a598e4ca99521a1f4a08e4c250850635b0fd39f4999c8cdca035e0db6335e",
+    "contents": "dist/ and server/ only; bundled HTML matches validated build"
+  },
+  "offlineSynthesis": {
+    "instruments": 44,
+    "songs": 8,
+    "sfx": 35,
+    "silentInstruments": 0,
+    "silentSfx": 0,
+    "runtimeErrors": 0
+  }
+}

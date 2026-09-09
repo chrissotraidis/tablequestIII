@@ -97,6 +97,7 @@ function applyFloorLook() {
 
 let state = 'boot-memory'; // boot-memory, boot-title, menu, intro, play, pause, transition, gameover, victory
 let menuIdx = 0;
+const PAUSE_ITEMS = ['Resume', 'Restart Floor', 'Controls', 'Toggle Sound', 'Post FX', 'Recover Audio', 'Download Error Logs', 'Quit to Menu'];
 let pauseIdx = 0;
 let pauseSub = null;
 let pauseControlIdx = 0;
@@ -104,6 +105,9 @@ let captureBinding = null;
 let levelIdx = 0;
 let menuSub = null; // null | 'instructions' | 'levels' | 'options' | 'scoreboard' | 'versions'
 let scoreboardReturn = 'menu';
+let scoreboardTimer = null;
+let scoreboardVersion = 0;
+let scoreboardBusy = false;
 let introTimer = null;
 let introFrame = null;
 let introStartedAt = 0;
@@ -126,18 +130,24 @@ function resetRankedRun(eligible) {
         run.token = token;
         gameLog('ranked-run.started', { available: true });
         return token;
-    }).catch(() => null);
+    }).catch(() => { run.error = 'RANKING UNAVAILABLE FOR THIS RUN · YOU CAN STILL PLAY'; return null; });
 }
 
 function markRankedFloor(floor) {
     if (!rankedRun.eligible) return Promise.resolve(false);
-    rankedRun.queue = rankedRun.queue.then(async token => {
+    const run = rankedRun;
+    run.queue = run.queue.then(async token => {
         if (!token) return null;
         await checkpointRankedRun(token, floor);
         gameLog('ranked-run.checkpoint', { floor });
         return token;
-    }).catch(error => { gameLog('ranked-run.checkpoint-failed', { floor, message: error.message }, 'warn'); return null; });
-    return rankedRun.queue;
+    }).catch(error => {
+        run.error = 'RANKING CONNECTION LOST · THIS RUN CANNOT BE SUBMITTED';
+        gameLog('ranked-run.checkpoint-failed', { floor, message: error.message }, 'warn');
+        if (run === rankedRun && ['victory', 'gameover'].includes(state)) prepareVictoryScoreEntry(false, state);
+        return null;
+    });
+    return run.queue;
 }
 
 const game = new Game(scene, camera, {
@@ -191,6 +201,8 @@ const game = new Game(scene, camera, {
     },
 });
 
+game.viewCamera = postfx.vmCamera;
+
 function snapshotLevel() {
     const p = game.player;
     levelSnapshot = {
@@ -210,6 +222,7 @@ const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions'
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
+    if (!ids.includes('menu-scoreboard')) stopScoreboardRefresh();
     for (const s of SCREENS) $(s).classList.toggle('hidden', !ids.includes(s));
 }
 
@@ -241,7 +254,7 @@ function setState(next) {
             // MODERN: the Lobby is the live backdrop (loaded silently: no music, no card)
             if (!menuBackdrop) { game.player = null; game.loadLevel(0, { keepStats: false, silent: true }); applyFloorLook(); renderer.compile(scene, camera); menuBackdrop = true; }
             menuCamT = 0;
-            $('menu-highscore').textContent = String(highScore || 0).padStart(6, '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+            $('menu-highscore').textContent = Number(highScore || 0).toLocaleString();
             renderMenu();
             break;
         case 'intro': showOnly('intro-screen'); break;
@@ -276,12 +289,15 @@ function setState(next) {
         case 'gameover':
             saveHighScore();
             $('gameover-score').textContent = `SCORE: ${game.player.score.toLocaleString()}`;
+            prepareVictoryScoreEntry(true, 'gameover');
+            gameLog('campaign.ended', { ranked: rankedRun.eligible, result: 'defeat', score: game.player.score, floor: game.levelIndex + 1 });
             showOnly('screen-gameover');
             exitPointerLock();
             stopMusic();
             stopAmbience(1.0);
             break;
         case 'victory':
+            gameLog('campaign.ended', { ranked: rankedRun.eligible, result: 'victory', score: game.player.score, floor: 6 });
             showOnly('screen-victory');
             hud.hide();
             exitPointerLock();
@@ -294,8 +310,8 @@ function setState(next) {
 const MENU_ITEMS = ['New Game', 'Level Select', 'Scoreboard', 'Options', 'Instructions', 'Toggle Sound', 'Versions'];
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
-    ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Jump to any unlocked cartel floor.'],
-    ['GLOBAL RANKINGS', 'TOP 20 ARTISANS', 'View persistent scores from complete New Game campaigns.'],
+    ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Practice any floor with its starting arsenal.'],
+    ['GLOBAL RANKINGS', 'TOP 20 ARTISANS', 'See who got furthest in New Game campaigns.'],
     ['FIELD SETTINGS', 'OPTIONS', 'Pick any generation of the game, post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
     ['WORKSHOP AUDIO', 'SOUND SYSTEM', 'Toggle music and effects for this session.'],
@@ -341,25 +357,49 @@ function renderScoreRows(scores) {
         const rank = document.createElement('span'); rank.textContent = String(i + 1).padStart(2, '0');
         const name = document.createElement('b'); name.textContent = cleanPlayerName(score.name) || 'ANON';
         const value = document.createElement('strong'); value.textContent = Number(score.score || 0).toLocaleString();
-        row.append(rank, name, value); list.appendChild(row);
+        const progress = document.createElement('span');
+        progress.className = 'lb-progress';
+        progress.textContent = (score.completedFloor ?? 6) === 6 ? 'COMPLETE' : `FLOOR ${score.floorReached || (score.completedFloor + 1)}`;
+        row.append(rank, name, progress, value); list.appendChild(row);
     });
 }
-async function openScoreboard(from = 'options') {
+function stopScoreboardRefresh() {
+    clearInterval(scoreboardTimer);
+    scoreboardTimer = null;
+    scoreboardVersion++;
+    scoreboardBusy = false;
+}
+async function refreshScoreboard() {
+    if (scoreboardBusy || document.hidden || $('menu-scoreboard').classList.contains('hidden')) return;
+    const version = scoreboardVersion;
+    scoreboardBusy = true;
+    try {
+        const scores = await loadScores();
+        if (version !== scoreboardVersion) return;
+        renderScoreRows(scores);
+        $('scoreboard-status').textContent = 'GLOBAL TOP 20 · UPDATES EVERY MINUTE';
+    } catch {
+        if (version !== scoreboardVersion) return;
+        $('scoreboard-status').textContent = /^https?:$/.test(location.protocol)
+            ? 'SCORES UNAVAILABLE · RETRY OR CHECK BACK SHORTLY'
+            : 'OFFLINE PLAY · GLOBAL SCORES ARE AVAILABLE IN THE HOSTED GAME';
+    } finally {
+        if (version === scoreboardVersion) scoreboardBusy = false;
+    }
+}
+function openScoreboard(from = 'options') {
+    stopScoreboardRefresh();
     scoreboardReturn = from;
     menuSub = 'scoreboard';
     showOnly('menu-scoreboard');
     $('btn-scoreboard-back').textContent = from === 'menu' ? '← BACK TO MAIN MENU' : '← BACK TO OPTIONS';
     $('scoreboard-status').textContent = 'CONTACTING CARTEL MAINFRAME…';
     $('scoreboard-list').replaceChildren();
-    try {
-        const scores = await loadScores();
-        renderScoreRows(scores);
-        $('scoreboard-status').textContent = 'GLOBAL TOP 20 · COMPLETED NEW GAME RUNS ONLY';
-    } catch {
-        $('scoreboard-status').textContent = 'SCOREBOARD OFFLINE · START THE VPS SCOREBOARD SERVER TO CONNECT';
-        renderScoreRows([]);
-    }
+    scoreboardTimer = setInterval(refreshScoreboard, 60000);
+    void refreshScoreboard();
 }
+window.addEventListener('focus', refreshScoreboard);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) void refreshScoreboard(); });
 function closeScoreboard() {
     if (scoreboardReturn === 'menu') {
         menuSub = null;
@@ -545,7 +585,6 @@ function floorFacts(lvl) {
     const finds = Object.keys(WEAPON_CHAR).filter(c => count[c]).map(c => WEAPON_CHAR[c]);
     return { tables, staff, threat, finds };
 }
-const hex = (n) => '#' + n.toString(16).padStart(6, '0');
 const bestFloor = () => Number(localStorage.getItem('tq3d-best') || 1);
 function noteFloorReached(n) { if (n > bestFloor()) localStorage.setItem('tq3d-best', String(n)); }
 
@@ -553,14 +592,15 @@ function buildLevelList() {
     const list = $('level-list');
     list.innerHTML = '';
     const best = bestFloor();
-    // the elevation stacks top floor first; DOM order is still floor 1..6 for the key handler
+    // Visual and keyboard order both run from Floor 1 to Floor 6.
     [...LEVELS].forEach((lvl, i) => {
-        const el = document.createElement('div');
+        const el = document.createElement('button');
+        el.type = 'button';
         el.className = 'level-item' + (i === levelIdx ? ' selected' : '') + (i + 1 > best ? ' uncharted' : '') + (lvl.boss ? ' boss' : '');
-        el.style.order = String(LEVELS.length - i); // flex order draws floor 6 at the top
-        el.innerHTML = `<span class="fs-num">FLOOR ${i + 1}</span><span class="fs-name">${lvl.name}</span>${i + 1 > best ? '<span class="fs-tag">UNCHARTED</span>' : ''}<span class="fs-windows"></span>`;
-        el.addEventListener('click', () => { levelIdx = i; startGameAt(i); requestPointerLock(); });
-        el.addEventListener('mouseenter', () => { levelIdx = i; renderLevelList(); });
+
+        el.innerHTML = `<span class="fs-num">FLOOR ${i + 1}</span><span class="fs-name">${lvl.name}</span>${i + 1 > best ? '<span class="fs-tag">UNVISITED</span>' : ''}`;
+        el.addEventListener('click', () => { levelIdx = i; renderLevelList(); });
+        el.addEventListener('focus', () => { levelIdx = i; renderLevelList(); });
         list.appendChild(el);
     });
     const shaft = $('fs-shaft');
@@ -569,13 +609,13 @@ function buildLevelList() {
 }
 
 function renderLevelList() {
-    document.querySelectorAll('#level-list .level-item').forEach((el, i) => el.classList.toggle('selected', i === levelIdx));
+    document.querySelectorAll('#level-list .level-item').forEach((el, i) => { el.classList.toggle('selected', i === levelIdx); el.setAttribute('aria-pressed', String(i === levelIdx)); });
     document.querySelectorAll('#fs-shaft span').forEach((el, i) => el.classList.toggle('lit', LEVELS.length - i === levelIdx + 1));
     const lvl = LEVELS[levelIdx];
     const f = floorFacts(lvl);
     const uncharted = levelIdx + 1 > bestFloor();
     $('fs-detail').innerHTML = `
-        <div class="fd-eyebrow">OPERATION ${String(levelIdx + 1).padStart(2, '0')} · ${uncharted ? 'UNCHARTED' : 'CLEARED FOR ENTRY'}</div>
+        <div class="fd-eyebrow">OPERATION ${String(levelIdx + 1).padStart(2, '0')} · ${uncharted ? 'UNVISITED' : 'VISITED'}</div>
         <div class="fd-name">${lvl.name}</div>
         <div class="fd-sub">${lvl.subtitle}</div>
         <div class="fd-stats">
@@ -584,9 +624,11 @@ function renderLevelList() {
             <div class="fd-stat"><span>THREAT</span><b class="${f.threat[1]}">${f.threat[0]}</b></div>
         </div>
         <div class="fd-row">FIELD FIND <b>${f.finds.length ? f.finds.join(' · ') : (lvl.boss ? 'THE HEAD DESIGNER' : 'NONE')}</b></div>
-        <div class="fd-row">PALETTE <span class="fd-palette"><i style="background:${hex(lvl.fogColor)}"></i><i style="background:${hex(lvl.ambient)}"></i><i style="background:${hex(lvl.accent)}"></i><i style="background:${hex(lvl.decor?.rugColor ?? 0x333333)}"></i></span></div>
-        <div class="fd-row">SCORE <b>${lvl.music.toUpperCase()}</b></div>
-        <div class="fd-note">FLOOR SELECT GRANTS THE ARSENAL A RUN WOULD HAVE FOUND BY NOW. GLOBAL RANKING REQUIRES NEW GAME.</div>`;
+        <div class="fd-note">${lvl.boss ? 'Defeat the Head Designer.' : `Collect ${f.tables} tables and reach the elevator.`} Floor practice starts with the weapons available at this point in the campaign.</div>
+        <div class="fd-note">Start a New Game from the main menu to enter the campaign scoreboard.</div>
+        <div class="fs-actions"><button id="fs-play" data-native-keys>PLAY FLOOR ${levelIdx + 1}</button><button id="fs-back" data-native-keys>BACK</button></div>`;
+    $('fs-play').addEventListener('click', () => { startGameAt(levelIdx); requestPointerLock(); });
+    $('fs-back').addEventListener('click', () => { menuSub = null; showOnly('menu-screen'); });
 }
 
 function menuSelect() {
@@ -832,6 +874,7 @@ function startGameAt(idx, { ranked = false } = {}) {
 }
 
 function retryFloor() {
+    if (state === 'gameover') resetRankedRun(false); // death ends the ranked attempt; retries are practice
     window.TQ?.botCancel?.();
     stopMusic();
     // restore the stats the player had when the floor began (with a mercy floor)
@@ -847,8 +890,7 @@ function retryFloor() {
 
 function pauseSelect() {
     playSound('menu_select');
-    const items = ['Resume', 'Restart Floor', 'Controls', 'Toggle Sound', 'Post FX', 'Recover Audio', 'Quit to Menu'];
-    const item = items[pauseIdx];
+    const item = PAUSE_ITEMS[pauseIdx];
     if (item === 'Resume') { setState('play'); requestPointerLock(); }
     else if (item === 'Restart Floor') retryFloor();
     else if (item === 'Controls') openPauseControls();
@@ -858,6 +900,7 @@ function pauseSelect() {
         localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off');
         $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
     }
+    else if (item === 'Download Error Logs') { gameLog('audio.user-report', audioHealth(), 'warn'); downloadGameLogs(); flushTelemetry(); }
     else if (item === 'Recover Audio') { recoverAudio(); flushTelemetry(); }
     else if (item === 'Quit to Menu') { stopMusic(); setState('menu'); startSong('menu'); }
 }
@@ -866,42 +909,60 @@ $('btn-retry').addEventListener('click', () => { playSound('menu_select'); retry
 $('btn-quit-menu').addEventListener('click', () => { setState('menu'); startSong('menu'); });
 $('btn-victory-menu').addEventListener('click', () => { setState('menu'); startSong('menu'); });
 $('btn-scoreboard-back').addEventListener('click', closeScoreboard);
+$('btn-scoreboard-refresh').addEventListener('click', refreshScoreboard);
 
-function prepareVictoryScoreEntry() {
+function prepareVictoryScoreEntry(initializeName = true, outcome = 'victory') {
     const form = $('victory-score-form');
     const note = $('victory-score-note');
-    form.classList.toggle('hidden', !rankedRun.eligible);
-    note.classList.toggle('hidden', rankedRun.eligible);
-    $('victory-submit-status').textContent = rankedRun.eligible ? 'TOP 20 SCORES ARE SAVED GLOBALLY' : '';
-    $('victory-name').value = cleanPlayerName(localStorage.getItem('tq3d-player-name') || '');
-    $('btn-submit-score').disabled = false;
+    $(`${outcome}-score-slot`).append(form, note);
+    const available = rankedRun.eligible && !rankedRun.error;
+    form.classList.toggle('hidden', !available);
+    note.classList.toggle('hidden', available);
+    note.textContent = rankedRun.error || 'FLOOR SELECT RUN · START A NEW GAME TO JOIN THE GLOBAL RANKINGS';
+    $('victory-submit-status').textContent = available ? 'RANKED BY PROGRESS, THEN SCORE · RETRY AFTER DEFEAT IS PRACTICE' : '';
+    if (initializeName) $('victory-name').value = cleanPlayerName(localStorage.getItem('tq3d-player-name') || '');
+    $('btn-submit-score').disabled = !!rankedRun.submitting || !!rankedRun.submitted;
 }
 
 $('victory-name').addEventListener('input', e => { e.target.value = cleanPlayerName(e.target.value); });
 $('victory-score-form').addEventListener('submit', async e => {
     e.preventDefault();
-    if (!rankedRun.eligible || rankedRun.submitted) return;
+    const run = rankedRun;
+    if (!run.eligible || run.submitted || run.submitting || run.error) return;
+    const score = game.player.score;
     const name = cleanPlayerName($('victory-name').value);
     if (!name) { $('victory-submit-status').textContent = 'ENTER A NAME'; return; }
+    run.submitting = true;
     $('btn-submit-score').disabled = true;
     $('victory-submit-status').textContent = 'SUBMITTING…';
     try {
-        const token = await rankedRun.queue;
-        if (!token) throw new Error('Scoreboard unavailable');
-        const result = await submitScore(token, name, game.player.score);
-        rankedRun.submitted = true;
+        const token = await run.queue;
+        if (!token) throw new Error(run.error || 'Scoreboard unavailable');
+        const result = await submitScore(token, name, score);
+        run.submitted = true;
         localStorage.setItem('tq3d-player-name', name);
-        $('victory-submit-status').textContent = result.rank > 0 ? `RANK #${result.rank} RECORDED` : 'RUN RECORDED';
-        gameLog('ranked-run.submitted', { rank: result.rank, score: game.player.score });
+        if (run === rankedRun && ['victory', 'gameover'].includes(state)) {
+            $('victory-submit-status').textContent = result.rank > 0 ? `RANK #${result.rank} RECORDED` : 'FINISHED OUTSIDE THE TOP 20';
+        }
+        gameLog('ranked-run.submitted', { rank: result.rank, score });
     } catch (error) {
-        $('btn-submit-score').disabled = false;
-        $('victory-submit-status').textContent = error.message.toUpperCase();
+        if (run === rankedRun && ['victory', 'gameover'].includes(state)) {
+            $('btn-submit-score').disabled = false;
+            $('victory-submit-status').textContent = error instanceof TypeError || /timed out/i.test(error.message)
+                ? 'SUBMISSION NOT CONFIRMED · CHECK SCOREBOARD BEFORE RETRYING'
+                : error.message.toUpperCase();
+        }
+    } finally {
+        run.submitting = false;
     }
 });
 
 // ------------------------------------------------------------------ INPUT
 
-initInput(canvas);
+initInput(canvas, {
+    isPlaying: () => state === 'play',
+    onPointerLockError: error => gameLog('pointer-lock.failed', { name: error?.name, message: error?.message, focused: document.hasFocus() }, 'warn'),
+});
 
 onKeyPress((e) => {
     if (e.target?.matches?.('input, textarea')) return;
@@ -980,8 +1041,8 @@ onKeyPress((e) => {
                 else if (e.code === 'ArrowRight') adjustPauseControl(1);
                 else if (e.code === 'Enter' || e.code === 'Space') activatePauseControl();
             } else if (e.code === 'Escape') setState('play');
-            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 6) % 7; playSound('menu_move'); renderPause(); }
-            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 7; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + PAUSE_ITEMS.length - 1) % PAUSE_ITEMS.length; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % PAUSE_ITEMS.length; playSound('menu_move'); renderPause(); }
             else if (e.code === 'Enter') pauseSelect();
             break;
         case 'gameover':
@@ -1015,6 +1076,7 @@ canvas.addEventListener('click', () => {
 
 // losing pointer lock during play = pause (browser Esc behavior)
 document.addEventListener('pointerlockchange', () => {
+    game.resetLookInput();
     gameLog('pointer-lock.changed', { locked: document.pointerLockElement === canvas, state });
     if (!document.pointerLockElement && state === 'play' && input.everLocked) {
         setState('pause');
@@ -1024,6 +1086,7 @@ document.addEventListener('pointerlockchange', () => {
 // window losing focus during play = pause (and never leave keys stuck)
 window.addEventListener('blur', () => {
     releaseAllKeys();
+    game.resetLookInput();
     if (state === 'play' && !testMode) setState('pause');
 });
 

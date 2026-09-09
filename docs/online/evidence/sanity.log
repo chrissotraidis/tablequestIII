@@ -1,0 +1,73 @@
+{
+  "checks": [
+    "aim",
+    "sprint",
+    "cleared",
+    "resumed",
+    "typing",
+    "held Q cycles once",
+    "remapped number key moves without switching weapon",
+    "Space deploys without jumping",
+    "floor 2 GPU textures stable",
+    "floor 2 GPU geometry stable",
+    "floor 5 GPU textures stable",
+    "floor 5 GPU geometry stable",
+    "old death timer cannot end new run",
+    "pausing death cannot leave dead player in play",
+    "old elevator timer cannot replace new floor",
+    "DOM artwork decoded",
+    "original health sprite decoded",
+    "no page errors or failed requests"
+  ],
+  "memory": [
+    {
+      "floor": 2,
+      "geometries": 186,
+      "textures": 54,
+      "programs": 75
+    },
+    {
+      "floor": 5,
+      "geometries": 237,
+      "textures": 61,
+      "programs": 74
+    },
+    {
+      "floor": 2,
+      "geometries": 186,
+      "textures": 60,
+      "programs": 75
+    },
+    {
+      "floor": 5,
+      "geometries": 237,
+      "textures": 61,
+      "programs": 74
+    },
+    {
+      "floor": 2,
+      "geometries": 186,
+      "textures": 60,
+      "programs": 75
+    },
+    {
+      "floor": 5,
+      "geometries": 237,
+      "textures": 61,
+      "programs": 74
+    },
+    {
+      "floor": 2,
+      "geometries": 186,
+      "textures": 60,
+      "programs": 75
+    },
+    {
+      "floor": 5,
+      "geometries": 237,
+      "textures": 61,
+      "programs": 74
+    }
+  ],
+  "errors": []
+}

@@ -71,7 +71,7 @@ try {
         if (i > 48 && i % 15 === 0) await page.evaluate(() => { TQ.setState(TQ.state === 'play' ? 'pause' : 'play'); });
         if (i % 20 === 0) console.log('Music sample', i, samples.at(-1).musicDb, 'dB');
     }
-    check(samples.every(s => s.state === 'running' && s.playing && s.musicDb > -75 && s.schedulerErrors === 0), 'music remains audible through a complete Floor 3 loop');
+    check(samples.every(s => s.state === 'running' && s.playing && s.musicDb > -75 && s.schedulerErrors === 0), 'music bus signal persists through a complete Floor 3 loop');
     await page.evaluate(() => TQ.setState('pause'));
     // Reproduce post-start context suspension, then recover on the next input.
     await page.evaluate(() => window.testAudioContext.suspend());
@@ -89,7 +89,7 @@ try {
     const recovery = page.locator('#pause-items').getByText('Recover Audio', { exact: true });
     await recovery.click();
     await page.waitForTimeout(1800);
-    check(await page.evaluate(() => TQ.state === 'pause' && TQ.game.levelIndex === 2 && TQ.audioHealth().musicDb > -75 && TQ.logs().some(e => e.event === 'audio.recovered')), 'Recover Audio restarts sound without resetting Floor 3');
+    check(await page.evaluate(() => TQ.state === 'pause' && TQ.game.levelIndex === 2 && TQ.audioHealth().musicDb > -75 && TQ.logs().some(e => e.event === 'audio.recovery-check')), 'Recover Audio restarts sound without resetting Floor 3');
     // Check keyboard wrap after adding the new menu action.
     await page.keyboard.press('Escape'); await page.keyboard.press('Escape');
     await page.keyboard.press('ArrowUp');
