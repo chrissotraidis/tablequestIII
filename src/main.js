@@ -104,6 +104,9 @@ let captureBinding = null;
 let levelIdx = 0;
 let menuSub = null; // null | 'instructions' | 'levels' | 'options' | 'scoreboard' | 'versions'
 let scoreboardReturn = 'menu';
+let scoreboardTimer = null;
+let scoreboardVersion = 0;
+let scoreboardBusy = false;
 let introTimer = null;
 let introFrame = null;
 let introStartedAt = 0;
@@ -126,18 +129,24 @@ function resetRankedRun(eligible) {
         run.token = token;
         gameLog('ranked-run.started', { available: true });
         return token;
-    }).catch(() => null);
+    }).catch(() => { run.error = 'RANKING UNAVAILABLE FOR THIS RUN · YOU CAN STILL PLAY'; return null; });
 }
 
 function markRankedFloor(floor) {
     if (!rankedRun.eligible) return Promise.resolve(false);
-    rankedRun.queue = rankedRun.queue.then(async token => {
+    const run = rankedRun;
+    run.queue = run.queue.then(async token => {
         if (!token) return null;
         await checkpointRankedRun(token, floor);
         gameLog('ranked-run.checkpoint', { floor });
         return token;
-    }).catch(error => { gameLog('ranked-run.checkpoint-failed', { floor, message: error.message }, 'warn'); return null; });
-    return rankedRun.queue;
+    }).catch(error => {
+        run.error = 'RANKING CONNECTION LOST · THIS RUN CANNOT BE SUBMITTED';
+        gameLog('ranked-run.checkpoint-failed', { floor, message: error.message }, 'warn');
+        if (run === rankedRun && state === 'victory') prepareVictoryScoreEntry(false);
+        return null;
+    });
+    return run.queue;
 }
 
 const game = new Game(scene, camera, {
@@ -210,6 +219,7 @@ const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions'
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
+    if (!ids.includes('menu-scoreboard')) stopScoreboardRefresh();
     for (const s of SCREENS) $(s).classList.toggle('hidden', !ids.includes(s));
 }
 
@@ -344,22 +354,43 @@ function renderScoreRows(scores) {
         row.append(rank, name, value); list.appendChild(row);
     });
 }
-async function openScoreboard(from = 'options') {
+function stopScoreboardRefresh() {
+    clearInterval(scoreboardTimer);
+    scoreboardTimer = null;
+    scoreboardVersion++;
+    scoreboardBusy = false;
+}
+async function refreshScoreboard() {
+    if (scoreboardBusy || document.hidden || $('menu-scoreboard').classList.contains('hidden')) return;
+    const version = scoreboardVersion;
+    scoreboardBusy = true;
+    try {
+        const scores = await loadScores();
+        if (version !== scoreboardVersion) return;
+        renderScoreRows(scores);
+        $('scoreboard-status').textContent = 'GLOBAL TOP 20 · UPDATES EVERY 15 SECONDS';
+    } catch {
+        if (version !== scoreboardVersion) return;
+        $('scoreboard-status').textContent = /^https?:$/.test(location.protocol)
+            ? 'SCORES UNAVAILABLE · RETRY OR CHECK BACK SHORTLY'
+            : 'OFFLINE PLAY · GLOBAL SCORES ARE AVAILABLE IN THE HOSTED GAME';
+    } finally {
+        if (version === scoreboardVersion) scoreboardBusy = false;
+    }
+}
+function openScoreboard(from = 'options') {
+    stopScoreboardRefresh();
     scoreboardReturn = from;
     menuSub = 'scoreboard';
     showOnly('menu-scoreboard');
     $('btn-scoreboard-back').textContent = from === 'menu' ? '← BACK TO MAIN MENU' : '← BACK TO OPTIONS';
     $('scoreboard-status').textContent = 'CONTACTING CARTEL MAINFRAME…';
     $('scoreboard-list').replaceChildren();
-    try {
-        const scores = await loadScores();
-        renderScoreRows(scores);
-        $('scoreboard-status').textContent = 'GLOBAL TOP 20 · COMPLETED NEW GAME RUNS ONLY';
-    } catch {
-        $('scoreboard-status').textContent = 'SCOREBOARD OFFLINE · START THE VPS SCOREBOARD SERVER TO CONNECT';
-        renderScoreRows([]);
-    }
+    scoreboardTimer = setInterval(refreshScoreboard, 15000);
+    void refreshScoreboard();
 }
+window.addEventListener('focus', refreshScoreboard);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) void refreshScoreboard(); });
 function closeScoreboard() {
     if (scoreboardReturn === 'menu') {
         menuSub = null;
@@ -866,42 +897,56 @@ $('btn-retry').addEventListener('click', () => { playSound('menu_select'); retry
 $('btn-quit-menu').addEventListener('click', () => { setState('menu'); startSong('menu'); });
 $('btn-victory-menu').addEventListener('click', () => { setState('menu'); startSong('menu'); });
 $('btn-scoreboard-back').addEventListener('click', closeScoreboard);
+$('btn-scoreboard-refresh').addEventListener('click', refreshScoreboard);
 
-function prepareVictoryScoreEntry() {
+function prepareVictoryScoreEntry(initializeName = true) {
     const form = $('victory-score-form');
     const note = $('victory-score-note');
-    form.classList.toggle('hidden', !rankedRun.eligible);
-    note.classList.toggle('hidden', rankedRun.eligible);
-    $('victory-submit-status').textContent = rankedRun.eligible ? 'TOP 20 SCORES ARE SAVED GLOBALLY' : '';
-    $('victory-name').value = cleanPlayerName(localStorage.getItem('tq3d-player-name') || '');
-    $('btn-submit-score').disabled = false;
+    const available = rankedRun.eligible && !rankedRun.error;
+    form.classList.toggle('hidden', !available);
+    note.classList.toggle('hidden', available);
+    note.textContent = rankedRun.error || 'FLOOR SELECT RUN · START A NEW GAME TO JOIN THE GLOBAL RANKINGS';
+    $('victory-submit-status').textContent = available ? 'TOP 20 SCORES ARE SAVED GLOBALLY' : '';
+    if (initializeName) $('victory-name').value = cleanPlayerName(localStorage.getItem('tq3d-player-name') || '');
+    $('btn-submit-score').disabled = !!rankedRun.submitting || !!rankedRun.submitted;
 }
 
 $('victory-name').addEventListener('input', e => { e.target.value = cleanPlayerName(e.target.value); });
 $('victory-score-form').addEventListener('submit', async e => {
     e.preventDefault();
-    if (!rankedRun.eligible || rankedRun.submitted) return;
+    const run = rankedRun;
+    if (!run.eligible || run.submitted || run.submitting || run.error) return;
+    const score = game.player.score;
     const name = cleanPlayerName($('victory-name').value);
     if (!name) { $('victory-submit-status').textContent = 'ENTER A NAME'; return; }
+    run.submitting = true;
     $('btn-submit-score').disabled = true;
     $('victory-submit-status').textContent = 'SUBMITTING…';
     try {
-        const token = await rankedRun.queue;
-        if (!token) throw new Error('Scoreboard unavailable');
-        const result = await submitScore(token, name, game.player.score);
-        rankedRun.submitted = true;
+        const token = await run.queue;
+        if (!token) throw new Error(run.error || 'Scoreboard unavailable');
+        const result = await submitScore(token, name, score);
+        run.submitted = true;
         localStorage.setItem('tq3d-player-name', name);
-        $('victory-submit-status').textContent = result.rank > 0 ? `RANK #${result.rank} RECORDED` : 'RUN RECORDED';
-        gameLog('ranked-run.submitted', { rank: result.rank, score: game.player.score });
+        if (run === rankedRun && state === 'victory') {
+            $('victory-submit-status').textContent = result.rank > 0 ? `RANK #${result.rank} RECORDED` : 'FINISHED OUTSIDE THE TOP 20';
+        }
+        gameLog('ranked-run.submitted', { rank: result.rank, score });
     } catch (error) {
-        $('btn-submit-score').disabled = false;
-        $('victory-submit-status').textContent = error.message.toUpperCase();
+        if (run === rankedRun && state === 'victory') {
+            $('btn-submit-score').disabled = false;
+            $('victory-submit-status').textContent = error instanceof TypeError || /timed out/i.test(error.message)
+                ? 'SUBMISSION NOT CONFIRMED · CHECK SCOREBOARD BEFORE RETRYING'
+                : error.message.toUpperCase();
+        }
+    } finally {
+        run.submitting = false;
     }
 });
 
 // ------------------------------------------------------------------ INPUT
 
-initInput(canvas);
+initInput(canvas, { isPlaying: () => state === 'play' });
 
 onKeyPress((e) => {
     if (e.target?.matches?.('input, textarea')) return;

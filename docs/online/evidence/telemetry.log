@@ -1,0 +1,5 @@
+
+> sandys-table-quest-modern@4.0.0 test:telemetry
+> node tools/test_telemetry.mjs
+
+Telemetry: PASS (daily timezone, browser/session distinction, deduplication, bot exclusion, incident timeline, partial log, safe copy failure)

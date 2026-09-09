@@ -1197,6 +1197,16 @@
             .menu-workbench .menu-footer-bar span:first-child { display: none; }
         }
         .menu-workbench#menu-screen::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+        .menu-socials { position: absolute; top: max(16px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 20; display: flex; gap: 8px; }
+        .menu-socials a { display: grid; place-items: center; width: 44px; height: 44px; box-sizing: border-box; border: 1px solid #a97b3c; border-radius: 3px; background: #27160a; color: #e6c68c; box-shadow: inset 0 1px 0 #ffffff14, 0 3px 8px #0008; }
+        .menu-socials a:hover { color: #fff0cf; border-color: #e6c68c; background: #432913; }
+        .menu-socials a:focus-visible { outline: 3px solid #ffd35a; outline-offset: 3px; }
+        .menu-socials svg { width: 22px; height: 22px; fill: currentColor; }
+        .lb-actions { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
+        .lb-actions button:focus-visible { outline: 2px solid #ffd35a; outline-offset: 3px; }
+        @media (max-width: 680px) {
+            .menu-workbench#menu-screen { padding-top: 78px; }
+        }
         /* R1.1 modern touches: sawdust motes, a slow warm light sweep, film grain */
         .menu-workbench .menu-dust { display: block; position: absolute; inset: 0; z-index: 3; pointer-events: none; overflow: hidden; }
         .menu-workbench .menu-dust span { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: rgba(255, 224, 170, .55); box-shadow: 0 0 6px rgba(255, 210, 140, .6); opacity: 0; animation: menuDust 11s linear infinite; }
@@ -1913,6 +1923,14 @@
         <!-- MODERN M3.3: front-end over the live Lobby scene -->
         <!-- R1.1: the classic v2 workbench cover is the menu again (five items, modern touches layered on) -->
         <div id="menu-screen" class="overlay hidden menu-workbench" aria-label="Main menu">
+            <nav class="menu-socials" aria-label="Find Chris online">
+                <a href="https://x.com/ChrisSotraidis" target="_blank" rel="noopener noreferrer" aria-label="Chris Sotraidis on X (opens in a new tab)" title="Find me on X">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.5 22H2.3l7.2-8.3L.8 2h6.5l4.5 6.7L18.9 2ZM17.8 20h1.8L6.3 4H4.4l13.4 16Z"/></svg>
+                </a>
+                <a href="https://github.com/chrissotraidis" target="_blank" rel="noopener noreferrer" aria-label="Chris Sotraidis on GitHub (opens in a new tab)" title="Find me on GitHub">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 .75a11.25 11.25 0 0 0-3.56 21.92c.56.1.77-.24.77-.54v-2.1c-3.13.68-3.79-1.33-3.79-1.33-.51-1.3-1.25-1.64-1.25-1.64-1.02-.7.08-.69.08-.69 1.13.08 1.72 1.16 1.72 1.16 1 1.72 2.63 1.22 3.27.93.1-.73.4-1.22.72-1.5-2.5-.28-5.13-1.25-5.13-5.56 0-1.23.44-2.23 1.16-3.02-.12-.28-.5-1.43.11-2.98 0 0 .95-.3 3.09 1.15a10.77 10.77 0 0 1 5.62 0c2.14-1.45 3.08-1.15 3.08-1.15.62 1.55.24 2.7.12 2.98.72.79 1.16 1.79 1.16 3.02 0 4.32-2.63 5.28-5.14 5.56.4.35.76 1.03.76 2.08v3.09c0 .3.2.65.78.54A11.25 11.25 0 0 0 12 .75Z"/></svg>
+                </a>
+            </nav>
             <div class="menu-sweep" aria-hidden="true"></div>
             <div class="menu-dust" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
             <div class="menu-grain" aria-hidden="true"></div>
@@ -1931,13 +1949,13 @@
                         <div class="menu-rule"></div>
                     </header>
                     <nav id="menu-items" aria-label="Main menu" role="listbox">
-                        <button class="menu-item selected" type="button" role="option" aria-selected="true"><span class="menu-item-number">01</span><span class="menu-item-label">New Game</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">02</span><span class="menu-item-label">Floor Select</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">03</span><span class="menu-item-label">Scoreboard</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">04</span><span class="menu-item-label">Options</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">05</span><span class="menu-item-label">How to Play</span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false" aria-pressed="false"><span class="menu-item-number">06</span><span class="menu-item-label">Sound: <span id="menu-sound-value">ON</span></span></button>
-                        <button class="menu-item" type="button" role="option" aria-selected="false"><span class="menu-item-number">07</span><span class="menu-item-label">Versions</span></button>
+                        <button class="menu-item selected" type="button" data-native-keys role="option" aria-selected="true"><span class="menu-item-number">01</span><span class="menu-item-label">New Game</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">02</span><span class="menu-item-label">Floor Select</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">03</span><span class="menu-item-label">Scoreboard</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">04</span><span class="menu-item-label">Options</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">05</span><span class="menu-item-label">How to Play</span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false" aria-pressed="false"><span class="menu-item-number">06</span><span class="menu-item-label">Sound: <span id="menu-sound-value">ON</span></span></button>
+                        <button class="menu-item" type="button" data-native-keys role="option" aria-selected="false"><span class="menu-item-number">07</span><span class="menu-item-label">Versions</span></button>
                     </nav>
                     <div class="menu-workbench-meta">
                         <div class="menu-score-plate"><span>LOCAL BEST</span><strong id="menu-highscore">000,000</strong></div>
@@ -1982,7 +2000,10 @@
                 <div id="scoreboard-status" class="lb-status" aria-live="polite">CONTACTING CARTEL MAINFRAME…</div>
                 <div class="lb-head"><span>RANK</span><span>ARTISAN</span><span>SCORE</span></div>
                 <div id="scoreboard-list" class="lb-list"></div>
-                <button id="btn-scoreboard-back" class="lb-back" type="button">← BACK TO OPTIONS</button>
+                <div class="lb-actions">
+                    <button id="btn-scoreboard-refresh" class="lb-back" type="button" data-native-keys>Refresh scores</button>
+                    <button id="btn-scoreboard-back" class="lb-back" type="button" data-native-keys>← BACK TO OPTIONS</button>
+                </div>
                 <div class="mm-panel-footer">ONLY COMPLETE NEW GAME RUNS CAN BE SUBMITTED · ESC BACK</div>
             </div>
         </div>
@@ -2178,7 +2199,7 @@
                         <label for="victory-name">Sign the global scoreboard · 10 characters</label>
                         <div class="victory-rank-row">
                             <input id="victory-name" name="name" maxlength="10" autocomplete="nickname" inputmode="text" aria-label="Scoreboard name">
-                            <button id="btn-submit-score" type="submit">Submit Score</button>
+                            <button id="btn-submit-score" type="submit" data-native-keys>Submit Score</button>
                         </div>
                         <p id="victory-submit-status" aria-live="polite"></p>
                     </form>

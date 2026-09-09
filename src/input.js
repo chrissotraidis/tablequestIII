@@ -62,11 +62,15 @@ let wheelAccum = 0;
 let wheelDirection = 0;
 let lastWheelCycle = -Infinity;
 
-export function initInput(canvasEl) {
+export function initInput(canvasEl, { isPlaying = () => true } = {}) {
     canvas = canvasEl;
 
     window.addEventListener('keydown', (e) => {
         if (e.target?.matches?.('input, textarea, select, [contenteditable="true"]')) return;
+        // Let menu links/buttons and Tab use the browser's native focus and
+        // activation behavior. During play Tab still owns the tactical map.
+        if (!isPlaying() && (e.code === 'Tab' ||
+            (['Enter', 'Space'].includes(e.code) && e.target?.closest?.('a[href], [data-native-keys]')))) return;
         // Held state already persists until keyup. Repeating a key must not
         // toggle aim/sprint again or queue another jump/weapon change.
         if (e.repeat) return;

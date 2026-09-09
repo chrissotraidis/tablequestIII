@@ -202,6 +202,10 @@ The full crawl plays after New Game, verbatim from the original, over a satellit
 The main menu opens the persistent global scoreboard directly. Options also includes generation, scoreboard, post-processing, field of view, mouse sensitivity, look smoothing, aim sensitivity, aim and
 sprint hold/toggle, invert look, head bob, sound. Settings persist in the browser.
 
+The upper-right menu icons link to [Chris on X](https://x.com/ChrisSotraidis) and
+[GitHub](https://github.com/chrissotraidis). Global scores refresh every 15 seconds while the scoreboard is visible;
+the Refresh scores button checks immediately. The hosted game currently requires a keyboard and mouse.
+
 The global scoreboard accepts the top 20 scores from complete **New Game** campaigns. Floor Select runs remain
 unranked. On victory, an eligible player can sign the score with a name of up to 10 characters.
 
@@ -222,6 +226,7 @@ npm ci
 | `npm run preview` | Serve the built file on `http://localhost:4174` |
 | `npm run serve:scoreboard` | Serve `dist/` plus the persistent scoreboard API on `http://localhost:4176` |
 | `npm run test:scoreboard` | Verify eligibility, concurrent writes and restart persistence using an isolated temporary database |
+| `npm run test:leaderboard-client` | Check bounded retries/timeouts, offline behavior and late submission isolation |
 | `npm run test:sanity` | Check controls, delayed state changes, artwork and GPU resource cleanup against the local game |
 | `node tools/perf_sanity.mjs http://127.0.0.1:5174/` | Measure all six floors at 2654×1738 and stress furniture destruction |
 | `npm run report:telemetry` | Summarize sessions, play time, floors, performance, audio underruns and errors from the VPS telemetry log |
@@ -245,7 +250,14 @@ The scoreboard server stores its small JSON database in `data/leaderboard.json` 
 sequential floor checkpoints before allowing one final submission; this keeps Floor Select and duplicate submissions
 out of the rankings. Put the service behind HTTPS and a reverse proxy when it is hosted publicly.
 
-Runtime diagnostics are privacy-light. The game keeps a bounded local log and sends anonymous technical events to the
+For Zo Computer, use its registered HTTP Service and follow the [deployment guide](docs/online/ZO_DEPLOYMENT.md)
+and [environment example](deploy/zo.env.example). Run one writer process with persistent files outside the release directory.
+Static downloads, telemetry and ranked-run requests use separate handling/budgets suitable for a shared network.
+Readiness checks storage access, corrupt state is preserved, and the client can retry the latest checkpoint safely.
+Run creation and final submissions are not automatically retried after an ambiguous failure. Rankings are casual,
+client-reported scores; a token and ordered checkpoints do not prove honest gameplay.
+
+Runtime diagnostics are privacy-light. The game keeps a bounded local log and sends pseudonymous technical events to the
 same-origin server every 15 seconds. Those events cover session duration, floor loads, frame pacing, adaptive-quality
 changes, audio scheduler underruns, pointer lock, weapon changes, ranked-run requests and uncaught errors. The server
 appends them to `data/telemetry.jsonl`; set `TQ_TELEMETRY_FILE` to place that file on a persistent VPS volume. It records
@@ -276,6 +288,10 @@ screenshot evidence. **Start at [`docs/modern/INDEX.md`](docs/modern/INDEX.md).*
 | [`docs/evidence/comparison.md`](docs/evidence/comparison.md) | Classic vs modern, every screen and floor side by side |
 | [`classic/design.md`](classic/design.md), [`classic/design-qa.md`](classic/design-qa.md) | The classic generation's own design notes and menu QA |
 | [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
+| [`docs/online/GOAL_LOOP.md`](docs/online/GOAL_LOOP.md) | Stable baseline, goals and acceptance gates for social links, Zo preparation and Arena planning |
+| [`docs/online/PROGRESS.md`](docs/online/PROGRESS.md) | Implementation evidence and remaining live deployment checks |
+| [`docs/online/ARENA_PLAN.md`](docs/online/ARENA_PLAN.md) | Proposed eight-player lobby/deathmatch mode and adaptations of all six maps; not implemented |
+| [`docs/online/ARENA_RESEARCH.md`](docs/online/ARENA_RESEARCH.md) | Technical research behind the Arena plan |
 
 ## The classic generation
 
@@ -354,7 +370,7 @@ Released under the [MIT License](LICENSE).
 Serve the built game with `npm run serve:scoreboard` behind your HTTPS reverse proxy. Set
 `TQ_DATA_FILE=/srv/tablequest-data/leaderboard.json` and
 `TQ_TELEMETRY_FILE=/srv/tablequest-data/telemetry.jsonl` to keep both files on persistent storage outside `dist/`.
-A static-only host does not collect these logs. The service appends anonymous session events to JSONL;
+A static-only host does not collect these logs. The service appends pseudonymous session events to JSONL;
 logs are retrieved over your existing SSH access, not a public HTTP download endpoint.
 
 ```sh
@@ -366,7 +382,9 @@ npm run report:telemetry -- data/vps-telemetry.jsonl --session SESSION_ID --json
 
 The pull command uses your SSH configuration and replaces the local copy only after a successful transfer.
 `TQ_VPS_HOST` and `TQ_VPS_TELEMETRY_FILE` can replace the corresponding arguments. No VPS address or credentials
-are stored in the game. Set a retention/rotation policy for the append-only file on your server.
+are stored in the game. Telemetry rotates at `TQ_TELEMETRY_MAX_BYTES` (16 MiB by default), retaining the current file
+and one `.1` backup. Download/archive both if you need the earlier timeline; rotation replaces the older backup.
+Set a separate bounded retention policy for the service's stdout request logs.
 
 Reports distinguish **played sessions**, **unique browsers that played**, and **opened-only sessions**.
 A random ID in local storage estimates returning browsers; it cannot identify individual people, and clearing storage

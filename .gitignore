@@ -1,6 +1,9 @@
 # dependencies
 node_modules/
 
+# Reviewed runtime packages are local deliverables, not source history.
+artifacts/
+
 # OS junk
 .DS_Store
 
@@ -13,6 +16,7 @@ ref/
 # local VPS scoreboard state
 data/leaderboard.json
 data/telemetry.jsonl
+data/telemetry.jsonl.1
 data/*.tmp
 
 # Downloaded player-session reports stay local

@@ -1,0 +1,5 @@
+
+> sandys-table-quest-modern@4.0.0 test:leaderboard-client
+> node tools/test_leaderboard_client.mjs
+
+Leaderboard client: PASS (transient recovery, bounded timeouts/retries, validation, unsafe POST protection, offline mode)

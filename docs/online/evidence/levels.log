@@ -1,0 +1,10 @@
+
+> sandys-table-quest-modern@4.0.0 validate:levels
+> node tools/validate_levels.mjs
+
+OK   L1 The Lobby (32x22) tables=2 enemies=6
+OK   L2 The Office (40x27) tables=3 enemies=9
+OK   L3 The Archives (41x30) tables=3 enemies=8
+OK   L4 The Showroom (40x26) tables=4 enemies=11
+OK   L5 The Factory (48x29) tables=4 enemies=15
+OK   L6 The Penthouse (32x23) tables=0 enemies=1

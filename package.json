@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "serve:scoreboard": "node server/scoreboard-server.mjs",
     "test:scoreboard": "node tools/test_scoreboard.mjs",
+    "test:leaderboard-client": "node tools/test_leaderboard_client.mjs",
     "test:sanity": "node tools/sanity.mjs",
     "report:telemetry": "node tools/telemetry_report.mjs",
     "dev:classic": "vite --config classic/vite.config.js",

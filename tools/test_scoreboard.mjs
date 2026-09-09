@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, readFile, writeFile, stat, rename, mkdir } from 'node:fs/promises';
 import { createServer } from 'node:net';
+import { request as httpRequest } from 'node:http';
+import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,9 +26,10 @@ async function freePort() {
 async function startServer(port) {
     const child = spawn(process.execPath, ['server/scoreboard-server.mjs'], {
         cwd: root,
-        env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), TQ_DATA_FILE: dataFile, TQ_TELEMETRY_FILE: telemetryFile },
+        env: { ...process.env, HOST: '127.0.0.1', PORT: String(port), TQ_DATA_FILE: dataFile, TQ_TELEMETRY_FILE: telemetryFile, TQ_TELEMETRY_MAX_BYTES: '65536' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
+    child.stdout.resume();
     let stderr = '';
     child.stderr.on('data', chunk => { stderr += chunk; });
     const deadline = Date.now() + 5000;
@@ -67,6 +70,20 @@ try {
             method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ floor }),
         });
         if (checkpoint.status !== 200 || checkpoint.value.completedFloor !== floor) throw new Error(`Floor ${floor} checkpoint failed`);
+        const duplicate = await request(port, `/api/runs/${run.value.runToken}/checkpoint`, {
+            method: 'POST', body: JSON.stringify({ floor }),
+        });
+        assert.equal(duplicate.status, 200, 'Retry of latest checkpoint must succeed');
+        if (floor === 1) {
+            for (const invalid of [0, 3, 1.5]) {
+                const result = await request(port, `/api/runs/${run.value.runToken}/checkpoint`, { method: 'POST', body: JSON.stringify({ floor: invalid }) });
+                assert.equal(result.status, 409, 'Invalid floor sequence must be rejected');
+            }
+        }
+        if (floor === 2) {
+            const old = await request(port, `/api/runs/${run.value.runToken}/checkpoint`, { method: 'POST', body: JSON.stringify({ floor: 1 }) });
+            assert.equal(old.status, 409, 'Old checkpoint must not move progress backwards');
+        }
     }
 
     const submitted = await request(port, '/api/scores', {
@@ -114,7 +131,86 @@ try {
 
     if (telemetryRecord.client.visitorId !== 'anonymous-browser-1' || telemetryRecord.client.build !== 'test-build' || !telemetryRecord.client.automated || telemetryRecord.events[0].seq !== 7) throw new Error('Telemetry identity/build/sequence fields were dropped');
 
-    console.log('Scoreboard integration: PASS (eligible submission, restart persistence, forged-score rejection, anonymous telemetry)');
+    // Thirty visitors share one proxy/NAT peer: four telemetry and six scoreboard reads
+    // each in a minute, plus a full set of campaign checkpoints, without mutual throttling.
+    const mixed = await Promise.all(Array.from({ length: 30 }, async (_, visitor) => {
+        const created = await request(port, '/api/runs', { method: 'POST', body: '{}' });
+        assert.equal(created.status, 201);
+        const background = await Promise.all([
+            ...Array.from({ length: 6 }, () => request(port, '/api/scores')),
+            ...Array.from({ length: 4 }, () => request(port, '/api/telemetry', { method: 'POST', body: JSON.stringify({
+                sessionId: `conference-visitor-${visitor}`, events: [{ event: 'session.activity', data: { sample: 'x'.repeat(3900) } }],
+            }) })),
+        ]);
+        assert.equal(background.filter(result => result.status === 200).length, 6);
+        assert.equal(background.filter(result => result.status === 202).length, 4);
+        for (let floor = 1; floor <= 6; floor++) {
+            assert.equal((await request(port, `/api/runs/${created.value.runToken}/checkpoint`, { method: 'POST', body: JSON.stringify({ floor }) })).status, 200);
+        }
+        return created.value.runToken;
+    }));
+    const conferenceState = JSON.parse(await readFile(dataFile, 'utf8'));
+    assert.ok(mixed.every(token => conferenceState.runs[token]?.completedFloor === 6));
+    for (const file of [telemetryFile, `${telemetryFile}.1`]) {
+        assert.ok((await stat(file)).size <= 65536, 'Telemetry rotation must bound both files');
+        for (const line of (await readFile(file, 'utf8')).trim().split('\n')) JSON.parse(line);
+    }
+
+    // Static files have validators and HEAD support; private files are not served.
+    const head = await fetch(`http://127.0.0.1:${port}/`, { method: 'HEAD' });
+    assert.equal(head.status, 200);
+    assert.equal(await head.text(), '');
+    assert.ok(head.headers.get('etag'));
+    assert.equal((await fetch(`http://127.0.0.1:${port}/`, { headers: { 'if-none-match': head.headers.get('etag') } })).status, 304);
+    for (const path of ['/data/leaderboard.json', '/data/telemetry.jsonl', '/server/scoreboard-server.mjs', '/.env']) {
+        assert.equal((await request(port, path)).status, 404);
+    }
+    assert.equal((await request(port, '/', { method: 'POST' })).status, 405);
+
+    // A slow body is outside the write queue, so another player can still start.
+    const slow = httpRequest(`http://127.0.0.1:${port}/api/runs`, { method: 'POST', signal: AbortSignal.timeout(12000) });
+    const slowResponse = new Promise((resolveResponse, reject) => {
+        slow.once('response', response => { response.resume(); resolveResponse(response.statusCode); });
+        slow.once('error', reject);
+    });
+    slow.write('{');
+    try {
+        assert.equal((await request(port, '/api/runs', { method: 'POST', body: '{}', signal: AbortSignal.timeout(2000) })).status, 201);
+        assert.equal(await slowResponse, 408, 'Unfinished upload must time out');
+    } finally { slow.destroy(); }
+    assert.equal((await request(port, '/api/runs', { method: 'POST', body: JSON.stringify({ sample: 'é'.repeat(40000) }) })).status, 413);
+    assert.equal((await request(port, '/api/runs', { method: 'POST', body: 'null' })).status, 400);
+
+    const goodState = await readFile(dataFile, 'utf8');
+    for (const damaged of ['{broken', '{"scores":[],"runs":[]}']) {
+        await writeFile(dataFile, damaged);
+        assert.equal((await request(port, '/api/health')).status, 503);
+        assert.equal((await request(port, '/api/scores')).status, 503);
+        assert.equal((await request(port, '/api/runs', { method: 'POST', body: '{}' })).status, 503);
+        assert.equal(await readFile(dataFile, 'utf8'), damaged, 'Never overwrite damaged state');
+    }
+    await writeFile(dataFile, goodState);
+    await rename(dataFile, `${dataFile}.held`);
+    await mkdir(dataFile);
+    assert.equal((await request(port, '/api/health')).status, 503, 'Unreadable state must fail readiness');
+    assert.equal((await request(port, '/api/runs', { method: 'POST', body: '{}' })).status, 503);
+    await rm(dataFile, { recursive: true });
+    await rename(`${dataFile}.held`, dataFile);
+    assert.equal((await request(port, '/api/health')).status, 200);
+
+    // Exhaust reads to verify their budget cannot consume the submission budget.
+    let limited;
+    for (let attempt = 0; attempt < 610; attempt++) {
+        limited = await fetch(`http://127.0.0.1:${port}/api/scores`);
+        await limited.arrayBuffer();
+        if (limited.status === 429) break;
+    }
+    assert.equal(limited.status, 429);
+    assert.equal(limited.headers.get('retry-after'), '60');
+    assert.equal((await request(port, '/api/scores', { method: 'POST', body: JSON.stringify({ runToken: mixed[0], name: 'CONFERENCE', score: 123 }) })).status, 201);
+    assert.equal((await fetch(`http://127.0.0.1:${port}/`, { method: 'HEAD' })).status, 200);
+
+    console.log('Scoreboard integration: PASS (restart persistence, 30 shared-peer visitors, isolated rate budgets, checkpoint retries, bounded telemetry rotation, static protection/cache, bounded bodies, corrupt-state preservation/readiness)');
 } finally {
     if (server) await stopServer(server);
     await rm(temporary, { recursive: true, force: true });
