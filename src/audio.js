@@ -18,10 +18,13 @@
  */
 
 import { gameLog } from './logger.js';
+import { playbackHealth, audioProgress } from './audio-health.js';
+import { createVoice, voiceCounts } from './audio-voice.js';
 
 let G = null;          // live graph (see buildGraph)
 let audioCtx = null;   // alias of G.ctx, kept for the classic code paths
 let muted = false;
+let contextGeneration = 0;
 // Leave real mix headroom before the safety limiter. Dense combat can stack a
 // full arrangement, weapon transients, barks and reverb in the same 10 ms.
 const MASTER_LEVEL = 0.5;
@@ -172,26 +175,36 @@ export function initAudio() {
         return;
     }
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const generation = ++contextGeneration;
     ctx.addEventListener('statechange', () => {
-        gameLog('audio.context-state', { state: ctx.state, song: currentSongName, muted, hidden: document.hidden });
+        gameLog('audio.context-state', { contextState: ctx.state, generation, song: currentSongName, muted, hidden: document.hidden });
     });
     G = buildGraph(ctx);
     audioCtx = ctx;
+    gameLog('audio.context-created', { generation, ...playbackHealth(ctx) });
+    ctx.addEventListener('sinkchange', () => gameLog('audio.output-device-changed', audioHealth()));
     if (!audioMonitorTimer) audioMonitorTimer = setInterval(monitorAudioOutput, 1000);
     if (pendingAmbience) { const k = pendingAmbience; pendingAmbience = null; startAmbience(k); }
 }
 
 // A browser/device interruption can happen after the initial start gesture.
 // Resume on later gestures too, and record failures instead of swallowing them.
-let resumePending = false;
+let resumePending = null;
 export function resumeAudio(reason = 'gesture') {
     const ctx = G?.ctx;
     if (!ctx || G.offline || resumePending || !['suspended', 'interrupted'].includes(ctx.state)) return;
-    resumePending = true;
-    gameLog('audio.resume-requested', { reason, state: ctx.state, song: currentSongName });
-    ctx.resume().then(() => gameLog('audio.resumed', { reason, state: ctx.state }))
-        .catch(error => gameLog('audio.resume-failed', { reason, message: error.message }, 'warn'))
-        .finally(() => { resumePending = false; });
+    const request = { ctx };
+    resumePending = request;
+    gameLog('audio.resume-requested', { reason, contextState: ctx.state, song: currentSongName });
+    const timeout = setTimeout(() => {
+        if (resumePending !== request) return;
+        resumePending = null;
+        gameLog('audio.resume-timeout', { reason, contextState: ctx.state }, 'warn');
+    }, 8000);
+    ctx.resume().then(() => {
+        if (G?.ctx === ctx) gameLog('audio.resumed', { reason, contextState: ctx.state });
+    }).catch(error => gameLog('audio.resume-failed', { reason, message: error.message }, 'warn'))
+        .finally(() => { clearTimeout(timeout); if (resumePending === request) resumePending = null; });
 }
 window.addEventListener('pointerdown', () => resumeAudio(), { passive: true });
 window.addEventListener('keydown', () => resumeAudio(), { passive: true });
@@ -207,13 +220,18 @@ export function recoverAudio() {
     const old = G;
     stopAmbience(0);
     stopMusic();
-    G = null; audioCtx = null; noiseBuffer = null; resumePending = false;
+    G = null; audioCtx = null; noiseBuffer = null; resumePending = null;
     if (old) old.ctx.close().catch(error => gameLog('audio.close-failed', { message: error.message }, 'warn'));
     initAudio();
     if (song) startSong(song);
     applyMix('recovery');
     silentMusicSeconds = 0;
-    gameLog('audio.recovered', audioHealth());
+    gameLog('audio.context-rebuilt', audioHealth());
+    // A fresh graph is not proof the physical speakers are audible.
+    const recovered = G;
+    setTimeout(() => {
+        if (G === recovered) gameLog('audio.recovery-check', audioHealth(), G.ctx.state === 'running' ? 'info' : 'warn');
+    }, 1500);
 }
 
 let noiseBuffer = null;
@@ -248,10 +266,12 @@ function shaperCurve(drive) {
 function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
     if (!G) return;
     const ctx = G.ctx;
+    const voice = createVoice(ctx);
+    try {
     bus = bus || G.music;
 
-    const vcf = ctx.createBiquadFilter();
-    const vca = ctx.createGain();
+    const vcf = voice.create('createBiquadFilter');
+    const vca = voice.create('createGain');
     const oscs = [];   // { s, cents }
     const stops = [];  // nodes to stop at the end
     const width = instr.width ?? 0.2;
@@ -260,17 +280,17 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
     const addSrc = (type, cents, pan, gain, ratio = 1, hp = 0) => {
         let s;
         if (type === 'noise') {
-            s = ctx.createBufferSource(); s.buffer = getNoise(); s.loop = true;
+            s = voice.create('createBufferSource'); s.buffer = getNoise(); s.loop = true;
         } else {
-            s = ctx.createOscillator(); s.type = type;
+            s = voice.create('createOscillator'); s.type = type;
             s.frequency.setValueAtTime(freq * ratio, time);
             s.detune.setValueAtTime(cents, time);
             oscs.push({ s, cents });
         }
-        const g = ctx.createGain(); g.gain.value = gain;
-        const p = ctx.createStereoPanner(); p.pan.value = pan;
+        const g = voice.create('createGain'); g.gain.value = gain;
+        const p = voice.create('createStereoPanner'); p.pan.value = pan;
         let head = s;
-        if (hp) { const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = hp; s.connect(f); head = f; }
+        if (hp) { const f = voice.create('createBiquadFilter'); f.type = 'highpass'; f.frequency.value = hp; s.connect(f); head = f; }
         head.connect(g); g.connect(p); p.connect(vcf);
         s.start(time); s.stop(endT);
         stops.push(s);
@@ -302,42 +322,42 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
     // filter chain: vcf → [drive → cab] → [formants] → vca
     let head = vcf;
     if (instr.drive) {
-        const ws = ctx.createWaveShaper(); ws.curve = shaperCurve(instr.drive); ws.oversample = '2x';
-        const pre = ctx.createGain(); pre.gain.value = instr.preGain ?? 1;
+        const ws = voice.create('createWaveShaper'); ws.curve = shaperCurve(instr.drive); ws.oversample = '2x';
+        const pre = voice.create('createGain'); pre.gain.value = instr.preGain ?? 1;
         head.connect(pre); pre.connect(ws); head = ws;
-        const cab = ctx.createBiquadFilter(); cab.type = 'bandpass'; cab.frequency.value = instr.cab || 1000; cab.Q.value = instr.cabQ ?? 0.6;
+        const cab = voice.create('createBiquadFilter'); cab.type = 'bandpass'; cab.frequency.value = instr.cab || 1000; cab.Q.value = instr.cabQ ?? 0.6;
         head.connect(cab); head = cab;
     }
     if (instr.formant) {
-        const sum = ctx.createGain();
+        const sum = voice.create('createGain');
         for (const [f, q, g] of instr.formant) {
-            const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
-            const gg = ctx.createGain(); gg.gain.value = g;
+            const bp = voice.create('createBiquadFilter'); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
+            const gg = voice.create('createGain'); gg.gain.value = g;
             head.connect(bp); bp.connect(gg); gg.connect(sum);
         }
         head = sum;
     }
     head.connect(vca);
     vca.connect(bus);
-    if (instr.reverb) { const send = ctx.createGain(); send.gain.value = typeof instr.reverb === 'number' ? instr.reverb : 1; vca.connect(send); send.connect(G.reverb); }
+    if (instr.reverb) { const send = voice.create('createGain'); send.gain.value = typeof instr.reverb === 'number' ? instr.reverb : 1; vca.connect(send); send.connect(G.reverb); }
     if (instr.delay) vca.connect(G.delay);
     if (instr.chorus) { // a modulated short delay, panned opposite, thickens strings and keys
-        const d = ctx.createDelay(0.05); d.delayTime.value = 0.018;
-        const lfo = ctx.createOscillator(); lfo.frequency.value = instr.chorus.rate || 0.8;
-        const lg = ctx.createGain(); lg.gain.value = instr.chorus.depth || 0.004;
+        const d = voice.create('createDelay', 0.05); d.delayTime.value = 0.018;
+        const lfo = voice.create('createOscillator'); lfo.frequency.value = instr.chorus.rate || 0.8;
+        const lg = voice.create('createGain'); lg.gain.value = instr.chorus.depth || 0.004;
         lfo.connect(lg); lg.connect(d.delayTime);
-        const p = ctx.createStereoPanner(); p.pan.value = instr.chorus.pan ?? 0.4;
-        const cg = ctx.createGain(); cg.gain.value = instr.chorus.mix ?? 0.5;
+        const p = voice.create('createStereoPanner'); p.pan.value = instr.chorus.pan ?? 0.4;
+        const cg = voice.create('createGain'); cg.gain.value = instr.chorus.mix ?? 0.5;
         vca.connect(d); d.connect(p); p.connect(cg); cg.connect(bus);
         lfo.start(time); lfo.stop(endT); stops.push(lfo);
     }
 
     // modulation
     if (instr.lfo) { // classic LFO
-        const lfo = ctx.createOscillator();
+        const lfo = voice.create('createOscillator');
         lfo.type = instr.lfoType || 'sine';
         lfo.frequency.value = instr.lfoRate || 5;
-        const lg = ctx.createGain(); lg.gain.value = instr.lfoDepth || 10;
+        const lg = voice.create('createGain'); lg.gain.value = instr.lfoDepth || 10;
         lfo.connect(lg);
         if (instr.lfoTarget === 'freq') for (const o of oscs) lg.connect(o.s.detune);
         else lg.connect(vcf.frequency);
@@ -345,8 +365,8 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
     }
     if (instr.vibrato) { // delayed vibrato: the bow settles, then sings
         const v = instr.vibrato;
-        const lfo = ctx.createOscillator(); lfo.frequency.value = v.rate || 5.5;
-        const lg = ctx.createGain();
+        const lfo = voice.create('createOscillator'); lfo.frequency.value = v.rate || 5.5;
+        const lg = voice.create('createGain');
         lg.gain.setValueAtTime(0, time);
         lg.gain.linearRampToValueAtTime(v.depth || 12, time + (v.delay || 0.3) + 0.25);
         lfo.connect(lg);
@@ -354,8 +374,8 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
         lfo.start(time); lfo.stop(endT); stops.push(lfo);
     }
     if (instr.tremolo) {
-        const lfo = ctx.createOscillator(); lfo.frequency.value = instr.tremolo.rate || 5;
-        const lg = ctx.createGain(); lg.gain.value = (instr.tremolo.depth || 0.3) * (instr.vol ?? 0.5) * vol;
+        const lfo = voice.create('createOscillator'); lfo.frequency.value = instr.tremolo.rate || 5;
+        const lg = voice.create('createGain'); lg.gain.value = (instr.tremolo.depth || 0.3) * (instr.vol ?? 0.5) * vol;
         lfo.connect(lg); lg.connect(vca.gain);
         lfo.start(time); lfo.stop(endT); stops.push(lfo);
     }
@@ -388,22 +408,26 @@ function playNote(instr, freq, time, duration, vol = 1.0, bus = null) {
     vca.gain.exponentialRampToValueAtTime(Math.max(v * sus, 0.001), time + atk + dec);
     vca.gain.setValueAtTime(Math.max(v * sus, 0.001), time + duration);
     vca.gain.exponentialRampToValueAtTime(0.001, time + duration + rel);
+    voice.finish();
+    } catch (error) { voice.cancel(); throw error; }
 }
 
 function playDrum(type, time, vol = 1) {
     if (!G) return;
     const ctx = G.ctx, t = time, musicGain = G.music, reverbNode = G.reverb;
+    const voice = createVoice(ctx);
+    try {
     // place each drum in the stereo field like a real kit
     const kitOut = (pan) => {
-        const p = ctx.createStereoPanner();
+        const p = voice.create('createStereoPanner');
         p.pan.value = pan;
         p.connect(musicGain);
         return p;
     };
     const hit = (out, f0, f1, dur, g0, type = 'sine', rev = 0) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
+        const o = voice.create('createOscillator'), g = voice.create('createGain');
         o.type = type; o.connect(g); g.connect(out);
-        if (rev) { const s = ctx.createGain(); s.gain.value = rev; g.connect(s); s.connect(reverbNode); }
+        if (rev) { const s = voice.create('createGain'); s.gain.value = rev; g.connect(s); s.connect(reverbNode); }
         o.frequency.setValueAtTime(f0, t);
         if (f1) o.frequency.exponentialRampToValueAtTime(f1, t + dur * 0.6);
         g.gain.setValueAtTime(g0 * vol, t);
@@ -411,11 +435,11 @@ function playDrum(type, time, vol = 1) {
         o.start(t); o.stop(t + dur + 0.02);
     };
     const burst = (out, ftype, freq, dur, g0, q = 1, rev = 0, atk = 0) => {
-        const n = ctx.createBufferSource(); n.buffer = getNoise(); n.loop = true;
-        const f = ctx.createBiquadFilter(); f.type = ftype; f.frequency.value = freq; f.Q.value = q;
-        const g = ctx.createGain();
+        const n = voice.create('createBufferSource'); n.buffer = getNoise(); n.loop = true;
+        const f = voice.create('createBiquadFilter'); f.type = ftype; f.frequency.value = freq; f.Q.value = q;
+        const g = voice.create('createGain');
         n.connect(f); f.connect(g); g.connect(out);
-        if (rev) { const s = ctx.createGain(); s.gain.value = rev; g.connect(s); s.connect(reverbNode); }
+        if (rev) { const s = voice.create('createGain'); s.gain.value = rev; g.connect(s); s.connect(reverbNode); }
         if (atk) { g.gain.setValueAtTime(0.001, t); g.gain.linearRampToValueAtTime(g0 * vol, t + atk); }
         else g.gain.setValueAtTime(g0 * vol, t);
         g.gain.exponentialRampToValueAtTime(0.01, t + atk + dur);
@@ -458,6 +482,8 @@ function playDrum(type, time, vol = 1) {
     } else if (type === 'shaker') {
         burst(kitOut(0.4), 'bandpass', 7000, 0.06, 0.1, 2);
     }
+    voice.finish();
+    } catch (error) { voice.cancel(); throw error; }
 }
 
 
@@ -1307,15 +1333,17 @@ let lastSfx = null;
 export function playSound(type, opts = {}) {
     if (!G) return;
     const ctx = G.ctx;
+    const voice = createVoice(ctx);
+    try {
     const now = ctx.currentTime;
     const out = G.sfx;
     const reverbNode = G.reverb;
     lastSfx = type;
 
     const osc = (type, f0, f1, t0, dur, vol, ramp = 'exponential', pan = 0) => {
-        const o = ctx.createOscillator(), g = ctx.createGain();
+        const o = voice.create('createOscillator'), g = voice.create('createGain');
         o.connect(g);
-        if (pan) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(out); } else g.connect(out);
+        if (pan) { const p = voice.create('createStereoPanner'); p.pan.value = pan; g.connect(p); p.connect(out); } else g.connect(out);
         o.type = type;
         const start = now + t0, attack = Math.min(0.003, dur * 0.2);
         o.frequency.setValueAtTime(f0, start);
@@ -1329,11 +1357,11 @@ export function playSound(type, opts = {}) {
         return g;
     };
     const noise = (filterType, freq, t0, dur, vol, q = 1, atk = 0) => {
-        const n = ctx.createBufferSource();
+        const n = voice.create('createBufferSource');
         n.buffer = getNoise(); n.loop = true;
-        const f = ctx.createBiquadFilter();
+        const f = voice.create('createBiquadFilter');
         f.type = filterType; f.frequency.value = freq; f.Q.value = q;
-        const g = ctx.createGain();
+        const g = voice.create('createGain');
         n.connect(f); f.connect(g); g.connect(out);
         const start = now + t0, attack = atk || Math.min(0.003, dur * 0.2);
         g.gain.setValueAtTime(0.001, start);
@@ -1342,7 +1370,7 @@ export function playSound(type, opts = {}) {
         n.start(start); n.stop(start + attack + dur + 0.02);
         return g;
     };
-    const wet = (g, amt = 1) => { const s = ctx.createGain(); s.gain.value = amt; g.connect(s); s.connect(reverbNode); return g; };
+    const wet = (g, amt = 1) => { const s = voice.create('createGain'); s.gain.value = amt; g.connect(s); s.connect(reverbNode); return g; };
     const tone = (instr, f, t0, dur, vol) => playNote(instr, f, now + t0, dur, vol, out);
 
     switch (type) {
@@ -1564,6 +1592,8 @@ export function playSound(type, opts = {}) {
             tone(INSTRUMENTS.CELESTA, 1320, 0.02, 0.3, 0.4);
             break;
     }
+    voice.finish();
+    } catch (error) { voice.cancel(); throw error; }
 }
 
 // ------------------------------------------------------------------ AMBIENCE BEDS (M6.3)
@@ -1731,7 +1761,9 @@ function busDb(analyser) {
 }
 export function audioHealth() {
     return {
-        state: G?.ctx.state ?? 'uninitialized', song: currentSongName, playing, muted,
+        state: G?.ctx.state ?? 'uninitialized', generation: contextGeneration, song: currentSongName, playing, muted,
+        ...playbackHealth(G?.ctx),
+        voices: { ...voiceCounts(G?.ctx) },
         contextTime: +(G?.ctx.currentTime ?? 0).toFixed(2), step: step16,
         queuedMs: G && playing ? Math.round((nextNoteTime - G.ctx.currentTime) * 1000) : 0,
         schedulerAgeMs: playing ? Math.round(performance.now() - lastSchedulerAt) : 0,
@@ -1742,7 +1774,32 @@ export function audioHealth() {
         hidden: document.hidden,
     };
 }
+let previousHealth = null;
+let stalledSamples = 0;
+let lastHealthLogAt = -Infinity;
+let lastPlaybackWarningAt = -Infinity;
+let pendingUnderrunSeconds = 0;
+let pendingUnderrunEvents = 0;
 function monitorAudioOutput() {
+    if (G && !G.offline) {
+        const now = performance.now(), health = { ...audioHealth(), at: now };
+        if (previousHealth?.generation !== health.generation) {
+            pendingUnderrunSeconds = 0; pendingUnderrunEvents = 0;
+        }
+        const progress = audioProgress(previousHealth, health);
+        stalledSamples = progress.stalled ? stalledSamples + 1 : 0;
+        if (stalledSamples === 3) gameLog('audio.output-stalled', health, 'warn');
+        pendingUnderrunSeconds += progress.underrunSeconds;
+        pendingUnderrunEvents += progress.underrunEvents;
+        if (pendingUnderrunSeconds >= 0.02 && now - lastPlaybackWarningAt >= 10000) {
+            gameLog('audio.playback-underrun', { ...health, deltaSeconds: +pendingUnderrunSeconds.toFixed(4), deltaEvents: pendingUnderrunEvents }, 'warn');
+            pendingUnderrunSeconds = 0; pendingUnderrunEvents = 0; lastPlaybackWarningAt = now;
+        }
+        if (now - lastHealthLogAt >= 15000) {
+            gameLog('audio.health', health); lastHealthLogAt = now;
+        }
+        previousHealth = health;
+    }
     if (G && !G.offline && !document.hidden) resumeAudio('monitor');
     if (!G || G.offline || G.ctx.state !== 'running') return;
     const musicDb = busDb(G.musicAnalyser);

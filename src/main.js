@@ -97,6 +97,7 @@ function applyFloorLook() {
 
 let state = 'boot-memory'; // boot-memory, boot-title, menu, intro, play, pause, transition, gameover, victory
 let menuIdx = 0;
+const PAUSE_ITEMS = ['Resume', 'Restart Floor', 'Controls', 'Toggle Sound', 'Post FX', 'Recover Audio', 'Download Error Logs', 'Quit to Menu'];
 let pauseIdx = 0;
 let pauseSub = null;
 let pauseControlIdx = 0;
@@ -878,8 +879,7 @@ function retryFloor() {
 
 function pauseSelect() {
     playSound('menu_select');
-    const items = ['Resume', 'Restart Floor', 'Controls', 'Toggle Sound', 'Post FX', 'Recover Audio', 'Quit to Menu'];
-    const item = items[pauseIdx];
+    const item = PAUSE_ITEMS[pauseIdx];
     if (item === 'Resume') { setState('play'); requestPointerLock(); }
     else if (item === 'Restart Floor') retryFloor();
     else if (item === 'Controls') openPauseControls();
@@ -889,6 +889,7 @@ function pauseSelect() {
         localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off');
         $('pause-postfx-value').textContent = postfx.enabled ? 'ON' : 'OFF';
     }
+    else if (item === 'Download Error Logs') { gameLog('audio.user-report', audioHealth(), 'warn'); downloadGameLogs(); flushTelemetry(); }
     else if (item === 'Recover Audio') { recoverAudio(); flushTelemetry(); }
     else if (item === 'Quit to Menu') { stopMusic(); setState('menu'); startSong('menu'); }
 }
@@ -1025,8 +1026,8 @@ onKeyPress((e) => {
                 else if (e.code === 'ArrowRight') adjustPauseControl(1);
                 else if (e.code === 'Enter' || e.code === 'Space') activatePauseControl();
             } else if (e.code === 'Escape') setState('play');
-            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + 6) % 7; playSound('menu_move'); renderPause(); }
-            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % 7; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowUp' || e.code === 'KeyW') { pauseIdx = (pauseIdx + PAUSE_ITEMS.length - 1) % PAUSE_ITEMS.length; playSound('menu_move'); renderPause(); }
+            else if (e.code === 'ArrowDown' || e.code === 'KeyS') { pauseIdx = (pauseIdx + 1) % PAUSE_ITEMS.length; playSound('menu_move'); renderPause(); }
             else if (e.code === 'Enter') pauseSelect();
             break;
         case 'gameover':

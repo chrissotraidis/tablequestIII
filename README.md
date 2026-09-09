@@ -258,8 +258,8 @@ Run creation and final submissions are not automatically retried after an ambigu
 client-reported scores; a token and ordered checkpoints do not prove honest gameplay.
 
 Runtime diagnostics are privacy-light. The game keeps a bounded local log and sends pseudonymous technical events to the
-same-origin server every 15 seconds. Those events cover session duration, floor loads, frame pacing, adaptive-quality
-changes, audio scheduler underruns, pointer lock, weapon changes, ranked-run requests and uncaught errors. The server
+same-origin server every 15 seconds, with warnings/errors queued for an immediate send. Those events cover session duration, floor loads, frame pacing, adaptive-quality
+changes, audio scheduler and device-output underruns, pointer lock, weapon changes, ranked-run requests and uncaught errors. The server
 appends them to `data/telemetry.jsonl`; set `TQ_TELEMETRY_FILE` to place that file on a persistent VPS volume. It records
 timezone and, when supplied by a trusted reverse proxy, a two-letter country code. It never stores a raw IP address.
 Setting a private `TQ_TELEMETRY_IP_SALT` adds a non-reversible short network identifier for repeat-session estimates.
@@ -398,10 +398,12 @@ includes floor changes, warnings/errors, frame timings, song starts/stops, mute 
 and separate music/effects/output levels in performance samples. Retries are deduplicated in the report. An incomplete
 last JSONL line is skipped and counted, so a live-server copy remains usable.
 
-If sound cuts out, **Pause → Recover Audio** records the current audio state and recreates the sound engine without
+If sound cuts out, use **Pause → Download Error Logs** to save the current incident, then **Pause → Recover Audio**. Recovery records the current audio state and recreates the sound engine without
 resetting the floor. It preserves the sound toggle. `TQ.audioHealth()` inspects the current state; `TQ.downloadLogs()`
-exports the local recent-event buffer. The browser analyser cannot prove that audio reached the speakers, so a running
+exports the local recent-event buffer with build/session identification and upload status. Audio health is sampled every 15 seconds even while paused; supported browsers also report device playback underruns, output-clock progress and output latency. Uploads time out after eight seconds and retain events for retry; queue losses are counted. Runtime errors include bounded stack traces. The browser analyser cannot prove that audio reached the speakers, so a running
 context alone does not close an audio report. The server log retains the longer timeline.
 
 `npm run test:telemetry` checks report counting and downloads; `npm run test:incidents` checks Floor 3 audio continuity,
 interruption recovery, paint placement, and the pause menu.
+
+For the Level 2 output-underrun investigation and validation limits, see [the incident report](docs/online/AUDIO_INCIDENT_2026-09-09.md).

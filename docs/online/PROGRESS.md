@@ -70,3 +70,10 @@ A local, ignored deliverable is at `artifacts/zo-2026-09-09/tablequest-runtime.t
 Follow [ZO_DEPLOYMENT.md](ZO_DEPLOYMENT.md) and [the environment example](../../deploy/zo.env.example) when account access is available. Still required on the actual host: confirm plan/resources and service settings, publish to the returned HTTPS URL, test thirty-client cold downloads and API traffic through Zo's proxy, verify restart/redeployment/data backup, and scan a QR for the final URL. No public URL was invented and no QR was generated for an unverified destination.
 
 Arena still needs its separately specified implementation and host/playtest milestones. The eight-player proposal is not a VPS capacity measurement. Local smoke/resource checks also do not replace a human gameplay or physical speaker/audio acceptance test.
+
+
+## Level 2 audio follow-up — 2026-09-09
+
+[Incident report](AUDIO_INCIDENT_2026-09-09.md): captured real output underruns missed by the old scheduler-only logs, reproduced sustained stalls with two Level 2 contexts, and isolated delayed per-voice graph cleanup. Finished note/drum/SFX nodes now disconnect explicitly. Added device-output health/clock/voice counters, paused-session heartbeats, bounded upload/resume deadlines, error stacks and a pause-menu log download. The stable baseline and previous preparation commit remain recoverable.
+
+Build `fa08c054dee7` passed a 180-sample two-tab music/firing run: 0.144 s and 0.1333 s total playback underruns across about 200 s, no scheduler errors, bounded live nodes and no sustained cutout. Floor 3 regression, diagnostic fault injection, export/recovery/navigation and hosted log persistence passed. [Validation summary](evidence/audio-2026-09-09.json). Physical replay by the original reporter remains open; existing user tabs were not reset. Current local port 4176 serves the new bundle.

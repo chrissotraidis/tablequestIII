@@ -28,7 +28,9 @@
     "validate:levels:modern": "node tools/validate_levels.mjs",
     "pull:telemetry": "node tools/pull_telemetry.mjs",
     "test:incidents": "node tools/incident_sanity.mjs",
-    "test:telemetry": "node tools/test_telemetry.mjs"
+    "test:telemetry": "node tools/test_telemetry.mjs",
+    "test:audio-health": "node tools/test_audio_health.mjs && node tools/test_audio_voice.mjs && node tools/test_logger.mjs",
+    "test:audio-incident": "node tools/audio_incident_sanity.mjs"
   },
   "keywords": [],
   "author": "",

@@ -5,6 +5,16 @@ const entries = [];
 const telemetry = [];
 const sessionStartedAt = performance.now();
 let telemetrySending = false;
+let droppedEvents = 0;
+let failedSends = 0;
+let lastSendError = null;
+let lastSentAt = null;
+export function telemetryStatus() {
+    return { queued: telemetry.length, sending: telemetrySending, droppedEvents, failedSends, lastSendError, lastSentAt };
+}
+function boundQueue() {
+    if (telemetry.length > 120) droppedEvents += telemetry.splice(0, telemetry.length - 120).length;
+}
 let sequence = 0;
 const build = typeof __TQ_BUILD_ID__ === 'string' ? __TQ_BUILD_ID__ : 'dev';
 const automated = navigator.webdriver || new URLSearchParams(location.search).has('test');
@@ -24,7 +34,7 @@ function logActivity() {
     const activeMs = context.state === 'play' && activityVisible ? Math.round(now - lastActivity) : 0;
     lastActivity = now;
     activityVisible = !document.hidden;
-    gameLog('session.activity', { activeMs });
+    gameLog('session.activity', { activeMs, telemetry: telemetryStatus() });
 }
 export function setLogContext(next) {
     logActivity();
@@ -44,15 +54,16 @@ export function gameLog(event, data = {}, level = 'info') {
         elapsedMs: Math.round(performance.now() - sessionStartedAt),
         level,
         event,
-        data: safeData({ ...context, ...data }),
+        data: safeData({ ...context, gameState: context.state, ...data }),
     };
     entries.push(entry);
     if (entries.length > MAX_ENTRIES) entries.splice(0, entries.length - MAX_ENTRIES);
     try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(entries.slice(-80))); } catch { /* storage may be disabled */ }
     telemetry.push({ seq: entry.seq, at: entry.at, elapsedMs: entry.elapsedMs, level, event, data: entry.data });
-    if (telemetry.length > 120) telemetry.splice(0, telemetry.length - 120);
+    boundQueue();
     const method = level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info';
     console[method](`[TQ] ${event}`, entry.data);
+    if (level === 'error' || level === 'warn') queueMicrotask(() => flushTelemetry());
     return entry;
 }
 
@@ -88,27 +99,33 @@ export async function flushTelemetry({ beacon = false } = {}) {
     const payload = telemetryPayload(batch);
     if (beacon && navigator.sendBeacon) {
         const sent = navigator.sendBeacon('/api/telemetry', new Blob([payload], { type: 'application/json' }));
-        if (!sent) telemetry.unshift(...batch);
+        if (!sent) { telemetry.unshift(...batch); boundQueue(); }
         return sent;
     }
     telemetrySending = true;
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), 8000);
     try {
         const response = await fetch('/api/telemetry', {
-            method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true,
+            method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true, signal: controller.signal,
         });
         if (!response.ok) throw new Error(String(response.status));
+        lastSentAt = new Date().toISOString(); lastSendError = null;
         return true;
-    } catch {
+    } catch (error) {
+        failedSends++;
+        lastSendError = controller.signal.aborted ? 'timeout' : String(error.message || error).slice(0, 160);
         telemetry.unshift(...batch);
-        if (telemetry.length > 120) telemetry.splice(0, telemetry.length - 120);
+        boundQueue();
         return false;
     } finally {
+        clearTimeout(deadline);
         telemetrySending = false;
     }
 }
 
 export function downloadGameLogs() {
-    const blob = new Blob([JSON.stringify({ sessionId, entries }, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify({ sessionId, build, telemetry: telemetryStatus(), entries }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -123,9 +140,11 @@ export function installErrorLogging() {
         source: event.filename?.split('/').pop(),
         line: event.lineno,
         column: event.colno,
+        stack: event.error?.stack?.slice(0, 2000),
     }, 'error'));
     window.addEventListener('unhandledrejection', event => gameLog('runtime.unhandled-rejection', {
         reason: event.reason?.message || String(event.reason),
+        stack: event.reason?.stack?.slice(0, 2000),
     }, 'error'));
 }
 
