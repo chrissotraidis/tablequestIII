@@ -1,6 +1,6 @@
 # Deploy Table Quest on Zo Computer
 
-Prepared September 9, 2026. **This is a deployment recipe, not a deployed service or a capacity result.** The personal Zo account, available resources, service configuration and public URL have not been inspected. No Zo service has been created or changed.
+Prepared September 9, 2026. **This is a deployment recipe, not a deployed service or a capacity result.** For the live-host scoreboard traps and restart gates, open [VPS_SCOREBOARD.md](VPS_SCOREBOARD.md). The personal Zo account, available resources, service configuration and public URL have not been inspected. No Zo service has been created or changed.
 
 ## What runs where
 

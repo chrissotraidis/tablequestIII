@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-09-11 — VPS scoreboard live reference
+
+- Documented the remaining scoreboard host traps and public restart checks in [`docs/online/VPS_SCOREBOARD.md`](docs/online/VPS_SCOREBOARD.md). Local tests are not a deployed service.
+
 ## 2026-09-09 — Social links and Zo hosting preparation
 
 - Added main-menu X/GitHub links, native keyboard activation and narrow-screen spacing.

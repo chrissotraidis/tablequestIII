@@ -253,6 +253,7 @@ out of the rankings. Put the service behind HTTPS and a reverse proxy when it is
 
 For Zo Computer, use its registered HTTP Service and follow the [deployment guide](docs/online/ZO_DEPLOYMENT.md)
 and [environment example](deploy/zo.env.example). Run one writer process with persistent files outside the release directory.
+When the service goes live, use [the VPS scoreboard reference](docs/online/VPS_SCOREBOARD.md) for bind/persistence traps and the public restart checks.
 Static downloads, telemetry and ranked-run requests use separate handling/budgets suitable for a shared network.
 Readiness checks storage access, corrupt state is preserved, and the client can retry the latest checkpoint safely.
 Run creation and final submissions are not automatically retried after an ambiguous failure. Rankings are casual,
@@ -291,6 +292,7 @@ screenshot evidence. **Start at [`docs/modern/INDEX.md`](docs/modern/INDEX.md).*
 | [`CHANGELOG.md`](CHANGELOG.md) | Release notes |
 | [`docs/online/GOAL_LOOP.md`](docs/online/GOAL_LOOP.md) | Stable baseline, goals and acceptance gates for social links, Zo preparation and Arena planning |
 | [`docs/online/PROGRESS.md`](docs/online/PROGRESS.md) | Implementation evidence and remaining live deployment checks |
+| [`docs/online/VPS_SCOREBOARD.md`](docs/online/VPS_SCOREBOARD.md) | Live-host scoreboard worries, env, and restart gates; not a deployed service |
 | [`docs/online/ARENA_PLAN.md`](docs/online/ARENA_PLAN.md) | Proposed eight-player lobby/deathmatch mode and adaptations of all six maps; not implemented |
 | [`docs/online/ARENA_RESEARCH.md`](docs/online/ARENA_RESEARCH.md) | Technical research behind the Arena plan |
 
@@ -371,6 +373,7 @@ Released under the [MIT License](LICENSE).
 Serve the built game with `npm run serve:scoreboard` behind your HTTPS reverse proxy. Set
 `TQ_DATA_FILE=/srv/tablequest-data/leaderboard.json` and
 `TQ_TELEMETRY_FILE=/srv/tablequest-data/telemetry.jsonl` to keep both files on persistent storage outside `dist/`.
+Open [docs/online/VPS_SCOREBOARD.md](docs/online/VPS_SCOREBOARD.md) before the public URL goes live.
 A static-only host does not collect these logs. The service appends pseudonymous session events to JSONL;
 logs are retrieved over your existing SSH access, not a public HTTP download endpoint.
 
