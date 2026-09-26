@@ -13,5 +13,6 @@ for p in index.html src tools design design.md design-qa.md; do
 done
 if ! diff -q "$tmp/dist/index.html" dist/classic/index.html >/dev/null; then echo "  differs: dist/classic/index.html"; fail=1; fi
 if ! diff -q "$tmp/dist/index.html" public/generations/v2/index.html >/dev/null; then echo "  differs: public/generations/v2/index.html"; fail=1; fi
+if ! git show v4.1-modern:dist/index.html | diff -q - public/generations/v4/index.html >/dev/null; then echo "  differs: public/generations/v4/index.html (must equal v4.1-modern)"; fail=1; fi
 if [[ $fail -ne 0 ]]; then echo "CLASSIC FROZEN CHECK: FAILED — classic files differ from $TAG"; exit 1; fi
 echo "CLASSIC FROZEN CHECK: OK (classic/ and dist/classic identical to $TAG)"
