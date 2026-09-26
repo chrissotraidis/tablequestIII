@@ -1,4 +1,5 @@
 import {moveCircle} from './movement.js';
+import {insideMap} from './movement.js';
 import {ARENA_CONFIG} from './rules.js';
 
 // Every movement input advances exactly one fixed step on both sides.
@@ -19,10 +20,22 @@ export function takeTickInputs(queue) {
     return taken;
 }
 
+// Same push the server applies in separatePlayers (half the overlap each), so
+// walking into another staff member is predicted instead of corrected.
+export function separateFrom(map,state,others){
+    const min=ARENA_CONFIG.playerRadius*2.15;
+    for(const o of others){
+        const dx=o.x-state.x,dz=o.z-state.z,d=Math.hypot(dx,dz);
+        if(!d||d>=min)continue;
+        const push=(min-d)/d*.5,x=state.x-dx*push,z=state.z-dz*push;
+        if(insideMap(map,x,z)){state.x=x;state.z=z;}
+    }
+}
+
 // Client presentation only. Server snapshots remain authoritative for position,
 // damage, pickups and doors; replay only inputs newer than their ack.
 export class ClientMovement {
-    constructor(){this.state=null;this.prev=null;this.pending=[];this.offset={x:0,z:0};this.correction=0;this.stepAt=0;}
+    constructor(){this.state=null;this.prev=null;this.pending=[];this.offset={x:0,z:0};this.correction=0;this.stepAt=0;this.others=[];}
     reset(player){this.state={...player};this.prev={x:player.x,z:player.z};this.pending=[];this.offset={x:0,z:0};this.correction=0;}
     step(map,input,seq,now=performance.now()){
         if(!this.state)return;
@@ -30,6 +43,7 @@ export class ClientMovement {
         this.pending.push({input:{...input},seq});
         if(this.pending.length>240)this.pending.shift();
         moveCircle(map,this.state,input,INPUT_STEP);
+        separateFrom(map,this.state,this.others);
         this.stepAt=now;
     }
     reconcile(map,player,reset=false){
@@ -37,7 +51,7 @@ export class ClientMovement {
         const old={x:this.state.x,z:this.state.z};
         this.pending=this.pending.filter(frame=>frame.seq>player.lastSeq);
         this.state={...player};
-        for(const frame of this.pending)moveCircle(map,this.state,frame.input,INPUT_STEP);
+        for(const frame of this.pending){moveCircle(map,this.state,frame.input,INPUT_STEP);separateFrom(map,this.state,this.others);}
         const dx=old.x-this.state.x,dz=old.z-this.state.z;
         this.correction=Math.hypot(dx,dz);
         // Keep the displayed position continuous; large errors snap.

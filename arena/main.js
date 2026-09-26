@@ -722,6 +722,7 @@ function updateSnapshot(snapshot) {
         if (paused) renderPauseScore();
     }
     const me = snapshot.players.find((p) => p.slot === localSlot);
+    movement.others = snapshot.players.filter((p) => p.slot !== localSlot && p.alive).map((p) => ({ x: p.x + p.vx * 0.05, z: p.z + p.vz * 0.05 }));
     if (me) {
         cameraTarget.set(me.x, me.alive ? 0.7 : .22, me.z);
         movement.reconcile(predictionMap,me,!localPlayer || me.alive!==localPlayer.alive || camera.position.distanceToSquared(cameraTarget)>9);
@@ -994,7 +995,10 @@ function sendInput(tap=false){
     if(!ws || ws.readyState!==WebSocket.OPEN || roomState?.state!=='active')return;
     if(!tap)rehearsalInput=!paused && !resumeRequired && arenaVisible() ? tourInput() : null;
     const input={...currentInput(),tap};
-    ws.send(JSON.stringify({v:1,type:'input',matchId:roomState.matchId,seq:++seq,...input}));
+    // viewDelay tells the server how far in the past we see other staff, so
+    // our hits are judged against what we saw (bounded server-side).
+    const viewDelay=Math.round(serverClock.delay()+(roundTripMs||0)/2);
+    ws.send(JSON.stringify({v:1,type:'input',matchId:roomState.matchId,seq:++seq,viewDelay,...input}));
     // Predict exactly the step the server will apply for this input.
     if(!tap && localPlayer?.alive)movement.step(predictionMap,input,seq);
 }

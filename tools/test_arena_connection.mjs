@@ -50,6 +50,14 @@ try{
  assert.equal(page.status,200);assert.equal(page.headers.get('content-encoding'),'gzip','Game pages are served compressed');
  assert.equal((await fetch(base+'/arena',{redirect:'manual'})).status,301,'/arena redirects to /arena/');
  // Backpressure: a lagging client skips snapshots, a hopeless one is dropped,
+ // Lag compensation: a target seen 150 ms ago is hit where the shooter saw it.
+ {
+  const {seenPosition}=await import('../server/arena-server.mjs');
+  const now=Date.now(),target={x:5,z:5,alive:true,history:[{t:now-300,x:2,z:5,alive:true},{t:now-150,x:3.5,z:5,alive:true},{t:now,x:5,z:5,alive:true}]};
+  const seen=seenPosition(target,{bot:false,viewDelayMs:150},now);assert(Math.abs(seen.x-3.5)<1e-6,'Rewinds to what the shooter saw');
+  assert.equal(seenPosition(target,{bot:true,viewDelayMs:150},now),target,'Bots are not rewound');
+  const capped=seenPosition(target,{bot:false,viewDelayMs:5000},now);assert(capped.x>=2.9,'Rewind is bounded to 200 ms');
+ }
  // and a healthy one keeps receiving.
  const fake=(buffered)=>({readyState:WebSocket.OPEN,bufferedAmount:buffered,sent:0,dropped:false,send(){this.sent++;},terminate(){this.dropped=true;this.readyState=WebSocket.CLOSED;}});
  const lagging=fake(200*1024),hopeless=fake(2*1024*1024),fine=fake(0);
@@ -60,5 +68,5 @@ try{
  assert.equal(lagging.sent,0,'A client more than 128 KB behind skips snapshots');assert.equal(lagging.dropped,false);
  assert.equal(hopeless.dropped,true,'A client more than 1 MB behind is disconnected');
  assert(fine.sent>=1,'Healthy clients keep receiving snapshots');
- console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed, distinct colors/names, gzip pages, slow-client skip/drop, walk-in doors open and close)');
+ console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed, distinct colors/names, gzip pages, slow-client skip/drop, walk-in doors open and close, bounded lag compensation)');
 }catch(error){console.error(error);process.exitCode=1;}finally{for(const client of clients)client.terminate();server.close();setTimeout(()=>process.exit(process.exitCode||0),100);}
