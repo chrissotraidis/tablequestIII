@@ -6,6 +6,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LEVELS } from './levels.js';
 import { getSurfaces } from './textures.js';
 import { PostFX } from './postfx.js';
+import { QUALITY, QUALITY_ORDER, loadQuality, saveQuality, pixelRatioFor } from './quality.js';
+import { setTextureAnisotropy } from './textures.js';
+import { setShadowMapSize } from './lighting.js';
 import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
 import { makeHand } from './handrig.js';
@@ -37,19 +40,15 @@ const $ = (id) => document.getElementById(id);
 // ------------------------------------------------------------------ RENDERER
 
 const canvas = $('game-canvas');
-const MAX_RENDER_PIXELS = 3_200_000;
 let adaptiveRenderScale = 1;
 let adaptivePerformanceMode = false;
-const cssPixelCount = () => Math.max(1, window.innerWidth * window.innerHeight);
-const preferredPixelRatio = () => Math.min(
-    window.devicePixelRatio,
-    1.25,
-    Math.sqrt(MAX_RENDER_PIXELS / cssPixelCount())
-) * adaptiveRenderScale;
-// Full-display Retina/MSAA was shading far more pixels than the game can use
-// and could stall both Level 2 and Web Audio. Keep AA on at ordinary sizes and
-// trade a little resolution for stable pacing on very large canvases.
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: cssPixelCount() <= MAX_RENDER_PIXELS });
+// 5.0: resolution, MSAA, ambient occlusion, shadow and texture detail follow
+// one quality preset (quality.js); Ultra on this project's reference Mac.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+let qualityName = loadQuality(renderer);
+setTextureAnisotropy(Math.min(QUALITY[qualityName].anisotropy, renderer.capabilities.getMaxAnisotropy()));
+setShadowMapSize(QUALITY[qualityName].shadow);
+const preferredPixelRatio = () => pixelRatioFor(qualityName, adaptiveRenderScale);
 let renderPixelRatio = preferredPixelRatio();
 renderer.setPixelRatio(renderPixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -78,7 +77,7 @@ scene.add(camera);
 }
 
 // MODERN: post-processing stack (bloom, grade, vignette, grain, motion blur)
-const postfx = new PostFX(renderer, scene, camera);
+const postfx = new PostFX(renderer, scene, camera, { quality: qualityName });
 postfx.enabled = localStorage.getItem('tq3d-postfx') !== 'off';
 
 window.addEventListener('resize', () => {
@@ -90,6 +89,17 @@ window.addEventListener('resize', () => {
     postfx.setSize(window.innerWidth, window.innerHeight);
     postfx.setPixelRatio(renderPixelRatio);
 });
+
+/** 5.0: resolution, MSAA, AO and bloom change live; shadow and texture detail on the next floor load. */
+function applyQuality() {
+    setShadowMapSize(QUALITY[qualityName].shadow);
+    renderPixelRatio = preferredPixelRatio();
+    renderer.setPixelRatio(renderPixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    postfx.setQuality(qualityName);
+    postfx.setPixelRatio(renderPixelRatio);
+    postfx.setSize(window.innerWidth, window.innerHeight);
+}
 
 function applyFloorLook() {
     renderer.toneMappingExposure = game.world?.rig?.exposure ?? 1.1;
@@ -331,7 +341,7 @@ const MENU_DETAILS = [
 ];
 
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
-const OPTIONS = ['generation', 'scoreboard', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
+const OPTIONS = ['generation', 'scoreboard', 'quality', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 // Every release is a single-file build served beside this one.
 const GENERATIONS = [
     { key: 'v5', label: 'GEN 5 · TABLE QUEST 5', note: 'THIS BUILD · 2026 · REBUILT VISUALS, HANDS, ARENA ONLINE', url: null },
@@ -347,6 +357,7 @@ function renderOptions() {
     $('opt-generation').textContent = GENERATIONS[genIdx].label;
     const gn = document.querySelector('.opt-row[data-opt="generation"] .opt-note'); if (gn) gn.textContent = GENERATIONS[genIdx].note + ' · ENTER';
     $('opt-postfx').textContent = postfx.enabled ? 'ON' : 'OFF';
+    $('opt-quality').textContent = QUALITY[qualityName].label;
     $('opt-fov').textContent = String(Math.round(game.baseFov));
     $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
     $('opt-invert').textContent = game.invertY ? 'ON' : 'OFF';
@@ -429,6 +440,12 @@ function adjustOption(dir) {
     if (key === 'generation') { genIdx = (genIdx + (dir || 1) + GENERATIONS.length) % GENERATIONS.length; }
     else if (key === 'scoreboard') { openScoreboard('options'); return; }
     else if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
+    else if (key === 'quality') {
+        const i = QUALITY_ORDER.indexOf(qualityName);
+        qualityName = QUALITY_ORDER[(i - (dir || 1) + QUALITY_ORDER.length) % QUALITY_ORDER.length];
+        saveQuality(qualityName);
+        applyQuality();
+    }
     else if (key === 'fov') {
         game.baseFov = Math.max(60, Math.min(100, game.baseFov + (dir || 1) * 2));
         camera.fov = game.baseFov; camera.updateProjectionMatrix();

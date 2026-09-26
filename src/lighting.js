@@ -128,6 +128,8 @@ export const SHADOW = {
     normalBias: 0.02,
     radius: 2.5,
 };
+/** 5.0: the quality preset sets the key-light shadow resolution. */
+export function setShadowMapSize(size) { SHADOW.mapSize = size; }
 
 /**
  * Build the shadow-casting key light for a level of w×h cells.

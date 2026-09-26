@@ -12,6 +12,9 @@ import { gameLog } from './logger.js';
 
 const SIZE = 256;           // logical authoring size (unchanged from classic)
 let SCALE = 2;              // raster multiplier for the texture being built
+let ANISOTROPY = 8;
+/** 5.0: set once from the quality preset before surfaces are built. */
+export function setTextureAnisotropy(value) { ANISOTROPY = Math.max(1, value | 0); }
 
 function makeCanvas(size = SIZE) {
     const c = document.createElement('canvas');
@@ -45,7 +48,7 @@ function tex(canvas, repeat = 1) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(repeat, repeat);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 8;
+    t.anisotropy = ANISOTROPY;
     return t;
 }
 
@@ -564,7 +567,7 @@ function dataTex(canvas) {
     const t = new THREE.CanvasTexture(canvas);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.NoColorSpace;
-    t.anisotropy = 8;
+    t.anisotropy = ANISOTROPY;
     return t;
 }
 
