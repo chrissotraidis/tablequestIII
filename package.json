@@ -38,7 +38,7 @@
     "test:telemetry": "node tools/test_telemetry.mjs",
     "test:audio-health": "node tools/test_audio_health.mjs && node tools/test_audio_voice.mjs && node tools/test_logger.mjs",
     "test:audio-incident": "node tools/audio_incident_sanity.mjs",
-    "test:arena:refinement": "node tools/test_arena_refinement.mjs && node tools/test_arena_interactions.mjs && node tools/test_arena_presentation.mjs && node tools/test_arena_resources.mjs && node tools/test_arena_paint_tint.mjs && node tools/test_arena_vacancy.mjs && node tools/test_arena_combat_feedback.mjs && node tools/test_arena_bot_weapons.mjs && node tools/test_arena_bot_supply.mjs && node tools/test_arena_idle.mjs && node tools/test_arena_connection.mjs",
+    "test:arena:refinement": "node tools/test_arena_refinement.mjs && node tools/test_arena_interactions.mjs && node tools/test_arena_presentation.mjs && node tools/test_arena_resources.mjs && node tools/test_arena_paint_tint.mjs && node tools/test_arena_vacancy.mjs && node tools/test_arena_combat_feedback.mjs && node tools/test_arena_bot_weapons.mjs && node tools/test_arena_bot_supply.mjs && node tools/test_arena_idle.mjs && node tools/test_arena_connection.mjs && node tools/test_arena_access.mjs",
     "simulate:arena": "node tools/simulate_arena.mjs",
     "generate:arena-manifest": "node tools/arena_manifest.mjs"
   },

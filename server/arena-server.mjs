@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { performance, monitorEventLoopDelay } from 'node:perf_hooks';
 import { WebSocketServer, WebSocket } from 'ws';
 import { handleScoreboardRequest } from './scoreboard-server.mjs';
+import { handleAccess, hasAccess } from './access.mjs';
 import { OFFICE_ARENA, OFFICE_MAP_HASH, isSolidCell, validateOfficeManifest } from '../shared/arena/maps.js';
 import { ARENA_CONFIG, ARENA_WEAPONS, COLORS, PRESETS, cleanName, normalizeInput } from '../shared/arena/rules.js';
 import { moveCircle, segmentBlocked, insideMap } from '../shared/arena/movement.js';
@@ -1005,6 +1006,7 @@ async function staticResponse(req, res) {
         return;
     }
     if (url.pathname === '/api/arena/rooms') {
+        if (await handleAccess(req, res, url)) return;
         res.setHeader('content-type', 'application/json');
         const participants = room.players.size;
         const bots = [...room.players.values()].filter((p) => p.bot).length;
@@ -1014,6 +1016,8 @@ async function staticResponse(req, res) {
         return;
     }
     if (url.pathname === '/arena') { res.writeHead(301, { location: '/arena/' }); res.end(); return; }
+    // Optional shared password (TQ_ACCESS_PASSWORD); /health above stays open for monitoring.
+    if (await handleAccess(req, res, url)) return;
     // The Arena host is also the game host: the scoreboard handler serves the
     // built game (compressed, cache-validated, path-checked) plus the campaign
     // scoreboard and telemetry API on the same origin.
@@ -1034,6 +1038,7 @@ wss.on('connection', (socket) => {
 server.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname !== '/arena/ws') { socket.destroy(); return; }
+    if (!hasAccess(req)) { socket.write('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
     wss.handleUpgrade(req, socket, head, (client) => wss.emit('connection', client, req));
 });
 

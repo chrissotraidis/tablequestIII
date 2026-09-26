@@ -48,6 +48,17 @@ sudo systemctl reload caddy
 
 For later releases, extract, move the `current` link, and run `sudo systemctl restart tablequest`. A restart ends any live Arena round, so deploy between matches. Rolling back is the same link move to the previous release. Scores in `/var/lib/tablequest` are untouched either way; back that folder up before updates.
 
+### Optional password
+
+To keep the game to people you invite, set a shared password. Everyone signs in once per browser (a 30-day cookie); pages, the scoreboard API and Arena connections are refused without it, and `/health` stays open for monitoring.
+
+```sh
+sudo sh -c 'umask 077; echo "TQ_ACCESS_PASSWORD=choose-something-long" > /etc/tablequest.env'
+sudo systemctl restart tablequest
+```
+
+Remove the line (or the file) and restart to open the game again. Changing the password signs everyone out.
+
 ## 4. Check it
 
 ```sh
