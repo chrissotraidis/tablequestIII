@@ -14,7 +14,7 @@ import { drawToolIcon } from '../src/hud.js';
 import { Effects } from '../src/effects.js';
 import { PostFX } from '../src/postfx.js';
 import { SHOW_HANDS, loadHandModels, makeHand } from '../src/handrig.js';
-import { loadQuality, pixelRatioFor } from '../src/quality.js';
+import { loadQuality, saveQuality, pixelRatioFor } from '../src/quality.js';
 import { MuzzleFlash } from '../src/gunfx.js';
 import { FaceAnim, FACE_DEFAULTS } from '../src/face.js';
 import { OFFICE_ARENA, OFFICE_MAP_HASH } from '../shared/arena/maps.js';
@@ -85,6 +85,7 @@ const choiceSyncs=[
     choiceGroup($('preview-held'),{className:'choice-tools',decorate:(button,value)=>{const icon=document.createElement('canvas');icon.width=12;icon.height=7;drawToolIcon(icon,value);button.prepend(icon);}}),
     choiceGroup($('bot-count'),{className:'choice-compact'}),
     choiceGroup($('crosshair-setting'),{className:'choice-compact'}),
+    choiceGroup($('quality-setting'),{className:'choice-compact'}),
 ];
 const syncChoices=()=>choiceSyncs.forEach(sync=>sync());
 
@@ -129,7 +130,7 @@ $('preview-spin').addEventListener('change',event=>staffPreview.spin(event.targe
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 // 5.0: Arena shares the campaign's quality preset and post stack (AO, bloom, grade).
-const arenaQuality = loadQuality(renderer);
+let arenaQuality = loadQuality(renderer);
 const renderPixelRatio = () => pixelRatioFor(arenaQuality);
 renderer.setPixelRatio(renderPixelRatio());
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -1234,7 +1235,9 @@ $('volume-setting').addEventListener('input',event=>{setOutputVolume(Number(even
 $('test-sound').addEventListener('click',()=>{initAudio();playSound('collect');$('audio-test-status').textContent=isMuted()?'Sound is switched off.':getOutputVolume()===0?'Volume is at zero.':'Played the pickup sound.';});
 $('bob-setting').checked=settings.bob;
 $('bob-setting').addEventListener('change',event=>{settings.bob=event.target.checked;saveSettings();});
-$('crosshair-setting').value=settings.crosshair;syncChoices();
+$('crosshair-setting').value=settings.crosshair;$('quality-setting').value=arenaQuality;syncChoices();
+// Shared with the campaign's Options → Graphics quality.
+$('quality-setting').addEventListener('change',event=>{arenaQuality=event.target.value;saveQuality(arenaQuality);arenaPost.setQuality(arenaQuality);resize();});
 const applyCrosshair=()=>{$('crosshair').dataset.shape=settings.crosshair;$('crosshair').textContent=settings.crosshair==='cross'?'+':'';};
 applyCrosshair();
 $('crosshair-setting').addEventListener('change',event=>{settings.crosshair=event.target.value;applyCrosshair();saveSettings();});
