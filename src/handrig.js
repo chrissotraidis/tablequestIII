@@ -17,7 +17,15 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as skeletonClone } from 'three/addons/utils/SkeletonUtils.js';
 import leftUrl from './assets/hands/left.glb?url';
 import rightUrl from './assets/hands/right.glb?url';
-import { skinMaterial, buildSleeve } from './hands.js';
+import { skinMaterial, leatherMaterial, buildSleeve } from './hands.js';
+// 5.1: worn leather work gloves. The hand mesh is low-poly (1,360 vertices); bare
+// skin exposed every facet and read as plastic. Matte leather with seams is how
+// shooters of the era made first-person hands convincing, and suits a carpenter.
+let _glove = null;
+function gloveMaterial() {
+    if (!_glove) { _glove = leatherMaterial(); _glove.vertexColors = false; _glove.color.set(0x8a6a4c); _glove.roughness = 0.88; _glove.metalness = 0; _glove.envMapIntensity = 0.12; }
+    return _glove;
+}
 
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const FINGERS = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
@@ -107,7 +115,7 @@ export function makeHand(spec) {
     const info = analyse(root);
     const J = jointMap(root);
     // skin material with the game's procedural skin maps
-    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xd9b19a); o.material.roughness = 0.72; o.material.envMapIntensity = 0.22; o.material.normalScale.set(0.5, 0.5); addSkinShading(o.material); o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
+    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = gloveMaterial(); if (o.geometry && !o.geometry.userData.smoothed) { o.geometry.computeVertexNormals(); o.geometry.userData.smoothed = true; } o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
     // ---- frame in tool space. A: handle axis pointing toward the thumb side (up a pistol grip, forward
     //      along a fore-end). out: from the handle axis through the palm to the back of the hand.
     //      Z (fingers at the knuckles, before the curl) = s · (A × out): the fingers leave the knuckles

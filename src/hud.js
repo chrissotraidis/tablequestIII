@@ -15,8 +15,10 @@
  */
 import * as THREE from 'three';
 import { CELL } from './config.js';
-import { FaceAnim, FACE_DEFAULTS } from './face.js';
-const faceAnim = new FaceAnim(); let faceLast = 0;
+import { FACE_DEFAULTS } from './face.js';
+import { PortraitAnim } from './portrait.js';
+const faceAnim = new PortraitAnim(); let faceLast = 0; // 5.1: painted likeness
+export const portraitForTest = faceAnim;
 
 const $ = (id) => document.getElementById(id);
 
