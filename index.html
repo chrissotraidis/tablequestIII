@@ -1884,6 +1884,35 @@
         #intro-screen .intro-sat-head #mb-sat-floor { color: #ffd35a; }
         #intro-screen p, #intro-screen .intro-tagline { text-shadow: 0 2px 8px rgba(0, 0, 0, .9); }
 
+
+        /* 5.1 bench: larger type and portrait, damage trail, pulses, clickable tools */
+        #bench { height: 146px; padding: 12px 24px; }
+        #bench .hud-left { gap: 12px; } #bench .hud-center { gap: 18px; } #bench .rack { gap: 5px; }
+        #bench .plaque { min-width: 96px; }
+        #bench .plaque-label { font-size: 13px; }
+        #bench .plaque-value { font-size: 34px; }
+        #bench .gauge-label { font-size: 15px; letter-spacing: 3.5px; }
+        #bench .trough { width: clamp(150px, 13vw, 210px); height: 36px; }
+        #bench .trough > div { position: absolute !important; left: 0; top: 0; }
+        #bench .trough-value { font-size: 25px; z-index: 2; }
+        #bench #healthchip { height: 100%; width: 100%; background: linear-gradient(180deg, #ffe0a0, #e8a040); opacity: .85; transition: width .6s ease .35s; z-index: 0; }
+        #bench #healthbar { z-index: 1; }
+        #bench .trough.low { animation: tq-low 0.9s ease-in-out infinite; }
+        @keyframes tq-low { 50% { box-shadow: inset 0 2px 6px rgba(0,0,0,.85), 0 0 16px rgba(255,60,40,.85); border-color: #ff5a4a; } }
+        #bench #face-canvas { width: 122px; height: 122px; }
+        #bench .portrait-plate { font-size: 12px; }
+        #bench .counter-label { font-size: 13px; min-width: 60px; }
+        #bench .counter-value { font-size: 25px; }
+        #bench .wpn-name { font-size: 15px; letter-spacing: 4px; color: #ffe0a8; }
+        #bench .rack-slot { width: clamp(58px, 5.1vw, 76px); height: 66px; pointer-events: auto; cursor: pointer; transition: transform .12s, border-color .12s; }
+        #bench .rack-slot:hover:not(.empty) { transform: translateY(-3px); border-color: #e4c383; }
+        #bench .rack-slot.active { transform: translateY(-4px); }
+        #bench .rack-slot .ricon { width: 44px; height: 25px; }
+        #bench .rack-slot .wname { font-size: 12px; }
+        #bench .rack-slot .num { font-size: 11px; }
+        #bench .rack-slot.empty { opacity: .45; cursor: default; }
+        @media (max-width: 1240px) { #bench { height: 124px; } #bench .trough { width: 150px; height: 30px; } #bench .trough-value { font-size: 19px; } #bench #face-canvas { width: 86px; height: 86px; } #bench .rack-slot { width: 60px; height: 56px; } #bench .wpn-name { font-size: 12px; } #bench .counter-value { font-size: 19px; } #bench .gauge-label { font-size: 13px; } }
+
 </style>
 </head>
 
@@ -1945,7 +1974,7 @@
                     </div>
                 </div>
                 <div class="hud-center">
-                    <div class="gauge"><span class="gauge-label">Health</span><div class="trough" id="health-trough"><div id="healthbar"></div><span class="trough-value" id="hud-health">100</span></div></div>
+                    <div class="gauge"><span class="gauge-label">Health</span><div class="trough" id="health-trough"><div id="healthchip"></div><div id="healthbar"></div><span class="trough-value" id="hud-health">100</span></div></div>
                     <div class="portrait"><canvas id="face-canvas" width="192" height="192"></canvas><div class="portrait-plate">SANDY</div></div>
                     <div class="gauge"><span class="gauge-label">Paint</span><div class="trough" id="paint-trough"><div id="paintbar"></div><span class="trough-value" id="hud-ammo">30</span></div></div>
                 </div>
