@@ -108,6 +108,10 @@ export class PostFX {
         if (!vmCamera) camera.add(this.vmCamera);
         this.vmPass = new RenderPass(scene, this.vmCamera);
         this.vmPass.clear = false; this.vmPass.clearDepth = true;
+        // The viewmodel layer must not redraw the scene background or fog over
+        // the world (Arena's scene has a solid background colour).
+        const vmRender = this.vmPass.render.bind(this.vmPass);
+        this.vmPass.render = (...args) => this.withoutBackground(() => vmRender(...args));
         // 5.0: ground-truth ambient occlusion on the world layer only (the
         // viewmodel is drawn afterwards). Contact shadows under desks, in room
         // corners and along the ceiling line are the biggest single realism step.
@@ -168,6 +172,12 @@ export class PostFX {
         if (on) this.gtao.enabled = false;
     }
 
+    withoutBackground(draw) {
+        const background = this.scene.background, fog = this.scene.fog;
+        this.scene.background = null; this.scene.fog = null;
+        try { draw(); } finally { this.scene.background = background; this.scene.fog = fog; }
+    }
+
     /** Apply a floor's grade block (see lighting.js rigs). Missing keys fall back to defaults. */
     applyGrade(g = {}) {
         const cfg = { ...DEFAULT_GRADE, ...g, bloom: { ...DEFAULT_GRADE.bloom, ...(g.bloom || {}) } };
@@ -189,7 +199,11 @@ export class PostFX {
      * @param yawRate radians/second of camera yaw (drives motion blur)
      */
     render(time = 0, yawRate = 0) {
-        if (!this.enabled) { this.renderer.render(this.scene, this.camera); this.renderer.autoClear = false; this.renderer.clearDepth(); this.renderer.render(this.scene, this.vmCamera); this.renderer.autoClear = true; return; }
+        if (!this.enabled) {
+            this.renderer.render(this.scene, this.camera);
+            if (this.vmPass.enabled) { this.renderer.autoClear = false; this.renderer.clearDepth(); this.withoutBackground(() => this.renderer.render(this.scene, this.vmCamera)); this.renderer.autoClear = true; }
+            return;
+        }
         const u = this.grade.uniforms;
         u.time.value = time;
         // Keep fast turns readable: a restrained smear, eased in and out.

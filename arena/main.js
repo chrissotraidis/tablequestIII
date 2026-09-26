@@ -12,6 +12,8 @@ import interfaceHtml from './interface.html?raw';
 import interfaceCss from './interface.css?inline';
 import { drawToolIcon } from '../src/hud.js';
 import { Effects } from '../src/effects.js';
+import { PostFX } from '../src/postfx.js';
+import { loadQuality, pixelRatioFor } from '../src/quality.js';
 import { MuzzleFlash } from '../src/gunfx.js';
 import { FaceAnim, FACE_DEFAULTS } from '../src/face.js';
 import { OFFICE_ARENA, OFFICE_MAP_HASH } from '../shared/arena/maps.js';
@@ -124,8 +126,10 @@ $('preview-held').addEventListener('change',event=>staffPreview.staffTool(event.
 $('preview-pose').addEventListener('change',event=>staffPreview.walk(event.target.value==='walk'));
 $('preview-spin').addEventListener('change',event=>staffPreview.spin(event.target.checked));
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-const renderPixelRatio = () => Math.min(devicePixelRatio, Math.sqrt(ARENA_RENDER_PIXEL_BUDGET / Math.max(1, innerWidth * innerHeight)));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// 5.0: Arena shares the campaign's quality preset and post stack (AO, bloom, grade).
+const arenaQuality = loadQuality(renderer);
+const renderPixelRatio = () => pixelRatioFor(arenaQuality);
 renderer.setPixelRatio(renderPixelRatio());
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 // Use the campaign shadow pass so desks, plants, and staff retain depth.
@@ -147,6 +151,8 @@ const vmCamera = new THREE.PerspectiveCamera(56, 1, 0.02, 20);
 vmCamera.layers.set(1);
 camera.add(vmCamera);
 scene.add(camera);
+const arenaPost = new PostFX(renderer, scene, camera, { vmCamera, quality: arenaQuality });
+if (new URLSearchParams(location.search).has("test")) window.__tqArenaPost = arenaPost;
 // Campaign's nearby player light reveals furniture in unlit Office corners.
 const playerLight = new THREE.PointLight(0xffe0b0, 2.4, 6, 1.6);
 scene.add(playerLight);
@@ -213,6 +219,8 @@ function resize() {
     camera.updateProjectionMatrix();
     vmCamera.aspect = camera.aspect;
     vmCamera.updateProjectionMatrix();
+    arenaPost.setPixelRatio(renderPixelRatio());
+    arenaPost.setSize(innerWidth, innerHeight);
 }
 addEventListener('resize', resize); resize();
 
@@ -302,6 +310,7 @@ function buildOffice() {
     for (const [id, prop] of productionWorld.props) officeProps.set(id, prop);
     decalSurfaces=productionWorld.group.children.filter(mesh=>mesh.userData.decalSurface);
     renderer.toneMappingExposure = productionWorld.rig.exposure ?? 1.1;
+    arenaPost.applyGrade(productionWorld.rig.grade || {});
     productionWorld.keyLight.shadow.mapSize.set(2048,2048);
     productionWorld.keyLight.shadow.normalBias=.04;
     // Doors follow server snapshots. The campaign-only elevator gate stays open.
@@ -1345,19 +1354,11 @@ function render() {
     animateLocalTool(dt, now / 1000);
     if(productionWorld.batchDirty) productionWorld.rebuildPropBatch();
     effects.update(dt); muzzleFlash.update(dt);
-    renderer.render(scene, camera);
-    render.worldCalls=renderer.info.render.calls;
-    // Same depth-separated viewmodel pass as campaign PostFX (without bloom).
-    if(localVmRoot.visible) {
-    renderAudit.viewmodelPasses++;
-    const background = scene.background;
-    const fog = scene.fog;
-    scene.background = null; scene.fog = null;
-    renderer.autoClear = false;
-    renderer.clearDepth();
-    renderer.render(scene, vmCamera);
-    renderer.autoClear = true;
-    scene.background = background; scene.fog = fog;
-    }
+    // Same post stack as the campaign: world, AO, viewmodel layer, tone map, bloom, grade.
+    arenaPost.vmPass.enabled = localVmRoot.visible;
+    if(localVmRoot.visible) renderAudit.viewmodelPasses++;
+    renderer.info.autoReset=false;renderer.info.reset();
+    arenaPost.render(now/1000, 0);
+    render.worldCalls=renderer.info.render.calls;renderer.info.autoReset=true;
 }
 render();
