@@ -238,6 +238,22 @@ export class Game {
         this.vmBack.color.copy(acc); this.vmBack.intensity = 1.0;
     }
 
+    /** 5.1: give the tools their own studio reflections. Meshes that inherit scene.environment use the
+     *  faint global intensity, so metal read as flat grey; an explicit envMap keeps a per-material strength. */
+    polishViewmodels(env) {
+        if (!env) return;
+        const seen = new Set();
+        for (const vm of Object.values(this.viewmodels)) vm.traverse(o => {
+            if (!o.isMesh || o.isSkinnedMesh || o.userData.isHand) return;
+            for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+                if (!m?.isMeshStandardMaterial || seen.has(m)) continue; seen.add(m);
+                m.envMap = env;
+                m.envMapIntensity = m.metalness > 0.5 ? 0.95 : m.roughness < 0.35 ? 0.6 : m.roughness < 0.7 ? 0.35 : 0.15;
+                m.needsUpdate = true;
+            }
+        });
+    }
+
     loadLevel(index, { keepStats = true, silent = false } = {}) {
         // tear down old
         if (this.world) this.world.dispose();

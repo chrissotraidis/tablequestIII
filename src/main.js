@@ -261,6 +261,7 @@ const game = new Game(scene, camera, {
 });
 
 game.viewCamera = postfx.vmCamera;
+game.polishViewmodels(roomEnvironment); // 5.1: studio reflections on the tools
 
 function snapshotLevel() {
     const p = game.player;

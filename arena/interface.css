@@ -182,3 +182,23 @@
 .settings-grid select:hover{border-color:#c9a227}
 .paint-sample{display:none}
 .settings-grid label:has(.choice-group){display:grid;gap:8px}
+
+/* 5.1 bench: matches the single-player HUD (larger type and portrait, hover lift, low pulse) */
+#arena-bench{height:146px;padding:12px 24px}
+#arena-bench .plaque{min-width:96px;padding:6px 14px 8px}#arena-bench .plaque-label{font-size:13px}#arena-bench .plaque-value{font-size:34px}
+#arena-bench .gauge-label{font-size:15px;letter-spacing:3.5px}
+#arena-bench .trough{width:clamp(150px,13vw,210px);height:36px}#arena-bench .trough-value{font-size:25px}
+#arena-bench .trough.low{animation:tq-low .9s ease-in-out infinite}
+@keyframes tq-low{50%{box-shadow:inset 0 2px 6px rgba(0,0,0,.85),0 0 16px rgba(255,60,40,.85);border-color:#ff5a4a}}
+#arena-bench #arena-face{width:122px;height:122px}#arena-bench .portrait-plate{font-size:12px}
+#arena-bench .counters{font-size:17px}#arena-bench #stats{font-size:19px;font-weight:bold}#arena-bench #arena-ammo{font-size:14px}
+#arena-bench .wpn-name{font-size:15px;letter-spacing:4px;color:#ffe0a8}
+#arena-bench .rack-slot{width:clamp(58px,5.1vw,76px);height:66px;transition:transform .12s,border-color .12s}
+#arena-bench .rack-slot:hover:not(.unavailable){transform:translateY(-3px);border-color:#e4c383}
+#arena-bench .rack-slot.active{transform:translateY(-4px)}
+#arena-bench .rack-slot .ricon{width:44px;height:25px}#arena-bench .rack-slot .wname{font-size:12px}#arena-bench .rack-slot .num{font-size:11px}
+#arena-bench .hud-left{gap:12px}#arena-bench .hud-center{gap:18px}
+@media(max-width:1240px){#arena-bench{height:124px}#arena-bench .trough{width:150px;height:30px}#arena-bench .trough-value{font-size:19px}#arena-bench #arena-face{width:86px;height:86px}#arena-bench .rack-slot{width:60px;height:56px}#arena-bench .wpn-name{font-size:12px}}
+@media(max-width:1050px){#arena-bench{height:110px;padding:10px 18px}#arena-bench .trough{width:100px}#arena-bench .rack-slot{width:49px;height:53px}#arena-bench #arena-face{width:66px;height:66px}#arena-bench .plaque{display:none}}
+@media(max-width:720px){#arena-bench{height:128px;padding:6px 12px}#arena-bench .rack-slot{height:48px;width:46px}#arena-bench .trough{width:105px;height:25px}}
+
