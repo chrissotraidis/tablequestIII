@@ -18,13 +18,54 @@
  */
 import * as THREE from 'three';
 import { bakeStatic } from './bake.js';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+// 5.0: every block is a softly bevelled box (edges catch light instead of
+// reading as flat cards) with a vertical shade baked into its vertex colours,
+// so cloth darkens toward hems and creases. Silhouettes and pivots unchanged.
+const roundedCache = new Map();
+function rounded(w, h, d) {
+    const key = [w, h, d].map((v) => v.toFixed(4)).join('|');
+    let geo = roundedCache.get(key);
+    if (!geo) {
+        geo = new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d) * 0.18);
+        const pos = geo.attributes.position, col = new Float32Array(pos.count * 3);
+        for (let i = 0; i < pos.count; i++) {
+            const t = pos.getY(i) / h + 0.5, front = pos.getZ(i) / d + 0.5;
+            const shade = 0.82 + 0.18 * Math.pow(t, 0.7) + 0.04 * front;
+            col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = Math.min(1.06, shade);
+        }
+        geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        roundedCache.set(key, geo);
+    }
+    return geo;
+}
+
+// Fine fabric weave shared by every staff member's baked materials.
+let fabric = null;
+export function staffFabric() {
+    if (fabric) return fabric;
+    const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d');
+    x.fillStyle = '#808080'; x.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < 128; i += 2) { x.fillStyle = i % 4 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'; x.fillRect(i, 0, 1, 128); x.fillRect(0, i, 128, 1); }
+    for (let i = 0; i < 900; i++) { x.fillStyle = Math.random() < 0.5 ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.06)'; x.fillRect(Math.random() * 128, Math.random() * 128, 1, 2); }
+    const img = x.getImageData(0, 0, 128, 128), n = new ImageData(128, 128);
+    const hgt = (px, py) => img.data[(((py + 128) % 128) * 128 + ((px + 128) % 128)) * 4] / 255;
+    for (let yy = 0; yy < 128; yy++) for (let xx = 0; xx < 128; xx++) {
+        const dx = hgt(xx + 1, yy) - hgt(xx - 1, yy), dy = hgt(xx, yy + 1) - hgt(xx, yy - 1), l = Math.hypot(dx * 3, dy * 3, 1), o = (yy * 128 + xx) * 4;
+        n.data[o] = (-dx * 3 / l * 0.5 + 0.5) * 255; n.data[o + 1] = (dy * 3 / l * 0.5 + 0.5) * 255; n.data[o + 2] = (1 / l * 0.5 + 0.5) * 255; n.data[o + 3] = 255;
+    }
+    const nc = document.createElement('canvas'); nc.width = nc.height = 128; nc.getContext('2d').putImageData(n, 0, 0);
+    fabric = new THREE.CanvasTexture(nc); fabric.wrapS = fabric.wrapT = THREE.RepeatWrapping; fabric.repeat.set(6, 6);
+    return fabric;
+}
 
 const SKIN = 0xe8b890, SKIN_DARK = 0xd4a27c;
 const SUIT_COLORS = { 0: 0x2244aa, 1: 0x666a70, 2: 0x1a1a22, boss: 0x8b0a1a };
 const SHIRT = 0xf0f0e8, SHOE = 0x16120f, BELT = 0x1a1410;
 
 const mat = (color, opts = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.7, metalness: 0.0, ...opts });
-const box = (w, h, d, m) => new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m);
+const box = (w, h, d, m) => { m.vertexColors = true; return new THREE.Mesh(rounded(w, h, d), m); };
 const cyl = (r1, r2, h, m, seg = 10) => new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), m);
 const sph = (r, m, w = 10, h = 8) => new THREE.Mesh(new THREE.SphereGeometry(r, w, h), m);
 const at = (mesh, x, y, z) => { mesh.position.set(x, y, z); return mesh; };
@@ -85,9 +126,9 @@ const WEAPON_FOR = { 0: stapler, 1: tapeGun, 2: paintPistol, boss: goldenShears 
 // ---------------------------------------------------------------- builder
 
 /** Cartel employee. Returns the classic animation interface. */
-export function buildEnemy(variant) {
+export function buildEnemy(variant, { suitColor = null, weapon = true } = {}) {
     const g = new THREE.Group();
-    const suit = SUIT_COLORS[variant] ?? SUIT_COLORS[0];
+    const suit = suitColor ?? SUIT_COLORS[variant] ?? SUIT_COLORS[0];
     const isBoss = variant === 'boss';
     const scale = isBoss ? 1.65 : 1.0;
     const suitMat = mat(suit, { roughness: 0.75 });
@@ -145,7 +186,7 @@ export function buildEnemy(variant) {
         const h = hand(skinMat, side === 1);
         h.position.set(0, -0.36, 0.01);
         A.add(h);
-        if (side === 1) { // right hand holds the office weapon, pointing forward
+        if (side === 1 && weapon) { // right hand holds the office weapon, pointing forward
             const w = WEAPON_FOR[variant]();
             w.position.set(0, -0.37, 0.05);
             A.add(w);
@@ -224,6 +265,6 @@ export function buildEnemy(variant) {
 /** bake a limb group in place: same pivot transform, merged children, fresh (per-character) materials */
 function bakePart(part) {
     const baked = bakeStatic(part, { fresh: true, single: true }); // M7.2: one mesh per limb (plus an emissive bucket for the eyes)
-    baked.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    baked.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; if (o.material.vertexColors && !o.material.emissive?.getHex()) { o.material.normalMap = staffFabric(); o.material.normalScale = new THREE.Vector2(0.35, 0.35); o.material.roughness = 0.78; o.material.needsUpdate = true; } } });
     return baked;
 }
