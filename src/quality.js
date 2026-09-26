@@ -10,10 +10,10 @@ const KEY = 'tq5-quality';
 export const QUALITY_ORDER = ['ultra', 'high', 'medium', 'low'];
 export const QUALITY = {
     //         pixel cap, pixel budget, MSAA, AO,    AO scale, shadow map, anisotropy, bloom
-    ultra:  { label: 'ULTRA',  maxDpr: 2,    maxPixels: 9_000_000, samples: 4, ao: true,  aoScale: 1,   shadow: 4096, anisotropy: 16, bloom: true },
-    high:   { label: 'HIGH',   maxDpr: 1.5,  maxPixels: 5_000_000, samples: 4, ao: true,  aoScale: 0.5, shadow: 2048, anisotropy: 12, bloom: true },
-    medium: { label: 'MEDIUM', maxDpr: 1.25, maxPixels: 3_200_000, samples: 2, ao: false, aoScale: 0.5, shadow: 2048, anisotropy: 8,  bloom: true },
-    low:    { label: 'LOW',    maxDpr: 1,    maxPixels: 2_000_000, samples: 0, ao: false, aoScale: 0.5, shadow: 1024, anisotropy: 4,  bloom: false },
+    ultra:  { label: 'ULTRA',  maxDpr: 2,    maxPixels: 9_000_000, samples: 4, ao: true,  aoScale: 1,   shadow: 4096, anisotropy: 16, bloom: true, detail: { wall: 4, floor: 8, response: 512 } },
+    high:   { label: 'HIGH',   maxDpr: 1.5,  maxPixels: 5_000_000, samples: 4, ao: true,  aoScale: 0.5, shadow: 2048, anisotropy: 12, bloom: true, detail: { wall: 4, floor: 4, response: 512 } },
+    medium: { label: 'MEDIUM', maxDpr: 1.25, maxPixels: 3_200_000, samples: 2, ao: false, aoScale: 0.5, shadow: 2048, anisotropy: 8,  bloom: true, detail: { wall: 2, floor: 4, response: 256 } },
+    low:    { label: 'LOW',    maxDpr: 1,    maxPixels: 2_000_000, samples: 0, ao: false, aoScale: 0.5, shadow: 1024, anisotropy: 4,  bloom: false, detail: { wall: 2, floor: 2, response: 256 } },
 };
 
 /** Best guess from the GPU: Apple silicon Pro/Max/Ultra and discrete GPUs start on Ultra. */

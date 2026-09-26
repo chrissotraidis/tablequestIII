@@ -7,7 +7,7 @@ import { LEVELS } from './levels.js';
 import { getSurfaces } from './textures.js';
 import { PostFX } from './postfx.js';
 import { QUALITY, QUALITY_ORDER, loadQuality, saveQuality, pixelRatioFor } from './quality.js';
-import { setTextureAnisotropy } from './textures.js';
+import { setTextureAnisotropy, setTextureDetail } from './textures.js';
 import { setShadowMapSize } from './lighting.js';
 import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
@@ -47,6 +47,7 @@ let adaptivePerformanceMode = false;
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 let qualityName = loadQuality(renderer);
 setTextureAnisotropy(Math.min(QUALITY[qualityName].anisotropy, renderer.capabilities.getMaxAnisotropy()));
+setTextureDetail(QUALITY[qualityName].detail);
 setShadowMapSize(QUALITY[qualityName].shadow);
 const preferredPixelRatio = () => pixelRatioFor(qualityName, adaptiveRenderScale);
 let renderPixelRatio = preferredPixelRatio();
@@ -66,12 +67,13 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
 scene.add(camera);
 
+let roomEnvironment = null;
 // MODERN: a procedural room environment (three's RoomEnvironment, no files)
 // gives StandardMaterials something to reflect so roughness maps read.
 // Kept faint so each floor's own lighting palette still sets the mood.
 {
     const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    roomEnvironment = scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.18;
     pmrem.dispose();
 }
@@ -104,6 +106,39 @@ function applyQuality() {
 function applyFloorLook() {
     renderer.toneMappingExposure = game.world?.rig?.exposure ?? 1.1;
     postfx.applyGrade(game.world?.rig?.grade || {});
+    captureFloorReflections();
+}
+
+// 5.0: reflections come from the floor itself. A cube camera in the middle of
+// the map captures its walls, fixtures and windows once per floor load, so
+// marble, varnish and metal reflect this floor instead of a generic grey room.
+let reflectionTarget = null, reflectionKey = null;
+function captureFloorReflections() {
+    const w = game.world;
+    if (!w || reflectionKey === w) return;
+    reflectionKey = w;
+    try {
+        const size = QUALITY[qualityName].ao ? 256 : 128;
+        const cubeTarget = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType });
+        const cube = new THREE.CubeCamera(0.1, 60, cubeTarget);
+        const cx = w.w / 2, cz = w.h / 2;
+        // nearest open cell to the map centre
+        let best = [w.spawn.x, w.spawn.y], bestD = Infinity;
+        for (let y = 1; y < w.h - 1; y++) for (let x = 1; x < w.w - 1; x++) if (!w.isSolidCell(x, y)) { const d = Math.hypot(x - cx, y - cz); if (d < bestD) { bestD = d; best = [x + 0.5, y + 0.5]; } }
+        cube.position.set(best[0], 0.8, best[1]);
+        const previous = scene.environment; scene.environment = null;
+        const vmVisible = game.vmRoot?.visible; if (game.vmRoot) game.vmRoot.visible = false;
+        scene.add(cube); cube.update(renderer, scene); scene.remove(cube);
+        if (game.vmRoot) game.vmRoot.visible = vmVisible;
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const env = pmrem.fromCubemap(cubeTarget.texture);
+        pmrem.dispose(); cubeTarget.dispose();
+        reflectionTarget?.dispose();
+        reflectionTarget = env;
+        scene.environment = env.texture;
+        scene.environmentIntensity = 0.32;
+        if (previous && previous !== roomEnvironment) previous.dispose?.();
+    } catch (error) { gameLog('render.reflections-failed', { message: String(error?.message || error) }, 'warn'); }
 }
 
 // ------------------------------------------------------------------ STATE
@@ -1442,6 +1477,7 @@ window.TQ = {
         return { placed: names.length * 3, drawCalls: w.propDrawCalls };
     },
     skipBoot() { setState('menu'); initAudio(); },
+    surfacesForSheet() { return getSurfaces(); },
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {
         const p = game.player;
