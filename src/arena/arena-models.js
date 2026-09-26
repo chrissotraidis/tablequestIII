@@ -1,8 +1,6 @@
 import * as THREE from 'three';
 import { poseEnemy, poseDeath } from '../enemyanim.js';
-import {
-    buildEnemy,
-} from '../models.js';
+import { buildEnemy } from '../characters.js';
 import { buildViewmodels } from '../viewmodels.js';
 import { createPaintTint } from '../../arena/paint-tint.js';
 
@@ -82,12 +80,10 @@ export function buildArenaBody({ variant = 0, color } = {}) {
     if (![0, 1, 2, 'boss'].includes(variant)) {
         throw new RangeError(`Unknown staff variant: ${variant}`);
     }
-    const body = buildEnemy(variant);
-    if (color !== undefined) {
-        // Suit and pants are per-body materials; leave skin and rank details intact.
-        body.flashMats[0].color.set(color);
-        body.flashMats[1].color.copy(body.flashMats[0].color).multiplyScalar(0.6);
-    }
+    // 5.0: the detailed campaign staff, built in the player's paint colour and
+    // holding their Arena tool instead of an office weapon.
+    const body = buildEnemy(variant, { suitColor: color === undefined ? null : new THREE.Color(color).getHex(), weapon: false });
+    body.paintColor = new THREE.Color(color ?? 0xc9a227);
     body.group.name = 'arena-staff';
     body.group.traverse(object => {
         if (object.isMesh) object.castShadow = object.receiveShadow = true;
@@ -141,7 +137,7 @@ export function attachArenaWeapon(body, weapon = 'paintbrush') {
     let attachment = null;
     if (weapon !== null) {
         attachment = buildArenaTool(weapon);
-        setArenaToolPaint(attachment,body.flashMats[0].color);
+        setArenaToolPaint(attachment,body.paintColor);
         // Local -Y follows the raised arm; tools point down local -Z. The roll
         // of PI keeps each tool's top (spray cup, nail magazine) facing up.
         attachment.rotation.set(-Math.PI / 2, 0, Math.PI);

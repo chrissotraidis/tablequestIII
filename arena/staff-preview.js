@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {buildArenaBody, attachArenaWeapon, updateArenaBodyPose, setArenaToolPaint} from '../src/arena/arena-models.js';
+import {buildArenaBody, attachArenaWeapon, updateArenaBodyPose, setArenaToolPaint, disposeArenaBody} from '../src/arena/arena-models.js';
 import {buildViewmodels} from '../src/viewmodels.js';
 import {createPaintTint} from './paint-tint.js';
 import {COLORS,PRESETS} from '../shared/arena/rules.js';
@@ -14,9 +14,10 @@ export function createStaffPreview(canvas) {
     const key=new THREE.DirectionalLight(0xffffff,2.5);key.position.set(2,3,4);scene.add(key);
     const rim=new THREE.DirectionalLight(0xc8d8ff,1.5);rim.position.set(-2,1,-2);scene.add(rim);
     const camera=new THREE.PerspectiveCamera(33,1,.01,10);
+    // Suits are baked in their paint colour, so a colour change rebuilds that one body.
     const bodies=Object.entries(PRESETS).map(([preset,value])=>{
-        const body=buildArenaBody({variant:value.model});
-        attachArenaWeapon(body,'paintbrush');scene.add(body.group);return {preset,body};
+        const body=buildArenaBody({variant:value.model,color:COLORS.brass});
+        attachArenaWeapon(body,'paintbrush');scene.add(body.group);return {preset,body,model:value.model,color:'brass'};
     });
     let selected='guard',color='brass',mode='staff',weapon='paintbrush',staffTool='paintbrush',width=0,height=0;
     let yaw=.35,zoom=1,walking=false,rotating=false,lastTime=0,models=null,tint=null;
@@ -61,7 +62,7 @@ export function createStaffPreview(canvas) {
             for(const entry of bodies){entry.body.group.visible=mode==='staff'&&entry.preset===selected;if(!entry.body.group.visible)continue;
                 attachArenaWeapon(entry.body,staffTool);
                 setArenaToolPaint(entry.body.weapon,COLORS[color]);
-                entry.body.flashMats[0].color.setHex(COLORS[color]);entry.body.flashMats[1].color.copy(entry.body.flashMats[0].color).multiplyScalar(.6);
+                if(entry.color!==color){disposeArenaBody(entry.body);entry.body=buildArenaBody({variant:entry.model,color:COLORS[color]});scene.add(entry.body.group);entry.color=color;attachArenaWeapon(entry.body,staffTool);setArenaToolPaint(entry.body.weapon,COLORS[color]);}
                 updateArenaBodyPose(entry.body,{time,yaw,phase:time*8,alive:true,movement:walking?1:0});
             }
             tint?.(COLORS[color]);

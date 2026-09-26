@@ -47,6 +47,25 @@ assert(Math.hypot(settled.x-server.x,settled.z-server.z)<.01,'Prediction must co
 const burst=Array.from({length:8},(_,i)=>({seq:i,tap:i%4===0}));const drained=[];while(burst.length)drained.push(takeTickInputs(burst).filter(i=>!i.tap).length);
 assert.deepEqual(drained,[2,2,1,1],'Backlogs catch up without letting taps spend movement steps');
 for(let i=0;i<500;i++)prediction.step(map,{moveX:0,moveY:1,yaw:0,pitch:0},++seq);
+// Walking into another staff member: the server separates both players each
+// tick; predicting that push keeps corrections small instead of snapping back.
+{
+ const {separateFrom}=await import('../shared/arena/client-movement.js');
+ const run=(predictPush)=>{
+  const me={x:2.5,z:2.5,lastSeq:-1,vx:0,vz:0,yaw:0,pitch:0},other={x:4,z:2.5};const c=new ClientMovement();c.reset(me);let s=0,worst=0;const snaps=[];
+  for(let tick=0;tick<90;tick++){
+   const input={moveX:0,moveY:1,yaw:0,pitch:0,tap:false};s++;c.others=predictPush?[{x:other.x,z:other.z}]:[];c.step(map,input,s,tick*33);
+   moveCircle(map,me,input,INPUT_STEP);me.lastSeq=s;
+   const dx=other.x-me.x,dz=other.z-me.z,d=Math.hypot(dx,dz),min=.26*2.15;if(d&&d<min){const push=(min-d)/d*.5;me.x-=dx*push;me.z-=dz*push;other.x+=dx*push;other.z+=dz*push;}
+   if(tick%2===0)snaps.push({at:tick+4,me:{...me}});
+   for(const sn of snaps.filter(q=>q.at===tick)){c.reconcile(map,sn.me);worst=Math.max(worst,c.correction);}
+  }
+  return worst;
+ };
+ const without=run(false),withPush=run(true);
+ assert(withPush<without*.5,`Predicting the player push must at least halve corrections (${withPush.toFixed(3)} vs ${without.toFixed(3)} m)`);
+ console.log(`  push prediction: max correction ${(withPush*100).toFixed(1)} cm (was ${(without*100).toFixed(1)} cm)`);
+}
 assert(prediction.state.x<=18.74,'Predicted movement must respect walls');
 // A remote player walking at 3.7 m/s, 15 Hz snapshots arriving 40-100 ms late
 // in bunches, drawn at 60 Hz: every rendered frame must advance steadily.

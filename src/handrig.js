@@ -25,7 +25,7 @@ const PHAL = ['phalanx-proximal', 'phalanx-intermediate', 'phalanx-distal'];
 
 /** S1: hands and arms are switched OFF — the weapons float (Doom/Quake presentation). Everything below stays intact
  *  so they can come back; see docs/modern/HANDS_REINTRODUCTION.md. Flip this to true to re-attach them. */
-export const SHOW_HANDS = false;
+export const SHOW_HANDS = true;
 
 let models = null; // { L: scene, R: scene }
 let loading = null;
@@ -107,7 +107,7 @@ export function makeHand(spec) {
     const info = analyse(root);
     const J = jointMap(root);
     // skin material with the game's procedural skin maps
-    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xb89a88); o.material.roughness = 0.86; o.material.envMapIntensity = 0.18; o.material.normalScale.set(0.55, 0.55); o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
+    root.traverse(o => { if (o.isMesh || o.isSkinnedMesh) { o.material = skinMaterial(); o.material.vertexColors = false; o.material.color.set(0xd9b19a); o.material.roughness = 0.72; o.material.envMapIntensity = 0.22; o.material.normalScale.set(0.5, 0.5); addSkinShading(o.material); o.frustumCulled = false; o.layers.set(1); o.castShadow = true; o.receiveShadow = true; } });
     // ---- frame in tool space. A: handle axis pointing toward the thumb side (up a pistol grip, forward
     //      along a fore-end). out: from the handle axis through the palm to the back of the hand.
     //      Z (fingers at the knuckles, before the curl) = s · (A × out): the fingers leave the knuckles
@@ -184,3 +184,21 @@ export function applyPose(rig) {
     });
     const wrist = J['wrist']; if (wrist && rig.wristFlex) bend(wrist, rest['wrist'], rig.wristFlex, sign, axis); else if (wrist) wrist.quaternion.copy(rest['wrist']);
 }
+
+/** 5.0: cheap subsurface look for the hands — warm light wraps past the
+ *  terminator and thin edges (fingers, knuckle rims) glow red, and grazing
+ *  angles pick up a soft sheen, so the hands stop reading as painted plastic. */
+function addSkinShading(material) {
+    material.onBeforeCompile = (shader) => {
+        shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', `
+            {
+                vec3 vDir = normalize(vViewPosition);
+                float rim = pow(1.0 - clamp(abs(dot(normalize(vNormal), vDir)), 0.0, 1.0), 2.2);
+                outgoingLight += vec3(0.55, 0.16, 0.08) * rim * 0.35 * (diffuseColor.rgb + 0.2);
+                outgoingLight = mix(outgoingLight, outgoingLight * vec3(1.06, 0.97, 0.93), 0.6);
+            }
+            #include <opaque_fragment>`);
+    };
+    material.customProgramCacheKey = () => 'tq5-skin';
+}
+

@@ -4,7 +4,8 @@ register('./arena_manifest_loader.mjs',import.meta.url);
 // The detailed tool models paint canvas textures; Node has no canvas, so give
 // them a no-op 2D context. Geometry, materials and ownership are real.
 const noop=new Proxy(function(){},{get:(t,k)=>k==='canvas'?{width:1,height:1}:noop,apply:()=>noop,set:()=>true});
-globalThis.document??={createElement:()=>({width:1,height:1,style:{},getContext:()=>noop,addEventListener(){}})};
+globalThis.ImageData??=class{constructor(w,h){this.width=w;this.height=h;this.data=new Uint8ClampedArray(w*h*4);}};
+globalThis.document??={createElement:()=>({width:1,height:1,style:{},getContext:()=>new Proxy({},{get:(t,k)=>k==="getImageData"?((x,y,w,h)=>new ImageData(w,h)):k==="createImageData"?((w,h)=>new ImageData(w,h)):k==="canvas"?{width:1,height:1}:noop,set:()=>true}),addEventListener(){}})};
 const {buildArenaBody,attachArenaWeapon,disposeArenaBody,setArenaToolPaint,buildArenaTool,disposeArenaVisual}=await import('../src/arena/arena-models.js');
 const {Scene,Color}=await import('three');
 const shared=r=>r.userData?.shared;

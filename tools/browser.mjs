@@ -10,6 +10,7 @@ export function launchBrowser() {
     ].find(existsSync);
     return chromium.launch({ executablePath, headless: true, args: [
         '--autoplay-policy=no-user-gesture-required',
+        ...(process.env.TQ_UNCAPPED === '1' ? ['--disable-gpu-vsync', '--disable-frame-rate-limit'] : []),
         ...(process.env.TQ_SOFTWARE_RENDERER === '1' ? ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] : []),
     ] });
 }

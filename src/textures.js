@@ -9,9 +9,16 @@
  */
 import * as THREE from 'three';
 import { gameLog } from './logger.js';
+import { BUILDERS5, seedOf } from './surfaces5.js';
 
 const SIZE = 256;           // logical authoring size (unchanged from classic)
 let SCALE = 2;              // raster multiplier for the texture being built
+let ANISOTROPY = 8;
+/** 5.0: set once from the quality preset before surfaces are built. */
+export function setTextureAnisotropy(value) { ANISOTROPY = Math.max(1, value | 0); }
+// 5.0: colour raster multipliers (walls, floors) and material-response size.
+let DETAIL = { wall: 4, floor: 8, response: 512 };
+export function setTextureDetail(detail) { DETAIL = { ...DETAIL, ...detail }; }
 
 function makeCanvas(size = SIZE) {
     const c = document.createElement('canvas');
@@ -45,7 +52,7 @@ function tex(canvas, repeat = 1) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.repeat.set(repeat, repeat);
     t.colorSpace = THREE.SRGBColorSpace;
-    t.anisotropy = 8;
+    t.anisotropy = ANISOTROPY;
     return t;
 }
 
@@ -462,7 +469,7 @@ const SURFACE = {
     door:         { bump: 1.4, rough: 0.48, roughVar: 0.20, metal: 0.35 },
     gate:         { bump: 1.0, rough: 0.40, roughVar: 0.20, metal: 0.70 },
     elevator:     { bump: 1.2, rough: 0.30, roughVar: 0.20, metal: 0.70 },
-    marble:       { bump: 0.45, rough: 0.16, roughVar: 0.12, metal: 0.0 },
+    marble:       { bump: 0.45, rough: 0.10, roughVar: 0.10, metal: 0.0 },
     carpet:       { bump: 1.5, rough: 0.96, roughVar: 0.04, metal: 0.0 },
     woodFloor:    { bump: 1.0, rough: 0.42, roughVar: 0.18, metal: 0.0 },
     stoneFloor:   { bump: 1.8, rough: 0.80, roughVar: 0.12, metal: 0.0 },
@@ -564,7 +571,7 @@ function dataTex(canvas) {
     const t = new THREE.CanvasTexture(canvas);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     t.colorSpace = THREE.NoColorSpace;
-    t.anisotropy = 8;
+    t.anisotropy = ANISOTROPY;
     return t;
 }
 
@@ -634,6 +641,7 @@ const FLOOR_KEYS = new Set(['marble', 'carpet', 'woodFloor', 'stoneFloor', 'fact
 
 function ensureSurface(key) {
     if (cache[key]) return cache[key];
+    if (BUILDERS5[key]) return ensureSurface5(key);
     const build = BUILDERS[key];
     if (!build) throw new Error('unknown surface ' + key);
     SCALE = FLOOR_KEYS.has(key) ? 4 : 2;
@@ -664,4 +672,56 @@ export function getTextures() {
         gameLog('assets.procedural-textures-built', { surfaces: built, ms });
     }
     return cache;
+}
+
+// ---------------- 5.0 SURFACES ----------------
+
+/** Normal + roughness from an explicit height canvas (surfaces5.js). */
+function mapsFromHeight(heightCanvas, cfg, seed) {
+    const w = heightCanvas.width, h = heightCanvas.height;
+    const img = heightCanvas.getContext('2d').getImageData(0, 0, w, h).data;
+    const n = w * h, height = new Float32Array(n);
+    for (let i = 0; i < n; i++) height[i] = img[i * 4] / 255;
+    const nrm = new ImageData(w, h), rgh = new ImageData(w, h);
+    const strength = cfg.bump * 0.9 * (w / 256);
+    let s = seed >>> 0; const rand = () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
+    for (let y = 0; y < h; y++) {
+        const y0 = ((y - 1 + h) % h) * w, y1 = y * w, y2 = ((y + 1) % h) * w;
+        for (let x = 0; x < w; x++) {
+            const x0 = (x - 1 + w) % w, x2 = (x + 1) % w;
+            const dx = (height[y0 + x2] + 2 * height[y1 + x2] + height[y2 + x2]) - (height[y0 + x0] + 2 * height[y1 + x0] + height[y2 + x0]);
+            const dy = (height[y2 + x0] + 2 * height[y2 + x] + height[y2 + x2]) - (height[y0 + x0] + 2 * height[y0 + x] + height[y0 + x2]);
+            let nx = -dx * strength, ny = dy * strength, nz = 1; const len = Math.hypot(nx, ny, nz);
+            const i = (y1 + x) * 4;
+            nrm.data[i] = (nx / len * 0.5 + 0.5) * 255; nrm.data[i + 1] = (ny / len * 0.5 + 0.5) * 255; nrm.data[i + 2] = (nz / len * 0.5 + 0.5) * 255; nrm.data[i + 3] = 255;
+            // recesses (grout, seams, pores) are rougher; raised faces a touch smoother; fine grain
+            const hv = height[y1 + x];
+            const rv = Math.min(1, Math.max(0.04, cfg.rough + (0.5 - hv) * cfg.roughVar * 1.6 + (rand() - 0.5) * cfg.roughVar * 0.35));
+            rgh.data[i] = rgh.data[i + 1] = rgh.data[i + 2] = rv * 255; rgh.data[i + 3] = 255;
+        }
+    }
+    const nc = document.createElement('canvas'); nc.width = w; nc.height = h; nc.getContext('2d').putImageData(nrm, 0, 0);
+    const rc = document.createElement('canvas'); rc.width = w; rc.height = h; rc.getContext('2d').putImageData(rgh, 0, 0);
+    return { normal: nc, roughness: rc };
+}
+
+function ensureSurface5(key) {
+    const t0 = performance.now();
+    SCALE = FLOOR_KEYS.has(key) || key === 'ceiling' || key === 'metalCeil' ? DETAIL.floor : DETAIL.wall;
+    const [cv, ctx] = makeCanvas();
+    const hc = document.createElement('canvas'); hc.width = hc.height = DETAIL.response;
+    const hctx = hc.getContext('2d'); hctx.scale(DETAIL.response / SIZE, DETAIL.response / SIZE);
+    const seed = seedOf(key);
+    let s = seed; const r = () => { s = (Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9) >>> 0; return s / 4294967296; };
+    BUILDERS5[key](ctx, hctx, r);
+    // Walls keep the classic grounding: darker at the floor line and under the ceiling.
+    if (!FLOOR_KEYS.has(key) && key !== 'ceiling' && key !== 'metalCeil') applyWallAO(cv);
+    const cfg = SURFACE[key];
+    const maps = mapsFromHeight(hc, cfg, seed);
+    const map = tex(cv);
+    cache[key] = map;
+    surfaces[key] = { map, normalMap: dataTex(maps.normal), roughnessMap: dataTex(maps.roughness), cfg, canvases: { color: cv, normal: maps.normal, roughness: maps.roughness, height: hc } };
+    SCALE = 2;
+    gameLog('assets.surface-built', { key, ms: Math.round(performance.now() - t0), px: cv.width });
+    return map;
 }

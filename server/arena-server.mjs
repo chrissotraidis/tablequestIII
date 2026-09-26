@@ -724,7 +724,8 @@ function fire(player, now) {
         damageCover(cell.id, Math.min(weapon.damage,Math.ceil((OFFICE_ARENA.props[cell.id]?.hp||30)/3)));
         for (const target of room.players.values()) {
             if ((!target.socket && !target.bot) || !target.alive || target === player) continue;
-            const dx = target.x - player.x, dz = target.z - player.z;
+            const seen = seenPosition(target, player, now);
+            const dx = seen.x - player.x, dz = seen.z - player.z;
             const distance = Math.hypot(dx, dz);
             const angle = Math.atan2(dz, dx) - player.yaw;
             const normalized = Math.atan2(Math.sin(angle), Math.cos(angle));
@@ -747,6 +748,34 @@ function fire(player, now) {
     broadcast('event', { kind: 'fire', slot: player.slot, weapon: player.weapon, x: startX, y: startY, z: startZ, yaw: player.yaw, pitch: player.pitch });
 }
 
+// 5.0 lag compensation ("favor the shooter", bounded): each human shooter
+// reports how far in the past they see other staff (interpolation delay plus
+// half the round trip). Hits from that shooter test targets where the shooter
+// actually saw them, up to MAX_REWIND_MS back.
+const MAX_REWIND_MS = 200;
+function recordHistory(now) {
+    for (const p of room.players.values()) {
+        (p.history ||= []).push({ t: now, x: p.x, z: p.z, alive: p.alive });
+        while (p.history.length > 16) p.history.shift();
+    }
+}
+function seenPosition(target, shooter, now) {
+    const rewind = shooter && !shooter.bot ? Math.min(MAX_REWIND_MS, shooter.viewDelayMs || 0) : 0;
+    const h = target.history;
+    if (!rewind || !h?.length) return target;
+    const t = now - rewind;
+    for (let i = h.length - 1; i > 0; i--) {
+        const a = h[i - 1], b = h[i];
+        if (t >= a.t) {
+            if (!a.alive || !b.alive) return target;
+            const k = b.t > a.t ? Math.min(1, (t - a.t) / (b.t - a.t)) : 1;
+            return { x: a.x + (b.x - a.x) * k, z: a.z + (b.z - a.z) * k };
+        }
+    }
+    return h[0].alive ? h[0] : target;
+}
+
+
 function stepProjectiles(dt, now) {
     const keep = [];
     for (const projectile of room.projectiles) {
@@ -761,7 +790,7 @@ function stepProjectiles(dt, now) {
         let hit = null, hitTime = Infinity;
         for (const player of room.players.values()) {
             if ((!player.socket && !player.bot) || !player.alive || player === projectile.owner) continue;
-            const t = projectileHitTime(projectile, nx, ny, nz, player);
+            const t = projectileHitTime(projectile, nx, ny, nz, seenPosition(player, projectile.owner, now));
             if (t !== null && t <= wallTime && t < hitTime) { hit = player; hitTime = t; }
         }
         if (hit) {
@@ -897,6 +926,7 @@ function tick() {
     room.tick++;
     metrics.ticks++;
     simulate(Date.now());
+    recordHistory(Date.now());
     if (room.tick % SNAPSHOT_EVERY === 0) {
         const recipients=[...room.players.values()].map(player=>player.socket).filter(socket=>socket?.readyState===WebSocket.OPEN);
         if (recipients.length) {
@@ -938,6 +968,7 @@ function handleMessage(socket, raw) {
         if (room.state !== 'active' || data.matchId !== room.matchId) return;
         const input = normalizeInput(data);
         if (input.seq <= player.queuedSeq) return;
+        if (Number.isFinite(data.viewDelay)) player.viewDelayMs = Math.max(0, Math.min(MAX_REWIND_MS, data.viewDelay));
         player.queuedSeq = input.seq;
         player.inputQueue.push(input);
         if (player.inputQueue.length > MAX_QUEUED_INPUTS) player.inputQueue.shift();
@@ -1002,7 +1033,8 @@ async function staticResponse(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/health' || url.pathname === '/api/arena/health') {
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ ok: validateOfficeManifest(OFFICE_ARENA).length === 0, protocol: PROTOCOL_VERSION, mapHash: OFFICE_MAP_HASH, state: room.state, players: room.players.size, connected: [...room.players.values()].filter((p) => p.socket).length, metrics }));
+        const mem = process.memoryUsage();
+        res.end(JSON.stringify({ ok: validateOfficeManifest(OFFICE_ARENA).length === 0, protocol: PROTOCOL_VERSION, mapHash: OFFICE_MAP_HASH, state: room.state, players: room.players.size, connected: [...room.players.values()].filter((p) => p.socket).length, memory: { rssMB: +(mem.rss / 1048576).toFixed(1), heapUsedMB: +(mem.heapUsed / 1048576).toFixed(1) }, metrics }));
         return;
     }
     if (url.pathname === '/api/arena/rooms') {
@@ -1065,7 +1097,7 @@ const heartbeat = setInterval(() => {
 }, Number(process.env.TQ_ARENA_HEARTBEAT_MS || 10000));
 server.on('close', () => { interval.stop(); clearInterval(heartbeat); });
 
-export { server, room, tick, snapshot, validateOfficeManifest };
+export { server, room, tick, snapshot, validateOfficeManifest, seenPosition };
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
     server.listen(PORT, HOST, () => console.log(JSON.stringify({ event: 'arena.started', host: HOST, port: PORT, map: OFFICE_ARENA.name, mapHash: OFFICE_MAP_HASH, maxPlayers: ARENA_CONFIG.maxPlayers })));

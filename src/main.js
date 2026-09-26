@@ -6,6 +6,9 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { LEVELS } from './levels.js';
 import { getSurfaces } from './textures.js';
 import { PostFX } from './postfx.js';
+import { QUALITY, QUALITY_ORDER, loadQuality, saveQuality, pixelRatioFor } from './quality.js';
+import { setTextureAnisotropy, setTextureDetail } from './textures.js';
+import { setShadowMapSize } from './lighting.js';
 import { PROP_BUILDERS } from './props.js';
 import { Game } from './game.js';
 import { makeHand } from './handrig.js';
@@ -37,19 +40,16 @@ const $ = (id) => document.getElementById(id);
 // ------------------------------------------------------------------ RENDERER
 
 const canvas = $('game-canvas');
-const MAX_RENDER_PIXELS = 3_200_000;
 let adaptiveRenderScale = 1;
 let adaptivePerformanceMode = false;
-const cssPixelCount = () => Math.max(1, window.innerWidth * window.innerHeight);
-const preferredPixelRatio = () => Math.min(
-    window.devicePixelRatio,
-    1.25,
-    Math.sqrt(MAX_RENDER_PIXELS / cssPixelCount())
-) * adaptiveRenderScale;
-// Full-display Retina/MSAA was shading far more pixels than the game can use
-// and could stall both Level 2 and Web Audio. Keep AA on at ordinary sizes and
-// trade a little resolution for stable pacing on very large canvases.
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: cssPixelCount() <= MAX_RENDER_PIXELS });
+// 5.0: resolution, MSAA, ambient occlusion, shadow and texture detail follow
+// one quality preset (quality.js); Ultra on this project's reference Mac.
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+let qualityName = loadQuality(renderer);
+setTextureAnisotropy(Math.min(QUALITY[qualityName].anisotropy, renderer.capabilities.getMaxAnisotropy()));
+setTextureDetail(QUALITY[qualityName].detail);
+setShadowMapSize(QUALITY[qualityName].shadow);
+const preferredPixelRatio = () => pixelRatioFor(qualityName, adaptiveRenderScale);
 let renderPixelRatio = preferredPixelRatio();
 renderer.setPixelRatio(renderPixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -67,18 +67,19 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.05, 80);
 scene.add(camera);
 
+let roomEnvironment = null;
 // MODERN: a procedural room environment (three's RoomEnvironment, no files)
 // gives StandardMaterials something to reflect so roughness maps read.
 // Kept faint so each floor's own lighting palette still sets the mood.
 {
     const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    roomEnvironment = scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     scene.environmentIntensity = 0.18;
     pmrem.dispose();
 }
 
 // MODERN: post-processing stack (bloom, grade, vignette, grain, motion blur)
-const postfx = new PostFX(renderer, scene, camera);
+const postfx = new PostFX(renderer, scene, camera, { quality: qualityName });
 postfx.enabled = localStorage.getItem('tq3d-postfx') !== 'off';
 
 window.addEventListener('resize', () => {
@@ -91,9 +92,62 @@ window.addEventListener('resize', () => {
     postfx.setPixelRatio(renderPixelRatio);
 });
 
+/** 5.0: resolution, MSAA, AO and bloom change live; shadow and texture detail on the next floor load. */
+function applyQuality() {
+    setShadowMapSize(QUALITY[qualityName].shadow);
+    renderPixelRatio = preferredPixelRatio();
+    renderer.setPixelRatio(renderPixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    postfx.setQuality(qualityName);
+    postfx.setPixelRatio(renderPixelRatio);
+    postfx.setSize(window.innerWidth, window.innerHeight);
+}
+
 function applyFloorLook() {
     renderer.toneMappingExposure = game.world?.rig?.exposure ?? 1.1;
     postfx.applyGrade(game.world?.rig?.grade || {});
+    captureFloorReflections();
+}
+
+// 5.0: reflections come from the floor itself. A cube camera in the middle of
+// the map captures its walls, fixtures and windows once per floor load, so
+// marble, varnish and metal reflect this floor instead of a generic grey room.
+let reflectionTarget = null, reflectionKey = null;
+function captureFloorReflections() {
+    const w = game.world;
+    if (!w || reflectionKey === w) return;
+    reflectionKey = w;
+    try {
+        const size = QUALITY[qualityName].ao ? 256 : 128;
+        const cubeTarget = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType, generateMipmaps: false });
+        const cube = new THREE.CubeCamera(0.1, 60, cubeTarget);
+        const cx = w.w / 2, cz = w.h / 2;
+        // nearest open cell to the map centre
+        let best = [w.spawn.x, w.spawn.y], bestD = Infinity;
+        for (let y = 1; y < w.h - 1; y++) for (let x = 1; x < w.w - 1; x++) if (!w.isSolidCell(x, y)) { const d = Math.hypot(x - cx, y - cz); if (d < bestD) { bestD = d; best = [x + 0.5, y + 0.5]; } }
+        cube.position.set(best[0], 0.8, best[1]);
+        const previous = scene.environment; scene.environment = null;
+        const vmVisible = game.vmRoot?.visible; if (game.vmRoot) game.vmRoot.visible = false;
+        scene.add(cube); cube.update(renderer, scene); scene.remove(cube);
+        if (game.vmRoot) game.vmRoot.visible = vmVisible;
+        // Reject a capture with non-finite texels (bright lamps in a black room
+        // overflowed half floats on the Factory and blacked out every surface).
+        const probe = new Uint16Array(size * size * 4);
+        let finite = true;
+        for (let face = 0; face < 6 && finite; face++) {
+            renderer.readRenderTargetPixels(cubeTarget, 0, 0, size, size, probe, face);
+            for (let i = 0; i < probe.length; i += 4) { const e = probe[i] & 0x7c00; if (e === 0x7c00 || (probe[i + 1] & 0x7c00) === 0x7c00 || (probe[i + 2] & 0x7c00) === 0x7c00) { finite = false; break; } }
+        }
+        if (!finite) { cubeTarget.dispose(); scene.environment = roomEnvironment; scene.environmentIntensity = 0.18; gameLog('render.reflections-rejected', { floor: game.levelIndex + 1 }, 'warn'); return; }
+        const pmrem = new THREE.PMREMGenerator(renderer);
+        const env = pmrem.fromCubemap(cubeTarget.texture);
+        pmrem.dispose(); cubeTarget.dispose();
+        reflectionTarget?.dispose();
+        reflectionTarget = env;
+        scene.environment = env.texture;
+        scene.environmentIntensity = 0.32;
+        if (previous && previous !== roomEnvironment) previous.dispose?.();
+    } catch (error) { gameLog('render.reflections-failed', { message: String(error?.message || error) }, 'warn'); }
 }
 
 // ------------------------------------------------------------------ STATE
@@ -331,10 +385,11 @@ const MENU_DETAILS = [
 ];
 
 // ------------------------------------------------------------------ OPTIONS (MODERN M3.3)
-const OPTIONS = ['generation', 'scoreboard', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
+const OPTIONS = ['generation', 'scoreboard', 'quality', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 // Every release is a single-file build served beside this one.
 const GENERATIONS = [
-    { key: 'v3', label: 'GEN 3 · MODERN', note: 'THIS BUILD · 2026 · LIT 3D, MODERN GUNPLAY, WORKBENCH CHARM', url: null },
+    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5', note: 'THIS BUILD · 2026 · REBUILT VISUALS, HANDS, ARENA ONLINE', url: null },
+    { key: 'v4', label: 'GEN 4 · MODERN 4.1', note: 'PREVIOUS · LIT 3D, FLOATING TOOLS, FIRST ARENA', url: 'generations/v4/index.html' },
     { key: 'v21', label: 'GEN 2.1 · 3D REMASTER', note: 'CLASSIC · FIVE WEAPONS, DESTRUCTIBLE FURNITURE, WORKBENCH UI', url: 'generations/v2/index.html' },
     { key: 'v20', label: 'GEN 2.0 · FIRST 3D REMASTER', note: 'THE FIRST WEBGL BUILD · THREE WEAPONS · FIRST COMMIT', url: 'generations/v1/index.html' },
     { key: 'v1', label: 'GEN 1 · ORIGINAL 199X', note: 'THE CPU RAYCASTER · FOUR LEVELS · BRUSH AND TABLE LEG', url: 'generations/original/index.html' },
@@ -346,6 +401,7 @@ function renderOptions() {
     $('opt-generation').textContent = GENERATIONS[genIdx].label;
     const gn = document.querySelector('.opt-row[data-opt="generation"] .opt-note'); if (gn) gn.textContent = GENERATIONS[genIdx].note + ' · ENTER';
     $('opt-postfx').textContent = postfx.enabled ? 'ON' : 'OFF';
+    $('opt-quality').textContent = QUALITY[qualityName].label;
     $('opt-fov').textContent = String(Math.round(game.baseFov));
     $('opt-sens').textContent = (game.sens * 1000).toFixed(1);
     $('opt-invert').textContent = game.invertY ? 'ON' : 'OFF';
@@ -428,6 +484,12 @@ function adjustOption(dir) {
     if (key === 'generation') { genIdx = (genIdx + (dir || 1) + GENERATIONS.length) % GENERATIONS.length; }
     else if (key === 'scoreboard') { openScoreboard('options'); return; }
     else if (key === 'postfx') { postfx.enabled = !postfx.enabled; localStorage.setItem('tq3d-postfx', postfx.enabled ? 'on' : 'off'); }
+    else if (key === 'quality') {
+        const i = QUALITY_ORDER.indexOf(qualityName);
+        qualityName = QUALITY_ORDER[(i - (dir || 1) + QUALITY_ORDER.length) % QUALITY_ORDER.length];
+        saveQuality(qualityName);
+        applyQuality();
+    }
     else if (key === 'fov') {
         game.baseFov = Math.max(60, Math.min(100, game.baseFov + (dir || 1) * 2));
         camera.fov = game.baseFov; camera.updateProjectionMatrix();
@@ -1424,6 +1486,7 @@ window.TQ = {
         return { placed: names.length * 3, drawCalls: w.propDrawCalls };
     },
     skipBoot() { setState('menu'); initAudio(); },
+    surfacesForSheet() { return getSurfaces(); },
     godmode(on = true) { game.godmode = on; return 'godmode ' + on; },
     giveAll() {
         const p = game.player;

@@ -81,15 +81,73 @@ function getParticleTexture() {
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _p = new THREE.Vector3();
+
+// 5.0: every burst shares one pooled point buffer (one draw call per blend
+// mode, no per-hit geometry/material allocation). Per-particle colour, size
+// and fade live in attributes; the shader draws soft round sprites.
+const PARTICLE_CAP = 4096;
+class ParticlePool {
+    constructor(scene, additive) {
+        this.pos = new Float32Array(PARTICLE_CAP * 3); this.col = new Float32Array(PARTICLE_CAP * 4); this.size = new Float32Array(PARTICLE_CAP);
+        this.vel = new Float32Array(PARTICLE_CAP * 3); this.life = new Float32Array(PARTICLE_CAP); this.max = new Float32Array(PARTICLE_CAP);
+        this.grav = new Float32Array(PARTICLE_CAP); this.drag = new Float32Array(PARTICLE_CAP); this.next = 0; this.live = 0;
+        const geo = new THREE.BufferGeometry();
+        this.aPos = new THREE.BufferAttribute(this.pos, 3).setUsage(THREE.DynamicDrawUsage);
+        this.aCol = new THREE.BufferAttribute(this.col, 4).setUsage(THREE.DynamicDrawUsage);
+        this.aSize = new THREE.BufferAttribute(this.size, 1).setUsage(THREE.DynamicDrawUsage);
+        geo.setAttribute('position', this.aPos); geo.setAttribute('pcolor', this.aCol); geo.setAttribute('psize', this.aSize);
+        geo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+        const mat = new THREE.ShaderMaterial({
+            transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+            uniforms: { map: { value: getParticleTexture() }, scale: { value: 800 } },
+            vertexShader: 'attribute vec4 pcolor; attribute float psize; varying vec4 vCol; uniform float scale; void main(){ vCol = pcolor; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_PointSize = psize * scale / max(0.05, -mv.z); gl_Position = projectionMatrix * mv; }',
+            fragmentShader: ['uniform sampler2D map;', 'varying vec4 vCol;', 'void main(){', '  vec4 t = texture2D(map, gl_PointCoord); float a = t.a * vCol.a; if (a < 0.02) discard;', '  gl_FragColor = vec4(vCol.rgb, a);', '  #include <tonemapping_fragment>', '  #include <colorspace_fragment>', '}'].join('\n'),
+        });
+        mat.toneMapped = !additive;
+        this.points = new THREE.Points(geo, mat); this.points.frustumCulled = false; this.points.renderOrder = 3;
+        scene.add(this.points);
+    }
+    spawn(x, y, z, vx, vy, vz, color, size, life, gravity, drag) {
+        const i = this.next; this.next = (this.next + 1) % PARTICLE_CAP;
+        if (this.life[i] <= 0) this.live++;
+        this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z;
+        this.vel[i * 3] = vx; this.vel[i * 3 + 1] = vy; this.vel[i * 3 + 2] = vz;
+        this.col[i * 4] = color.r; this.col[i * 4 + 1] = color.g; this.col[i * 4 + 2] = color.b; this.col[i * 4 + 3] = 1;
+        this.size[i] = size; this.life[i] = this.max[i] = life; this.grav[i] = gravity; this.drag[i] = drag;
+    }
+    update(dt) {
+        if (!this.live) return;
+        let live = 0;
+        for (let i = 0; i < PARTICLE_CAP; i++) {
+            if (this.life[i] <= 0) continue;
+            this.life[i] -= dt;
+            if (this.life[i] <= 0) { this.col[i * 4 + 3] = 0; this.size[i] = 0; continue; }
+            live++;
+            const k = this.drag[i] ? Math.max(0, 1 - this.drag[i] * dt) : 1, j = i * 3;
+            this.vel[j + 1] -= this.grav[i] * dt;
+            if (k !== 1) { this.vel[j] *= k; this.vel[j + 1] *= k; this.vel[j + 2] *= k; }
+            this.pos[j] += this.vel[j] * dt; this.pos[j + 2] += this.vel[j + 2] * dt;
+            const y = this.pos[j + 1] + this.vel[j + 1] * dt;
+            if (y < 0.012) { this.pos[j + 1] = 0.012; this.vel[j + 1] *= -0.25; this.vel[j] *= 0.6; this.vel[j + 2] *= 0.6; } else this.pos[j + 1] = y;
+            this.col[i * 4 + 3] = Math.min(1, this.life[i] / this.max[i] * 1.6);
+        }
+        this.live = live;
+        this.aPos.needsUpdate = this.aCol.needsUpdate = this.aSize.needsUpdate = true;
+    }
+    clear() { this.life.fill(0); this.col.fill(0); this.size.fill(0); this.live = 0; this.aCol.needsUpdate = this.aSize.needsUpdate = true; }
+    dispose(scene) { scene.remove(this.points); this.points.geometry.dispose(); this.points.material.dispose(); }
+}
+const _burstColor = new THREE.Color();
 const _look = new THREE.Matrix4(), _up = new THREE.Vector3(0, 1, 0), _target = new THREE.Vector3();
-const _e = new THREE.Euler();
+const _e = new THREE.Euler(), _roll = new THREE.Quaternion(), _upZ = new THREE.Vector3(0, 0, 1);
 
 /** Ring-buffered instanced quads facing a surface normal. */
 class DecalPool {
     constructor(scene, texture, capacity) {
         this.capacity = capacity;
-        const mat = new THREE.MeshBasicMaterial({
-            map: texture, transparent: true, depthWrite: false,
+        // 5.0: lit wet paint — responds to the room's lights and reflections.
+        const mat = new THREE.MeshStandardMaterial({
+            map: texture, roughness: 0.22, metalness: 0.0, envMapIntensity: 1.2, transparent: true, depthWrite: false,
             polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3,
         });
         this.mesh = new THREE.InstancedMesh(new THREE.PlaneGeometry(1, 1), mat, capacity);
@@ -112,12 +170,14 @@ class DecalPool {
         if (!this.items[i]) this.live++;
         _p.copy(pos).addScaledVector(normal, 0.012);
         _target.copy(_p).add(normal);
-        _look.lookAt(_target, _p, Math.abs(normal.y) > 0.9 ? new THREE.Vector3(0, 0, 1) : _up);
+        _look.lookAt(_target, _p, Math.abs(normal.y) > 0.9 ? _upZ : _up);
         _q.setFromRotationMatrix(_look);
         // random roll around the normal
         _e.set(0, 0, Math.random() * Math.PI * 2);
-        _q.multiply(new THREE.Quaternion().setFromEuler(_e));
-        const it = this.items[i] = { life: DECAL_LIFE, size, pos: _p.clone(), quat: _q.clone() };
+        _q.multiply(_roll.setFromEuler(_e));
+        // reuse the slot's record: no per-decal allocation once the ring is full
+        const it = this.items[i] || (this.items[i] = { life: 0, size: 0, pos: new THREE.Vector3(), quat: new THREE.Quaternion() });
+        it.life = DECAL_LIFE; it.size = size; it.pos.copy(_p); it.quat.copy(_q);
         this.write(i, it, size);
         this.mesh.setColorAt(i, color);
         this.mesh.instanceColor.needsUpdate = true;
@@ -240,6 +300,8 @@ export class Effects {
     constructor(scene) {
         this.scene = scene;
         this.bursts = [];
+        this.particles = new ParticlePool(scene, false);
+        this.sparks = new ParticlePool(scene, true);
         this.decals = getSplatTextures().map((t) => new DecalPool(scene, t, DECAL_CAP));
         this.debrisPool = new DebrisPool(scene, DEBRIS_CAP);
         this.decalPick = 0;
@@ -255,32 +317,14 @@ export class Effects {
      *   drag      per-second velocity damping (0)
      */
     burst(pos, color, count = 14, speed = 2.2, life = 0.5, opts = {}) {
-        const geo = new THREE.BufferGeometry();
-        const positions = new Float32Array(count * 3);
-        const velocities = [];
-        const dir = opts.dir, dirW = opts.dirW || 0;
+        const pool = opts.additive ? this.sparks : this.particles;
+        const dir = opts.dir, dirW = opts.dirW || 0, size = (opts.size ?? 0.045) * 1.35, g = opts.gravity ?? 6, drag = opts.drag || 0;
+        _burstColor.set(color);
         for (let i = 0; i < count; i++) {
-            positions[i * 3] = pos.x;
-            positions[i * 3 + 1] = pos.y;
-            positions[i * 3 + 2] = pos.z;
-            const v = new THREE.Vector3(
-                (Math.random() - 0.5) * speed,
-                Math.random() * speed * 0.8,
-                (Math.random() - 0.5) * speed
-            );
-            if (dir && dirW) v.addScaledVector(dir, speed * dirW * (0.5 + Math.random()));
-            velocities.push(v);
+            let vx = (Math.random() - 0.5) * speed, vy = Math.random() * speed * 0.8, vz = (Math.random() - 0.5) * speed;
+            if (dir && dirW) { const k = speed * dirW * (0.5 + Math.random()); vx += dir.x * k; vy += dir.y * k; vz += dir.z * k; }
+            pool.spawn(pos.x, pos.y, pos.z, vx, vy, vz, _burstColor, size * (0.7 + Math.random() * 0.6), life * (0.75 + Math.random() * 0.5), g, drag);
         }
-        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-        const mat = new THREE.PointsMaterial({
-            color, size: (opts.size ?? 0.045) * 1.35, transparent: true, opacity: 1,
-            map: getParticleTexture(), alphaTest: 0.05,
-            blending: opts.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
-            depthWrite: false, toneMapped: !opts.additive,
-        });
-        const points = new THREE.Points(geo, mat);
-        this.scene.add(points);
-        this.bursts.push({ points, velocities, life, maxLife: life, gravity: opts.gravity ?? 6, drag: opts.drag || 0 });
     }
 
     /**
@@ -338,45 +382,18 @@ export class Effects {
             decals: this.decals.reduce((n, p) => n + p.live, 0),
             decalCapacity: this.decals.length * DECAL_CAP,
             debris: this.debrisPool.live,
-            bursts: this.bursts.length,
+            bursts: this.particles.live + this.sparks.live,
         };
     }
 
     update(dt) {
-        for (let i = this.bursts.length - 1; i >= 0; i--) {
-            const b = this.bursts[i];
-            b.life -= dt;
-            if (b.life <= 0) {
-                this.scene.remove(b.points);
-                b.points.geometry.dispose();
-                b.points.material.dispose();
-                this.bursts.splice(i, 1);
-                continue;
-            }
-            const pos = b.points.geometry.attributes.position;
-            const damp = b.drag ? Math.max(0, 1 - b.drag * dt) : 1;
-            for (let j = 0; j < b.velocities.length; j++) {
-                const v = b.velocities[j];
-                v.y -= b.gravity * dt; // gravity
-                if (damp !== 1) v.multiplyScalar(damp);
-                pos.array[j * 3] += v.x * dt;
-                pos.array[j * 3 + 1] = Math.max(0.02, pos.array[j * 3 + 1] + v.y * dt);
-                pos.array[j * 3 + 2] += v.z * dt;
-            }
-            pos.needsUpdate = true;
-            b.points.material.opacity = b.life / b.maxLife;
-        }
+        this.particles.update(dt); this.sparks.update(dt);
         for (const p of this.decals) p.update(dt);
         this.debrisPool.update(dt);
     }
 
     clear() {
-        for (const b of this.bursts) {
-            this.scene.remove(b.points);
-            b.points.geometry.dispose();
-            b.points.material.dispose();
-        }
-        this.bursts = [];
+        this.particles.clear(); this.sparks.clear();
         for (const p of this.decals) p.clear();
         this.debrisPool.clear();
     }

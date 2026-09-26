@@ -225,7 +225,7 @@ export function buildSleeve({ side, wrist, X, Y, Z, foreDir = null, shoulder = n
     const perp = hint.sub(dirSW.clone().multiplyScalar(hint.dot(dirSW))).normalize();
     const elbow = sh.clone().addScaledVector(dirSW, a).addScaledVector(perp, hgt);
     const pts = [sh, V().lerpVectors(sh, elbow, 0.5), elbow, V().lerpVectors(elbow, fore, 0.5), fore, cuff];
-    const rx = [0.04 * u, 0.041 * u, 0.04 * u, 0.036 * u, ringX + 0.007 * u, ringX + 0.005 * u], ry = [0.038 * u, 0.039 * u, 0.037 * u, 0.032 * u, ringY + 0.008 * u, ringY + 0.006 * u]; // upper arm, elbow, forearm belly, taper to the cuff
+    const rx = [0.033 * u, 0.034 * u, 0.033 * u, 0.03 * u, ringX + 0.005 * u, ringX + 0.004 * u], ry = [0.031 * u, 0.032 * u, 0.03 * u, 0.027 * u, ringY + 0.006 * u, ringY + 0.005 * u]; // 5.0: slimmer forearm and upper arm // upper arm, elbow, forearm belly, taper to the cuff
     const st = tubeStations(pts, rx, ry, 30);
     // the last stations keep the wrist ring's plane: their up is the hand's Y so the ellipse hugs the wrist
     st.forEach((o, i) => { const t = i / 30; if (t > 0.8) o.up = Y.clone(); const fold = t > 0.35 && t < 0.82 ? 0.02 * Math.sin(t * 29 + 1.1) + 0.012 * Math.sin(t * 47 + 0.4) : 0; o.rx *= 1 + fold; o.ry *= 1 + fold * 0.8; o.shade = 0.92 + 3 * fold; });

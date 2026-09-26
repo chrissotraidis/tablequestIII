@@ -12,6 +12,9 @@ import interfaceHtml from './interface.html?raw';
 import interfaceCss from './interface.css?inline';
 import { drawToolIcon } from '../src/hud.js';
 import { Effects } from '../src/effects.js';
+import { PostFX } from '../src/postfx.js';
+import { SHOW_HANDS, loadHandModels, makeHand } from '../src/handrig.js';
+import { loadQuality, saveQuality, pixelRatioFor } from '../src/quality.js';
 import { MuzzleFlash } from '../src/gunfx.js';
 import { FaceAnim, FACE_DEFAULTS } from '../src/face.js';
 import { OFFICE_ARENA, OFFICE_MAP_HASH } from '../shared/arena/maps.js';
@@ -82,6 +85,7 @@ const choiceSyncs=[
     choiceGroup($('preview-held'),{className:'choice-tools',decorate:(button,value)=>{const icon=document.createElement('canvas');icon.width=12;icon.height=7;drawToolIcon(icon,value);button.prepend(icon);}}),
     choiceGroup($('bot-count'),{className:'choice-compact'}),
     choiceGroup($('crosshair-setting'),{className:'choice-compact'}),
+    choiceGroup($('quality-setting'),{className:'choice-compact'}),
 ];
 const syncChoices=()=>choiceSyncs.forEach(sync=>sync());
 
@@ -124,8 +128,10 @@ $('preview-held').addEventListener('change',event=>staffPreview.staffTool(event.
 $('preview-pose').addEventListener('change',event=>staffPreview.walk(event.target.value==='walk'));
 $('preview-spin').addEventListener('change',event=>staffPreview.spin(event.target.checked));
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-const renderPixelRatio = () => Math.min(devicePixelRatio, Math.sqrt(ARENA_RENDER_PIXEL_BUDGET / Math.max(1, innerWidth * innerHeight)));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+// 5.0: Arena shares the campaign's quality preset and post stack (AO, bloom, grade).
+let arenaQuality = loadQuality(renderer);
+const renderPixelRatio = () => pixelRatioFor(arenaQuality);
 renderer.setPixelRatio(renderPixelRatio());
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 // Use the campaign shadow pass so desks, plants, and staff retain depth.
@@ -147,6 +153,8 @@ const vmCamera = new THREE.PerspectiveCamera(56, 1, 0.02, 20);
 vmCamera.layers.set(1);
 camera.add(vmCamera);
 scene.add(camera);
+const arenaPost = new PostFX(renderer, scene, camera, { vmCamera, quality: arenaQuality });
+if (new URLSearchParams(location.search).has("test")) window.__tqArenaPost = arenaPost;
 // Campaign's nearby player light reveals furniture in unlit Office corners.
 const playerLight = new THREE.PointLight(0xffe0b0, 2.4, 6, 1.6);
 scene.add(playerLight);
@@ -213,6 +221,8 @@ function resize() {
     camera.updateProjectionMatrix();
     vmCamera.aspect = camera.aspect;
     vmCamera.updateProjectionMatrix();
+    arenaPost.setPixelRatio(renderPixelRatio());
+    arenaPost.setSize(innerWidth, innerHeight);
 }
 addEventListener('resize', resize); resize();
 
@@ -302,6 +312,7 @@ function buildOffice() {
     for (const [id, prop] of productionWorld.props) officeProps.set(id, prop);
     decalSurfaces=productionWorld.group.children.filter(mesh=>mesh.userData.decalSurface);
     renderer.toneMappingExposure = productionWorld.rig.exposure ?? 1.1;
+    arenaPost.applyGrade(productionWorld.rig.grade || {});
     productionWorld.keyLight.shadow.mapSize.set(2048,2048);
     productionWorld.keyLight.shadow.normalBias=.04;
     // Doors follow server snapshots. The campaign-only elevator gate stays open.
@@ -381,6 +392,19 @@ for (const vm of Object.values(localViewmodels)) {
     vm.visible = false; localVmRoot.add(vm);
     vm.userData.basePos = vm.position.clone();
 }
+// 5.0: the same first-person hands as the campaign, posed into each tool's grip.
+if (SHOW_HANDS) loadHandModels().then(() => {
+    const SHOULDER = { R: new THREE.Vector3(0.15, -0.46, 0.12), L: new THREE.Vector3(-0.15, -0.46, 0.12) };
+    localVmRoot.updateMatrix();
+    for (const vm of Object.values(localViewmodels)) {
+        vm.updateMatrix();
+        const toLocal = new THREE.Matrix4().multiplyMatrices(localVmRoot.matrix, vm.matrix).invert();
+        for (const spec of vm.userData.handSpecs || []) {
+            const hand = makeHand({ ...spec, shoulder: (spec.shoulderCam || SHOULDER[spec.side]).clone().applyMatrix4(toLocal), parentScale: vm.scale.x });
+            vm.add(hand); vm.userData.rigs.push(hand.userData.rig);
+        }
+    }
+}).catch(error => console.error('hand models failed to load', error));
 // Campaign camera-space illumination, isolated from the world's shadow map.
 const vmKey = new THREE.PointLight(0xffffff, 0.15, 3, 2);
 vmKey.position.set(0.35, 0.45, 0.1);
@@ -722,6 +746,7 @@ function updateSnapshot(snapshot) {
         if (paused) renderPauseScore();
     }
     const me = snapshot.players.find((p) => p.slot === localSlot);
+    movement.others = snapshot.players.filter((p) => p.slot !== localSlot && p.alive).map((p) => ({ x: p.x + p.vx * 0.05, z: p.z + p.vz * 0.05 }));
     if (me) {
         cameraTarget.set(me.x, me.alive ? 0.7 : .22, me.z);
         movement.reconcile(predictionMap,me,!localPlayer || me.alive!==localPlayer.alive || camera.position.distanceToSquared(cameraTarget)>9);
@@ -994,7 +1019,10 @@ function sendInput(tap=false){
     if(!ws || ws.readyState!==WebSocket.OPEN || roomState?.state!=='active')return;
     if(!tap)rehearsalInput=!paused && !resumeRequired && arenaVisible() ? tourInput() : null;
     const input={...currentInput(),tap};
-    ws.send(JSON.stringify({v:1,type:'input',matchId:roomState.matchId,seq:++seq,...input}));
+    // viewDelay tells the server how far in the past we see other staff, so
+    // our hits are judged against what we saw (bounded server-side).
+    const viewDelay=Math.round(serverClock.delay()+(roundTripMs||0)/2);
+    ws.send(JSON.stringify({v:1,type:'input',matchId:roomState.matchId,seq:++seq,viewDelay,...input}));
     // Predict exactly the step the server will apply for this input.
     if(!tap && localPlayer?.alive)movement.step(predictionMap,input,seq);
 }
@@ -1207,7 +1235,9 @@ $('volume-setting').addEventListener('input',event=>{setOutputVolume(Number(even
 $('test-sound').addEventListener('click',()=>{initAudio();playSound('collect');$('audio-test-status').textContent=isMuted()?'Sound is switched off.':getOutputVolume()===0?'Volume is at zero.':'Played the pickup sound.';});
 $('bob-setting').checked=settings.bob;
 $('bob-setting').addEventListener('change',event=>{settings.bob=event.target.checked;saveSettings();});
-$('crosshair-setting').value=settings.crosshair;syncChoices();
+$('crosshair-setting').value=settings.crosshair;$('quality-setting').value=arenaQuality;syncChoices();
+// Shared with the campaign's Options → Graphics quality.
+$('quality-setting').addEventListener('change',event=>{arenaQuality=event.target.value;saveQuality(arenaQuality);arenaPost.setQuality(arenaQuality);resize();});
 const applyCrosshair=()=>{$('crosshair').dataset.shape=settings.crosshair;$('crosshair').textContent=settings.crosshair==='cross'?'+':'';};
 applyCrosshair();
 $('crosshair-setting').addEventListener('change',event=>{settings.crosshair=event.target.value;applyCrosshair();saveSettings();});
@@ -1341,19 +1371,11 @@ function render() {
     animateLocalTool(dt, now / 1000);
     if(productionWorld.batchDirty) productionWorld.rebuildPropBatch();
     effects.update(dt); muzzleFlash.update(dt);
-    renderer.render(scene, camera);
-    render.worldCalls=renderer.info.render.calls;
-    // Same depth-separated viewmodel pass as campaign PostFX (without bloom).
-    if(localVmRoot.visible) {
-    renderAudit.viewmodelPasses++;
-    const background = scene.background;
-    const fog = scene.fog;
-    scene.background = null; scene.fog = null;
-    renderer.autoClear = false;
-    renderer.clearDepth();
-    renderer.render(scene, vmCamera);
-    renderer.autoClear = true;
-    scene.background = background; scene.fog = fog;
-    }
+    // Same post stack as the campaign: world, AO, viewmodel layer, tone map, bloom, grade.
+    arenaPost.vmPass.enabled = localVmRoot.visible;
+    if(localVmRoot.visible) renderAudit.viewmodelPasses++;
+    renderer.info.autoReset=false;renderer.info.reset();
+    arenaPost.render(now/1000, 0);
+    render.worldCalls=renderer.info.render.calls;renderer.info.autoReset=true;
 }
 render();
