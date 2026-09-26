@@ -1,0 +1,16 @@
+{
+  "before": {
+    "memory": {
+      "geometries": 253,
+      "textures": 47
+    },
+    "bodies": 8
+  },
+  "after": {
+    "memory": {
+      "geometries": 138,
+      "textures": 47
+    },
+    "bodies": 0
+  }
+}

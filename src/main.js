@@ -15,6 +15,9 @@ import { initInput, onKeyPress, requestPointerLock, exitPointerLock, clearFrameI
 import { initAudio, recoverAudio, audioHealth, startSong, stopMusic, playSound, toggleMute, isMuted, audioDebug, stopAmbience, getMeter, renderDemo, renderSong, renderSfx, songData, setMix } from './audio.js';
 import { gameLog, flushTelemetry, setLogContext, getGameLogs, downloadGameLogs, installErrorLogging } from './logger.js';
 import { loadScores, startRankedRun, checkpointRankedRun, submitScore, cleanPlayerName } from './leaderboard.js';
+// Arena is mounted into the same document so the deathmatch is a real game
+// mode, not a second page the main menu abandons.
+import '../arena/main.js';
 
 installErrorLogging();
 window.addEventListener('load', () => gameLog('boot.window-loaded', {
@@ -97,6 +100,7 @@ function applyFloorLook() {
 
 let state = 'boot-memory'; // boot-memory, boot-title, menu, intro, play, pause, transition, gameover, victory
 let menuIdx = 0;
+let arenaReturnLock = false;
 const PAUSE_ITEMS = ['Resume', 'Restart Floor', 'Controls', 'Toggle Sound', 'Post FX', 'Recover Audio', 'Download Error Logs', 'Quit to Menu'];
 let pauseIdx = 0;
 let pauseSub = null;
@@ -218,7 +222,7 @@ function saveHighScore() {
     }
 }
 
-const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'menu-versions', 'menu-scoreboard', 'screen-loading',
+const SCREENS = ['boot-memory', 'boot-title', 'menu-screen', 'menu-instructions', 'menu-levels', 'menu-options', 'menu-versions', 'menu-scoreboard', 'arena-screen', 'screen-loading',
     'intro-screen', 'screen-transition', 'screen-gameover', 'screen-pause', 'screen-victory'];
 
 function showOnly(...ids) {
@@ -256,6 +260,13 @@ function setState(next) {
             menuCamT = 0;
             $('menu-highscore').textContent = Number(highScore || 0).toLocaleString();
             renderMenu();
+            break;
+        case 'arena':
+            showOnly('arena-screen');
+            hud.hide();
+            exitPointerLock();
+            stopMusic();
+            window.dispatchEvent(new CustomEvent('tq-arena-enter'));
             break;
         case 'intro': showOnly('intro-screen'); break;
         // Keep an existing pointer lock across floor cards. Releasing it here made every
@@ -307,10 +318,11 @@ function setState(next) {
 
 // ------------------------------------------------------------------ MENU
 
-const MENU_ITEMS = ['New Game', 'Level Select', 'Scoreboard', 'Options', 'Instructions', 'Toggle Sound', 'Versions'];
+const MENU_ITEMS = ['New Game', 'Level Select', 'Arena — 8 Players', 'Scoreboard', 'Options', 'Instructions', 'Toggle Sound', 'Versions'];
 const MENU_DETAILS = [
     ['CASE FILE T-17', 'RECOVER THE TABLES', 'Begin the break-in at Cartel HQ.'],
     ['FLOOR PLANS', 'CHOOSE AN OPERATION', 'Practice any floor with its starting arsenal.'],
+    ['ONLINE BETA', 'TABLE QUEST ARENA', 'Eight staff. Five minutes. Every tool on the Office floor.'],
     ['GLOBAL RANKINGS', 'TOP 20 ARTISANS', 'See who got furthest in New Game campaigns.'],
     ['FIELD SETTINGS', 'OPTIONS', 'Pick any generation of the game, post-processing, field of view, mouse, sound.'],
     ['FIELD MANUAL', 'TOOLS OF THE TRADE', 'Review movement, weapons, and objectives.'],
@@ -502,7 +514,7 @@ function renderMenu() {
     $('menu-detail-title').textContent = title;
     $('menu-detail-copy').textContent = copy;
     $('menu-sound-value').textContent = isMuted() ? 'OFF' : 'ON';
-    items[5].setAttribute('aria-pressed', String(isMuted()));
+    [...items].find((el) => el.querySelector('#menu-sound-value'))?.setAttribute('aria-pressed', String(isMuted()));
 }
 
 function renderPause() {
@@ -641,20 +653,38 @@ function menuSelect() {
     else if (item === 'Instructions') { menuSub = 'instructions'; showOnly('menu-instructions'); }
     else if (item === 'Toggle Sound') updateMute(toggleMute());
     else if (item === 'Versions') { menuSub = 'versions'; versionIdx = 0; renderVersions(); showOnly('menu-versions'); }
+    else if (item === 'Arena — 8 Players') setState('arena');
 }
+
+// The Arena back control dispatches this event from its embedded shadow root.
+// Returning through the game state machine restores the exact main menu the
+// player entered from, including its live Lobby backdrop.
+window.addEventListener('tq-arena-exit', () => {
+    arenaReturnLock = true;
+    // Returning from Arena is a return to the main menu, not a persistent
+    // Arena selection. Start on New Game so the menu has one clear focus.
+    menuIdx = 0;
+    // Let the originating pointer/click sequence finish before revealing the
+    // menu; otherwise the same click can land on a menu item underneath Arena.
+    setTimeout(() => {
+        setState('menu');
+        startSong('menu');
+        setTimeout(() => { arenaReturnLock = false; }, 300);
+    }, 0);
+});
 
 function updateMute(m) {
     $('mute-indicator').classList.toggle('hidden', !m);
     $('menu-sound-value').textContent = m ? 'OFF' : 'ON';
-    document.querySelectorAll('#menu-items .menu-item')[5].setAttribute('aria-pressed', String(m));
+    document.querySelector('#menu-sound-value')?.closest('.menu-item')?.setAttribute('aria-pressed', String(m));
     if ($('opt-sound')) $('opt-sound').textContent = m ? 'OFF' : 'ON';
 }
 
 // menu mouse support
 document.querySelectorAll('#menu-items .menu-item').forEach((el, i) => {
-    el.addEventListener('click', () => { menuIdx = i; renderMenu(); menuSelect(); });
-    el.addEventListener('mouseenter', () => { menuIdx = i; renderMenu(); });
-    el.addEventListener('focus', () => { menuIdx = i; renderMenu(); });
+    el.addEventListener('click', () => { if (arenaReturnLock) return; menuIdx = i; renderMenu(); menuSelect(); });
+    el.addEventListener('mouseenter', () => { if (arenaReturnLock) return; menuIdx = i; renderMenu(); });
+    el.addEventListener('focus', () => { if (arenaReturnLock) return; menuIdx = i; renderMenu(); });
 });
 document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
     el.addEventListener('click', () => { pauseIdx = i; renderPause(); pauseSelect(); });
@@ -968,6 +998,9 @@ onKeyPress((e) => {
     if (e.target?.matches?.('input, textarea')) return;
     const wasPlaying = state === 'play';
     switch (state) {
+        case 'arena':
+            // Arena owns movement, pointer-lock, chat, and lobby keyboard input.
+            break;
         case 'boot-memory':
             setState('boot-title');
             initAudio();
@@ -1061,8 +1094,22 @@ onKeyPress((e) => {
 $('boot-memory').addEventListener('click', () => {
     if (state === 'boot-memory') { setState('boot-title'); initAudio(); startSong('menu'); armTitleTimer(); }
 });
-$('boot-title').addEventListener('click', () => {
-    if (state === 'boot-title') { clearTimeout(bootTimer); setState('menu'); }
+$('boot-title').addEventListener('click', (event) => {
+    if (state === 'boot-title') {
+        event.preventDefault();
+        event.stopPropagation();
+        clearTimeout(bootTimer);
+        arenaReturnLock = true;
+        menuIdx = 0;
+        // The boot card covers the same coordinates as the menu. Defer its
+        // removal until the pointer sequence ends so the click cannot activate
+        // an underlying menu item.
+        setTimeout(() => {
+            if (state !== 'boot-title') return;
+            setState('menu');
+            setTimeout(() => { arenaReturnLock = false; }, 300);
+        }, 120);
+    }
 });
 $('intro-screen').addEventListener('click', () => {
     if (state === 'intro') finishIntro(true);
@@ -1344,7 +1391,7 @@ window.TQ = {
     get renderer() { return renderer; },
     get postfx() { return postfx; },
     get hud() { return hud; },
-    openOptions() { setState('menu'); menuIdx = 3; renderMenu(); menuSelect(); return 'options'; },
+    openOptions() { setState('menu'); menuIdx = 4; renderMenu(); menuSelect(); return 'options'; },
     setPostFX(on = true) { postfx.enabled = !!on; return 'postfx ' + postfx.enabled; },
     get scene() { return scene; },
     get player() { return game.player; },
@@ -1543,3 +1590,6 @@ window.TQ = {
 };
 
 console.log('%cSANDY\'S TABLE QUEST 3D — v2.0', 'color:#d9a066;font-size:16px;font-weight:bold');
+
+// Returning from the standalone Arena lands directly on the main menu.
+if (location.hash === '#menu') { clearTimeout(bootTimer); setState('menu'); }

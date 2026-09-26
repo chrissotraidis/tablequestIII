@@ -1,14 +1,14 @@
 # Table Quest Arena: eight-player prototype plan
 
-Status: **proposed design; multiplayer is not implemented or deployed.** Updated 2026-09-09. This plan supersedes the exploratory four-to-six-player and ten-player room suggestions in the earlier research. The prototype has one room and a hard limit of eight occupied/reserved player slots. It does not promise a delivery date or measured Zo capacity.
+Status: **local beta implemented and validated; Zo deployment and capacity are unverified.** Updated 2026-09-11. The current goal overrides the earlier Penthouse/two-weapon examples below: the first playable room is one adapted Office map inside the main Table Quest shell, eight occupied/reserved slots, all five existing tools as server-owned pickups, five-minute free-for-all rounds, respawns, standings and rematch. The plan still records deferred expansion decisions and does not promise measured Zo capacity.
 
 ## Product decision
 
-Build a separate first-person, five-minute free-for-all mode using Table Quest's existing modern art, tools, audio and environments. Players choose a name and staff appearance, enter a lobby, ready up, play, respawn, chat and see the match leaderboard. Preserve the campaign, its high scores and saved settings, and the frozen legacy games.
+Build an integrated first-person, five-minute free-for-all mode inside Table Quest's existing game shell, using its modern art, tools, audio and environments. Players choose a name and staff appearance, enter a lobby, ready up, play, respawn, chat and see the match leaderboard without leaving the main app. Preserve the campaign, its high scores and saved settings, and the frozen legacy games.
 
-Use all six modern floors as the eventual Arena map pool: The Lobby, The Office, The Archives, The Showroom, The Factory and The Penthouse. First prove the complete loop on an adapted Penthouse, then release each additional map only after its own collision, spawn and eight-player playtest gates pass. The old-generation games are not part of this map conversion.
+Use all six modern floors as the eventual Arena map pool: The Lobby, The Office, The Archives, The Showroom, The Factory and The Penthouse. First prove the complete loop on one adapted Office, then release each additional map only after its own collision, spawn and eight-player playtest gates pass. The old-generation games are not part of this map conversion.
 
-The first usable prototype includes two weapons: paintbrush and table leg, plus respawning paint, food and a table-leg pickup. The remaining existing weapons join during the map-pool milestone after projectile, splash and third-person weapon tests. Every player sees a first-person view; other players see a complete character body. A third-person camera mode is unnecessary.
+The first usable prototype includes all five existing tools—paintbrush, table leg, sprayer, nailgun and roller—as respawning server-owned pickups, plus paint and food. Every player sees a first-person view; other players see a complete character body. A third-person camera mode is unnecessary.
 
 ## Scope and ownership
 

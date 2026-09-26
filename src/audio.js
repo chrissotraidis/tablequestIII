@@ -24,6 +24,16 @@ import { createVoice, voiceCounts, stopVoices } from './audio-voice.js';
 let G = null;          // live graph (see buildGraph)
 let audioCtx = null;   // alias of G.ctx, kept for the classic code paths
 let muted = false;
+let outputVolume=1;
+try{const saved=Number(localStorage.getItem('tq-audio-volume')??1);if(Number.isFinite(saved))outputVolume=Math.max(0,Math.min(1,saved));}catch{}
+export function getOutputVolume(){return outputVolume;}
+export function setOutputVolume(value){
+    if(!Number.isFinite(value))return outputVolume;
+    outputVolume=Math.max(0,Math.min(1,value));
+    try{localStorage.setItem('tq-audio-volume',String(outputVolume));}catch{}
+    if(G&&!G.offline){const t=G.ctx.currentTime;holdParam(G.output.gain,t);G.output.gain.setTargetAtTime(.94*outputVolume,t,.012);}
+    return outputVolume;
+}
 let contextGeneration = 0;
 // Leave real mix headroom before the safety limiter. Dense combat can stack a
 // full arrangement, weapon transients, barks and reverb in the same 10 ms.
@@ -124,7 +134,7 @@ function buildGraph(ctx, offline = false) {
     g.limiter = ctx.createDynamicsCompressor();
     g.limiter.threshold.value = -3; g.limiter.knee.value = 0; g.limiter.ratio.value = 20;
     g.limiter.attack.value = 0.001; g.limiter.release.value = 0.06;
-    g.output = gain(0.94);
+    g.output = gain(0.94 * (offline ? 1 : outputVolume));
     g.comp.connect(g.limiter); g.limiter.connect(g.output); g.output.connect(ctx.destination);
 
     g.master = gain(muted && !offline ? 0 : MASTER_LEVEL);
@@ -1140,11 +1150,13 @@ const SCHEDULER_TICK_MS = 40;
 /** which ambience bed a song implies (levels pass their own key) */
 const SONG_AMBIENCE = { menu: 'menu', intro: null, lobby: 'lobby', office: 'office', archives: 'archives', showroom: 'showroom', factory: 'factory', boss: 'boss' };
 
-export function startSong(name) {
+let songPlaylist=[];
+export function startSong(name, {playlist=[]}={}) {
     initAudio();
     const s = getSongs()[name];
     if (!s) return;
     stopMusic({ fadeInNew: true });
+    songPlaylist=playlist.filter(key=>getSongs()[key]);
     currentSong = s;
     currentSongName = name;
     step16 = 0;
@@ -1180,7 +1192,7 @@ function scheduler() {
     if (!playing || !G) return;
     lastSchedulerAt = performance.now();
     try {
-        const step16Dur = (60 / currentSong.bpm) / 4;
+        let step16Dur = (60 / currentSong.bpm) / 4;
         // A busy render thread can delay this timer. Never replay every missed beat:
         // doing so creates a burst of audio nodes that makes the CPU stall worse and
         // can starve the output completely. Skip cleanly to the current musical step.
@@ -1208,7 +1220,11 @@ function scheduler() {
             scheduleStep(currentSong, ORCHESTRATION[currentSongName], step16, nextNoteTime + lean);
             nextNoteTime += step16Dur;
             step16++;
-            if (step16 >= currentSong.length * 4) step16 = 0;
+            if (step16 >= currentSong.length * 4) {
+                step16=0;
+                const choices=songPlaylist.filter(key=>key!==currentSongName);
+                if(choices.length){currentSongName=choices[Math.floor(Math.random()*choices.length)];currentSong=getSongs()[currentSongName];step16Dur=(60/currentSong.bpm)/4;gameLog('audio.playlist-next',{song:currentSongName});}
+            }
         }
     } catch (error) {
         schedulerErrors++;
@@ -1357,7 +1373,11 @@ export function playSound(type, opts = {}) {
     const voice = createVoice(ctx);
     try {
     const now = ctx.currentTime;
-    const out = G.sfx;
+    let out = G.sfx;
+    if(opts.gain!==undefined||opts.pan!==undefined){
+        const gain=voice.create('createGain'),pan=voice.create('createStereoPanner');
+        gain.gain.value=Math.max(0,Math.min(1,opts.gain??1));pan.pan.value=Math.max(-1,Math.min(1,opts.pan??0));gain.connect(pan);pan.connect(out);out=gain;
+    }
     const reverbNode = G.reverb;
     lastSfx = type;
 
@@ -1792,7 +1812,7 @@ export function audioHealth() {
         schedulerErrors, underruns: schedulerUnderruns,
         musicDb: +busDb(G?.musicAnalyser).toFixed(1), sfxDb: +busDb(G?.sfxAnalyser).toFixed(1),
         outputDb: +getMeter().db.toFixed(1),
-        masterGain: G?.master.gain.value, musicGain: G?.music.gain.value, duckGain: G?.duck.gain.value,
+        outputVolume, outputGain: G?.output.gain.value, masterGain: G?.master.gain.value, musicGain: G?.music.gain.value, duckGain: G?.duck.gain.value,
         hidden: document.hidden,
     };
 }

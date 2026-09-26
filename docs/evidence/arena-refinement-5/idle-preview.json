@@ -1,0 +1,14 @@
+{
+  "worldFrames": 2659,
+  "previewFrames": 0,
+  "before": {
+    "frames": 1,
+    "geometries": 16,
+    "modelsLoaded": false
+  },
+  "after": {
+    "frames": 1,
+    "geometries": 16,
+    "modelsLoaded": false
+  }
+}

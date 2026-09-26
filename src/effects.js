@@ -287,11 +287,11 @@ export class Effects {
      * Surface-aware impact (MODERN M2.3). surface: 'metal'|'stone'|'concrete'|
      * 'wood'|'office'|'glass'|'carpet'|'marble'|'paint'. kind: 'paint'|'nail'.
      */
-    impact(pos, normal, surface, color, kind = 'paint') {
+    impact(pos, normal, surface, color, kind = 'paint', {decalSize} = {}) {
         const n = normal;
         if (kind === 'nail') {
             // nails: a small dark hole + sparks on metal, chips on wood, dust elsewhere
-            this.splat(pos, n, new THREE.Color(0x1a1a1a), 0.05);
+            if(decalSize !== 0) this.splat(pos, n, new THREE.Color(0x1a1a1a), decalSize ?? 0.05);
             if (surface === 'metal' || surface === 'glass') {
                 this.burst(pos, new THREE.Color(0xffe9a0), 14, 3.6, 0.28, { additive: true, size: 0.03, gravity: 9, dir: n, dirW: 0.8 });
             } else if (surface === 'wood' || surface === 'office') {
@@ -302,7 +302,7 @@ export class Effects {
             return;
         }
         // paint: the classic splat + spray, plus a surface reaction
-        this.splat(pos, n, color, 0.26 + Math.random() * 0.18);
+        if(decalSize !== 0) this.splat(pos, n, color, decalSize ?? (0.26 + Math.random() * 0.18));
         this.burst(pos, color, 8, 1.4, 0.35, { dir: n, dirW: 0.4 });
         if (surface === 'metal' || surface === 'glass') {
             this.burst(pos, new THREE.Color(0xfff4d0), 5, 2.4, 0.22, { additive: true, size: 0.025, gravity: 8, dir: n, dirW: 0.7 });

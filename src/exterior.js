@@ -90,11 +90,12 @@ let glassMat = null, mullionMat = null;
 
 export function getGlassMaterial() {
     if (!glassMat) {
-        // glass has almost no diffuse: a dark tint keeps the key light from
-        // washing the pane, roughness/env give it the sheen
+        // Keep the pane transparent, but give it enough cool tint and
+        // environment sheen to read as glass against the warm Showroom.
         glassMat = new THREE.MeshStandardMaterial({
-            color: 0x18242e, transparent: true, opacity: 0.3, roughness: 0.05, metalness: 0.15,
-            envMapIntensity: 0.4, depthWrite: false, side: THREE.FrontSide,
+            color: 0x6f9eaa, transparent: true, opacity: 0.28, roughness: 0.08, metalness: 0.05,
+            emissive: 0x0d252c, emissiveIntensity: 0.16,
+            envMapIntensity: 1.2, depthWrite: false, side: THREE.FrontSide,
         });
     }
     return glassMat;
