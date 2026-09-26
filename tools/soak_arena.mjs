@@ -16,8 +16,8 @@ ws.on('message', (raw) => { const m = JSON.parse(raw);
   if (m.type === 'snapshot') { snaps++; bytes += raw.length; } });
 setInterval(() => { if (state === 'active') ws.send(JSON.stringify({ v: 1, type: 'input', matchId, seq: ++seq, moveY: 1, yaw: seq / 40, fire: seq % 8 === 0, viewDelay: 120 })); }, 33);
 const samples = [];
-const sample = async () => { const h = await (await fetch('http://127.0.0.1:' + port + '/health')).json(); const rss = Number((await new Promise((r) => { const p = spawn('ps', ['-o', 'rss=', '-p', String(server.pid)]); let o = ''; p.stdout.on('data', (d) => o += d); p.on('close', () => r(o)); })).trim()) / 1024; samples.push({ t: samples.length, rssMB: +rss.toFixed(1), tickP95: h.metrics.tickMsP95, loopP99: h.metrics.eventLoopP99Ms, state: h.state }); };
+const sample = async () => { const h = await (await fetch('http://127.0.0.1:' + port + '/health')).json(); const rss = Number((await new Promise((r) => { const p = spawn('ps', ['-o', 'rss=', '-p', String(server.pid)]); let o = ''; p.stdout.on('data', (d) => o += d); p.on('close', () => r(o)); })).trim()) / 1024; samples.push({ t: samples.length, heapMB: h.memory.heapUsedMB, rssMB: +rss.toFixed(1), tickP95: h.metrics.tickMsP95, loopP99: h.metrics.eventLoopP99Ms, state: h.state }); };
 for (let i = 0; i < minutes; i++) { await new Promise((r) => setTimeout(r, 60000)); await sample(); }
 const first = samples.slice(1, 4).reduce((a, s) => a + s.rssMB, 0) / 3, last = samples.slice(-3).reduce((a, s) => a + s.rssMB, 0) / 3;
-console.log(JSON.stringify({ minutes, rounds, avgSnapshotBytes: Math.round(bytes / snaps), rssStartMB: +first.toFixed(1), rssEndMB: +last.toFixed(1), worstTickP95: Math.max(...samples.map((s) => s.tickP95)), worstLoopP99: Math.max(...samples.map((s) => s.loopP99)), serverErrors: errors }));
+console.log(JSON.stringify({ minutes, rounds, avgSnapshotBytes: Math.round(bytes / snaps), rssStartMB: +first.toFixed(1), rssEndMB: +last.toFixed(1), worstTickP95: Math.max(...samples.map((s) => s.tickP95)), worstLoopP99: Math.max(...samples.map((s) => s.loopP99)), serverErrors: errors, heapTrendMB: samples.map((s) => s.heapMB) }));
 server.kill(); process.exit(0);

@@ -22,6 +22,7 @@ import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js'
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { SMAAPass } from 'three/addons/postprocessing/SMAAPass.js';
 import { QUALITY } from './quality.js';
 
 const GradeShader = {
@@ -95,9 +96,10 @@ export class PostFX {
         this.motion = 0;
 
         const size = renderer.getSize(new THREE.Vector2());
-        // 5.0: the composer's own targets carry MSAA. Without it every edge was
-        // aliased whenever post-processing was on (the canvas MSAA never applied).
-        const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType, samples: QUALITY[quality]?.samples ?? 4 });
+        // 5.0: edges are anti-aliased by one SMAA pass at the end. (Canvas MSAA
+        // never applied through the composer; multisampled composer targets made
+        // every full-screen pass resolve and halved the frame rate.)
+        const target = new THREE.WebGLRenderTarget(size.x, size.y, { type: THREE.HalfFloatType });
         this.composer = new EffectComposer(renderer, target);
         this.renderPass = new RenderPass(scene, camera);
         // K7: the hands and weapon are drawn by their own narrow camera (48°) on top of the world
@@ -132,6 +134,7 @@ export class PostFX {
         this.composer.addPass(this.output);
         this.composer.addPass(this.bloom);
         this.composer.addPass(this.grade);
+        this.smaa = new SMAAPass(); this.composer.addPass(this.smaa);
         this.setQuality(quality);
         this.setSize(size.x, size.y);
         this.applyGrade(DEFAULT_GRADE);
@@ -141,12 +144,11 @@ export class PostFX {
     setQuality(name) {
         const q = QUALITY[name] || QUALITY.high;
         this.quality = q;
-        for (const target of [this.composer.renderTarget1, this.composer.renderTarget2]) {
-            if (target.samples !== q.samples) { target.samples = q.samples; target.dispose(); }
-        }
+        this.smaa.enabled = q.samples > 0;
         this.gtao.enabled = q.ao;
         this.bloom.enabled = q.bloom && !this.performanceMode;
-        this.aoScale = q.aoScale;
+        this.aoScale = q.aoScale; this.bloomScale = q.bloomScale ?? 1;
+        this.gtao.updateGtaoMaterial({ samples: q.aoSamples ?? 16 });
         if (this.width) this.setSize(this.width, this.height);
     }
 
@@ -154,7 +156,7 @@ export class PostFX {
         this.width = w; this.height = h;
         this.vmCamera.aspect = w / Math.max(1, h); this.vmCamera.updateProjectionMatrix();
         this.composer.setSize(w, h);
-        this.bloom.setSize(w, h);
+        this.bloom.setSize(Math.round(w * (this.bloomScale ?? 1)), Math.round(h * (this.bloomScale ?? 1)));
         // AO runs at a fraction of the drawing-buffer size on lower presets.
         const ratio = this.renderer.getPixelRatio() * (this.aoScale ?? 1);
         this.gtao.setSize(Math.round(w * ratio), Math.round(h * ratio));

@@ -1033,7 +1033,8 @@ async function staticResponse(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/health' || url.pathname === '/api/arena/health') {
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({ ok: validateOfficeManifest(OFFICE_ARENA).length === 0, protocol: PROTOCOL_VERSION, mapHash: OFFICE_MAP_HASH, state: room.state, players: room.players.size, connected: [...room.players.values()].filter((p) => p.socket).length, metrics }));
+        const mem = process.memoryUsage();
+        res.end(JSON.stringify({ ok: validateOfficeManifest(OFFICE_ARENA).length === 0, protocol: PROTOCOL_VERSION, mapHash: OFFICE_MAP_HASH, state: room.state, players: room.players.size, connected: [...room.players.values()].filter((p) => p.socket).length, memory: { rssMB: +(mem.rss / 1048576).toFixed(1), heapUsedMB: +(mem.heapUsed / 1048576).toFixed(1) }, metrics }));
         return;
     }
     if (url.pathname === '/api/arena/rooms') {
