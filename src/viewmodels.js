@@ -259,11 +259,14 @@ export function buildBrushViewmodel() {
     for (let i = 0; i < 6; i++) { const fl = sph(0.0025, paintM, 6, 5); fl.scale.set(1.4, 0.3, 1); fl.position.set(-0.03 + i * 0.012, (i % 2 ? 1 : -1) * 0.0105, -0.07 - (i % 3) * 0.01); head.add(fl); } // flecks on the bristles
     inner.add(head);
     // right hand on the handle waist (grip spec only — hands are parked, see docs/modern/HANDS_REINTRODUCTION.md)
-    const R = buildHand({ side: 'R', grip: V(0, -0.003, 0.035), elbow: V(0.16, -0.31, 0.32), radius: 0.015, axis: V(0, 0, -1), curl: 0.95, forearm: V(0, 0.2, 0.98) });
+    const R = buildHand({ side: 'R', grip: V(0, -0.003, 0.085), radius: 0.015, axis: V(0, 0, -1), out: V(0.35, 0.93, 0), curl: 0.95, curls: { f: [[1.15, 1.2, 0.8], [1.2, 1.25, 0.85], [1.15, 1.2, 0.8], [1.05, 1.1, 0.75]], thumb: [0.4, 0.6, 0.5], spread: 0.03 }, forearm: V(0.25, -0.7, 0.67) }); // 5.0: fist behind the ferrule, knuckles up, forearm dropping below the frame
     inner.add(R.group);
     const off = new THREE.Group(); inner.add(off); // the brush is one-handed; empty part kept for the animator
     g.position.set(0.05, -0.09, -0.02); g.scale.setScalar(0.92); // handle end behind the bench
-    return finish(g, 'paintbrush', 0.0, V(0, 0.0, -0.24), { pos: V(0.04, -0.1, -0.5), rotX: 0.2, rotY: -0.05 }, { head, offHand: off });
+    const baked = finish(g, 'paintbrush', 0.0, V(0, 0.0, -0.24), { pos: V(0.04, -0.1, -0.5), rotX: 0.2, rotY: -0.05 }, { head, offHand: off });
+    // 5.0: grip tuned in the baked root frame with TQ.game.retuneHands (fist behind the ferrule, forearm out of frame)
+    Object.assign(baked.userData.handSpecs[0], { grip: V(0, -0.003, 0.085), out: V(0.35, 0.93, 0).normalize(), axis: V(0, 0, -1), forearm: V(0.25, -0.7, 0.67).normalize() });
+    return baked;
 }
 
 export function buildLegViewmodel() {
@@ -285,7 +288,7 @@ export function buildLegViewmodel() {
     for (let i = 0; i < 7; i++) { const fr = box(0.006, 0.012 + Math.random() * 0.01, 0.0015, mat(0x2a2a2e, { roughness: 0.95 })); const a = i * 0.9; fr.position.set(Math.cos(a) * 0.041, 0.132 + (i % 2) * 0.006, Math.sin(a) * 0.041); fr.rotation.y = -a; fr.rotation.z = (i % 2 ? 0.4 : -0.3); legG.add(fr); } // T5: fraying tape edge
     for (let i = 0; i < 6; i++) { const sp = bar(V(Math.cos(i * 1.1) * 0.03, 0.5 + i * 0.004, Math.sin(i * 1.1) * 0.03), V(Math.cos(i * 1.1) * 0.045, 0.53 + i * 0.008, Math.sin(i * 1.1) * 0.045), 0.003, 0.001, mat(0xd9c49a, { roughness: 0.9 }), 5); legG.add(sp); } // splinters where the plate tore off
     for (let i = 0; i < 6; i++) { const ch = box(0.008 + Math.random() * 0.008, 0.0015, 0.005 + Math.random() * 0.01, mat(0xd8c49c, { roughness: 0.85 })); const a = i * 1.3; ch.position.set(Math.cos(a) * 0.027, 0.18 + i * 0.05, Math.sin(a) * 0.027); ch.rotation.y = -a; legG.add(ch); } // varnish chips
-    legG.add(buildHand({ side: 'R', grip: V(0, 0.075, 0), radius: 0.04, axis: V(0, 1, 0), out: V(-0.37, 0, 0.93), curl: 0.9, forearm: V(0.415, -0.49, -0.77) }).group); // right hand on the tape, knuckles toward the lens, thumb up the shaft, forearm down the shaft's line
+    legG.add(buildHand({ side: 'R', grip: V(0, 0.075, 0), radius: 0.04, axis: V(0, 1, 0), out: V(-0.37, 0, 0.93), curl: 0.9, curls: { f: [[1.2, 1.25, 0.85], [1.25, 1.3, 0.9], [1.2, 1.25, 0.85], [1.1, 1.15, 0.8]], thumb: [0.45, 0.7, 0.55], spread: 0.02 }, forearm: V(0.415, -0.49, -0.77) }).group); // right hand on the tape, knuckles toward the lens, thumb up the shaft, forearm down the shaft's line
     g.add(inner);
     g.scale.setScalar(0.62); g.position.set(0.13, -0.13, 0.02); // S1: floating leg — the taped grip rises from behind the bench
     return finish(g, 'tableLeg', 0, V(0, 0.2, -0.3));
@@ -355,7 +358,7 @@ export function buildNailgunViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, -0.058, 0.075), radius: 0.022, axis: gripAxis, curl: 0.95, trigger: V(0, -0.03, 0.036) });
     inner.add(R.group);
     const off = new THREE.Group();
-    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.11, -0.15), radius: 0.026, axis: V(0, 0, -1), watch: true }).group);
+    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.11, -0.15), radius: 0.026, axis: V(0, 0, -1), watch: false }).group);
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.02, -0.075, -0.02); g.rotation.y = 0.26; g.rotation.z = -0.12; g.rotation.x = 0.06; // S1: floating weapon — the grip sits behind the bench // low-right, yawed in so the muzzle meets the crosshair and the left flank shows
@@ -428,7 +431,7 @@ export function buildRollerViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, TY - 0.088, 0.075), radius: 0.022, axis: gripAxis, curl: 0.95, trigger: V(0, TY - 0.065, 0.038) });
     inner.add(R.group);
     const off = new THREE.Group();
-    off.add(buildHand({ side: 'L', grip: V(0, TY - 0.088, -0.12), radius: 0.018, axis: V(0, 1, 0), curl: 0.95, watch: true }).group);
+    off.add(buildHand({ side: 'L', grip: V(0, TY - 0.088, -0.12), radius: 0.018, axis: V(0, 1, 0), curl: 0.95, watch: false }).group);
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.04, -0.075, -0.02); g.rotation.y = 0.2; g.rotation.z = -0.08; // S1: grip behind the bench
@@ -485,7 +488,7 @@ export function buildSprayerViewmodel() {
     const R = buildHand({ side: 'R', grip: V(0, -0.055, 0.02), radius: 0.019, axis: gripAxis, curl: 0.95, trigger: V(0, -0.035, -0.02) });
     inner.add(R.group);
     const off = new THREE.Group();
-    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.028, -0.07), radius: 0.024, axis: V(0, 0, -1), watch: true }).group);
+    off.add(buildHand({ side: 'L', mode: 'support', grip: V(0, -0.028, -0.07), radius: 0.024, axis: V(0, 0, -1), watch: false }).group);
     inner.add(off);
     g.add(inner);
     g.scale.setScalar(0.9); g.position.set(0.1, -0.105, -0.03); g.rotation.y = 0.24; // S1: grip behind the bench

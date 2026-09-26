@@ -140,6 +140,22 @@ export class Game {
             this.handsReady = true;
         }).catch(e => console.error('hand models failed to load', e));
         else this.handsReady = true; // floating weapons: nothing to wait for
+        // Harness: rebuild one tool's hands with spec overrides (grip tuning without a rebuild).
+        this.retuneHands = (key, overrides = []) => {
+            const vm = this.viewmodels[key]; if (!vm) return 0;
+            for (const child of [...vm.children]) if (child.userData.rig) vm.remove(child);
+            vm.userData.rigs = [];
+            const SHOULDER = { R: new THREE.Vector3(0.15, -0.46, 0.12), L: new THREE.Vector3(-0.15, -0.46, 0.12) };
+            this.vmRoot.updateMatrix(); vm.updateMatrix();
+            const toLocal = new THREE.Matrix4().multiplyMatrices(this.vmRoot.matrix, vm.matrix).invert();
+            (vm.userData.handSpecs || []).forEach((spec, i) => {
+                const o = overrides[i] || {}; const V3 = (v) => Array.isArray(v) ? new THREE.Vector3(...v) : v;
+                const merged = { ...spec, ...o, grip: V3(o.grip) || spec.grip, out: o.out ? V3(o.out).normalize() : spec.out, axis: o.axis ? V3(o.axis).normalize() : spec.axis, forearm: o.forearm ? V3(o.forearm).normalize() : spec.forearm };
+                const shoulder = (spec.shoulderCam || SHOULDER[spec.side]).clone().applyMatrix4(toLocal);
+                const hand = makeHand({ ...merged, shoulder, parentScale: vm.scale.x }); vm.add(hand); vm.userData.rigs.push(hand.userData.rig);
+            });
+            return vm.userData.rigs.length;
+        };
         // G3.2: camera-space key and rim lights on layer 1 — they light only the viewmodel meshes
         this.vmKey = new THREE.PointLight(0xffffff, 0.15, 3, 2); this.vmKey.position.set(0.35, 0.45, 0.1); this.vmKey.layers.set(1); camera.add(this.vmKey);
         this.vmRim = new THREE.PointLight(0xc8d8ff, 0.5, 3, 2); this.vmRim.position.set(-0.5, 0.2, -0.3); this.vmRim.layers.set(1); camera.add(this.vmRim);
