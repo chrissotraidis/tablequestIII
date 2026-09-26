@@ -13,6 +13,7 @@ import interfaceCss from './interface.css?inline';
 import { drawToolIcon } from '../src/hud.js';
 import { Effects } from '../src/effects.js';
 import { PostFX } from '../src/postfx.js';
+import { SHOW_HANDS, loadHandModels, makeHand } from '../src/handrig.js';
 import { loadQuality, pixelRatioFor } from '../src/quality.js';
 import { MuzzleFlash } from '../src/gunfx.js';
 import { FaceAnim, FACE_DEFAULTS } from '../src/face.js';
@@ -390,6 +391,19 @@ for (const vm of Object.values(localViewmodels)) {
     vm.visible = false; localVmRoot.add(vm);
     vm.userData.basePos = vm.position.clone();
 }
+// 5.0: the same first-person hands as the campaign, posed into each tool's grip.
+if (SHOW_HANDS) loadHandModels().then(() => {
+    const SHOULDER = { R: new THREE.Vector3(0.15, -0.46, 0.12), L: new THREE.Vector3(-0.15, -0.46, 0.12) };
+    localVmRoot.updateMatrix();
+    for (const vm of Object.values(localViewmodels)) {
+        vm.updateMatrix();
+        const toLocal = new THREE.Matrix4().multiplyMatrices(localVmRoot.matrix, vm.matrix).invert();
+        for (const spec of vm.userData.handSpecs || []) {
+            const hand = makeHand({ ...spec, shoulder: (spec.shoulderCam || SHOULDER[spec.side]).clone().applyMatrix4(toLocal), parentScale: vm.scale.x });
+            vm.add(hand); vm.userData.rigs.push(hand.userData.rig);
+        }
+    }
+}).catch(error => console.error('hand models failed to load', error));
 // Campaign camera-space illumination, isolated from the world's shadow map.
 const vmKey = new THREE.PointLight(0xffffff, 0.15, 3, 2);
 vmKey.position.set(0.35, 0.45, 0.1);
