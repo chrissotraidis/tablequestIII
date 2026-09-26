@@ -2,20 +2,49 @@ import * as THREE from 'three';
 import { poseEnemy, poseDeath } from '../enemyanim.js';
 import {
     buildEnemy,
-    buildBrushViewmodel,
-    buildLegViewmodel,
-    buildSprayerViewmodel,
-    buildNailgunViewmodel,
-    buildRollerViewmodel,
 } from '../models.js';
+import { buildViewmodels } from '../viewmodels.js';
+import { createPaintTint } from '../../arena/paint-tint.js';
 
-// Grip positions include the legacy builders' inner-group offsets.
-const TOOLS = {
-    paintbrush: [buildBrushViewmodel, [0, -0.005, 0.05]],
-    tableLeg: [buildLegViewmodel, [0, 0.03, 0]],
-    sprayer: [buildSprayerViewmodel, [0, 0.01, 0.06]],
-    nailgun: [buildNailgunViewmodel, [0, -0.005, 0.065]],
-    roller: [buildRollerViewmodel, [0, -0.005, 0.085]],
+const TOOL_NAMES = ['paintbrush', 'tableLeg', 'sprayer', 'nailgun', 'roller'];
+const TOOLS = Object.fromEntries(TOOL_NAMES.map((name) => [name, true]));
+const PAINT_SHADES = [new THREE.Color(0x2f62d8), new THREE.Color(0x3a5aa8)];
+
+// Held and floor tools use the same detailed models as the first-person view
+// (the old placeholder builders drew the sprayer as a red can). Each model is
+// built once; instances share its geometry and materials and only copy the
+// painted parts so every staff member's tool carries their own color.
+const templateResources = new WeakSet();
+let templates = null;
+function toolTemplates() {
+    if (templates) return templates;
+    templates = {};
+    for (const [name, model] of Object.entries(buildViewmodels())) {
+        const grip = model.userData.handSpecs?.find((spec) => spec.side === 'R')?.grip?.clone() || new THREE.Vector3();
+        model.position.set(0, 0, 0); model.rotation.set(0, 0, 0); model.scale.setScalar(1);
+        model.userData = { weapon: name };
+        model.traverse((object) => {
+            object.layers.set(0);
+            // Viewmodel bookkeeping (e.g. cloneOf: Object3D) would be serialized
+            // on every clone; world tools do not need it.
+            if (object !== model) object.userData = {};
+            if (!object.isMesh) return;
+            object.frustumCulled = true; object.renderOrder = 0;
+            object.castShadow = true; object.receiveShadow = false;
+            templateResources.add(object.geometry);
+            for (const material of [].concat(object.material)) templateResources.add(material);
+        });
+        templates[name] = { model, grip };
+    }
+    return templates;
+}
+const painted = (geometry) => {
+    const colors = geometry?.attributes.color;
+    if (!colors) return false;
+    for (let i = 0; i < colors.count; i++) {
+        if (PAINT_SHADES.some((c) => Math.abs(colors.getX(i) - c.r) + Math.abs(colors.getY(i) - c.g) + Math.abs(colors.getZ(i) - c.b) < .001)) return true;
+    }
+    return false;
 };
 
 // These builders allocate resources per instance; detached visuals are owned here.
@@ -23,8 +52,8 @@ function disposeVisual(group) {
     const geometries = new Set(), materials = new Set();
     group.traverse(object => {
         if (!object.isMesh) return;
-        geometries.add(object.geometry);
-        for (const material of [].concat(object.material)) materials.add(material);
+        if (!templateResources.has(object.geometry)) geometries.add(object.geometry);
+        for (const material of [].concat(object.material)) if (!templateResources.has(material) && !material.userData?.shared) materials.add(material);
     });
     geometries.forEach(geometry => geometry.dispose());
     materials.forEach(material => material.dispose());
@@ -34,6 +63,12 @@ function disposeVisual(group) {
 export function disposeArenaBody(body) {
     body.group.removeFromParent();
     disposeVisual(body.group);
+}
+
+/** Release a detached visual (floor pickup) without touching shared tool models. */
+export function disposeArenaVisual(group) {
+    group.removeFromParent();
+    disposeVisual(group);
 }
 
 /**
@@ -74,37 +109,21 @@ export function buildArenaTool(weapon) {
     if (!Object.hasOwn(TOOLS, weapon)) {
         throw new RangeError(`Unknown Arena tool: ${weapon}`);
     }
-    const [build, grip] = TOOLS[weapon];
-    const visual = build();
-    // Legacy buildArm marks its root with userData.fingers. Remove complete
-    // arms, including off-hands, without relying on child indices or colors.
-    const arms = [];
-    visual.traverse(object => { if (object.userData.fingers) arms.push(object); });
-    for (const arm of arms) {
-        arm.removeFromParent();
-        disposeVisual(arm);
-    }
-    visual.rotation.set(0, 0, 0);
-    visual.scale.setScalar(1);
-    visual.position.set(-grip[0], -grip[1], -grip[2]);
+    const { model, grip } = toolTemplates()[weapon];
+    const visual = model.clone(true);
+    // Painted parts get their own geometry so the tint stays per staff member.
+    visual.traverse((object) => { if (object.isMesh && painted(object.geometry)) object.geometry = object.geometry.clone(); });
+    visual.position.copy(grip).multiplyScalar(-1);
     const tool = new THREE.Group();
     tool.name = `arena-tool-${weapon}`;
     tool.userData.weapon = weapon;
+    tool.userData.tint = createPaintTint({ [weapon]: visual });
     tool.add(visual);
-    tool.traverse(object => {
-        if (object.isMesh) object.castShadow = object.receiveShadow = true;
-    });
     return tool;
 }
 
 export function setArenaToolPaint(tool, color) {
-    if(!tool)return;
-    tool.traverse(object=>{
-        const bristles=object.userData.bristles;
-        if(!bristles)return;
-        bristles.material.color.set(color);
-        bristles.material.emissive.copy(bristles.material.color).multiplyScalar(.25);
-    });
+    tool?.userData.tint?.(new THREE.Color(color).getHex());
 }
 
 /**
@@ -123,8 +142,9 @@ export function attachArenaWeapon(body, weapon = 'paintbrush') {
     if (weapon !== null) {
         attachment = buildArenaTool(weapon);
         setArenaToolPaint(attachment,body.flashMats[0].color);
-        // Local -Y follows the raised arm; legacy tools point down local -Z.
-        attachment.rotation.x = -Math.PI / 2;
+        // Local -Y follows the raised arm; tools point down local -Z. The roll
+        // of PI keeps each tool's top (spray cup, nail magazine) facing up.
+        attachment.rotation.set(-Math.PI / 2, 0, Math.PI);
         attachment.position.set(0, -0.28, 0);
     }
     if (body.weapon) {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {WebSocket} from 'ws';
 process.env.TQ_ARENA_COUNTDOWN_MS='1500';
 process.env.TQ_ARENA_HEARTBEAT_MS='150';
-const {server,room,tick}=await import('../server/arena-server.mjs');
+const {server,room,tick,snapshot}=await import('../server/arena-server.mjs');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function wait(test,label,timeout=5000){const end=Date.now()+timeout;while(!test()){if(Date.now()>end)throw Error(label);await sleep(20);}}
 const clients=[];
@@ -37,6 +37,14 @@ try{
  const player=room.players.get(healthy.welcome.slot);
  send(healthy,{type:'input',matchId:room.matchId,seq:1,moveY:1,yaw:0});
  await wait(()=>player.lastSeq===1,'fresh input accepted');
+ // Walking into a closed door opens it; it swings shut once nobody is near.
+ const doorState=()=>snapshot().doors.find(d=>d.id==='7,19');
+ assert.equal(doorState().open,false);
+ player.x=6.2;player.z=19.5;player.alive=true;
+ for(let s=2;s<12;s++){send(healthy,{type:'input',matchId:room.matchId,seq:s,moveY:1,yaw:0});await sleep(35);}
+ await wait(()=>doorState().open,'walking into a door opens it',2000);
+ player.x=2.5;player.z=3.5;send(healthy,{type:'input',matchId:room.matchId,seq:20,moveY:0,yaw:0});
+ await wait(()=>!doorState().open,'open door closes after nobody is near',7000);
  const base=`http://127.0.0.1:${server.address().port}`;
  const page=await fetch(base+'/arena/',{headers:{'accept-encoding':'gzip'}});
  assert.equal(page.status,200);assert.equal(page.headers.get('content-encoding'),'gzip','Game pages are served compressed');
@@ -52,5 +60,5 @@ try{
  assert.equal(lagging.sent,0,'A client more than 128 KB behind skips snapshots');assert.equal(lagging.dropped,false);
  assert.equal(hopeless.dropped,true,'A client more than 1 MB behind is disconnected');
  assert(fine.sent>=1,'Healthy clients keep receiving snapshots');
- console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed, distinct colors/names, gzip pages, slow-client skip/drop)');
+ console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed, distinct colors/names, gzip pages, slow-client skip/drop, walk-in doors open and close)');
 }catch(error){console.error(error);process.exitCode=1;}finally{for(const client of clients)client.terminate();server.close();setTimeout(()=>process.exit(process.exitCode||0),100);}

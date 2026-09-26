@@ -23,21 +23,48 @@ const SNAPSHOT_EVERY = Math.max(1, Math.round(ARENA_CONFIG.tickRate / ARENA_CONF
 const arenaMap = { ...OFFICE_ARENA, blockingCells: [...OFFICE_ARENA.blockingCells], closedDoorCells: OFFICE_ARENA.doors.map(d => d.id) };
 const cover = new Map(OFFICE_ARENA.blockingCells.map((id) => [id, { id, health: OFFICE_ARENA.props[id].hp }]));
 const doors = new Map(OFFICE_ARENA.doors.map(d => [d.id, { ...d, open: false, openT: 0 }]));
+// Doors behave like the campaign: walking into one opens it, E opens the door
+// you face (or closes it), and open doors swing shut 4 s after nobody is near.
+const DOOR_HOLD_MS = 4000;
+function setDoor(door, open) {
+    if (door.open === open) return;
+    door.open = open;
+    door.closeAt = Date.now() + DOOR_HOLD_MS;
+    broadcast('event', { kind: 'door', id: door.id, open });
+}
+function facingDoor(player, yaw = player.yaw) {
+    for (const dist of [0.8, 1.4]) {
+        const door = doors.get(`${Math.floor(player.x + Math.cos(yaw) * dist)},${Math.floor(player.z + Math.sin(yaw) * dist)}`);
+        if (door) return door;
+    }
+    return null;
+}
 function toggleDoor(player) {
     if (!player.alive || Date.now() < (player.doorAt || 0)) return;
-    const nearby = [...doors.values()].filter(d => Math.hypot(player.x - d.x - 0.5, player.z - d.z - 0.5) < 1.65)
-        .sort((a, b) => Math.hypot(player.x-a.x-.5, player.z-a.z-.5)-Math.hypot(player.x-b.x-.5, player.z-b.z-.5));
-    const door = nearby[0];
+    const door = facingDoor(player) || [...doors.values()]
+        .filter(d => Math.hypot(player.x - d.x - 0.5, player.z - d.z - 0.5) < 1.65)
+        .sort((a, b) => Math.hypot(player.x-a.x-.5, player.z-a.z-.5)-Math.hypot(player.x-b.x-.5, player.z-b.z-.5))[0];
     if (!door) return;
-    door.open = !door.open;
+    setDoor(door, !door.open);
     player.doorAt = Date.now() + 450;
-    broadcast('event', { kind: 'door', id: door.id, open: door.open });
+}
+// Called after a movement step: a closed door just ahead of the walking
+// direction opens, so doors never feel like walls.
+function bumpDoor(player, input) {
+    if (!input.moveX && !input.moveY) return;
+    const heading = input.yaw + Math.atan2(input.moveX, input.moveY);
+    const door = facingDoor(player, heading);
+    if (door && !door.open && Math.hypot(player.x - door.x - .5, player.z - door.z - .5) < 1.2) setDoor(door, true);
 }
 function updateDoors(dt) {
+    const now = Date.now();
     for (const door of doors.values()) {
-        // Never close a collision cell around somebody standing in it.
+        // Never close a collision cell around somebody standing in or near it.
         const occupied = [...room.players.values()].some(p => p.alive && Math.abs(p.x-door.x-.5)<.8 && Math.abs(p.z-door.z-.5)<.8);
-        if (occupied && !door.open) door.open = true;
+        const near = occupied || [...room.players.values()].some(p => p.alive && Math.abs(p.x-door.x-.5)<1.2 && Math.abs(p.z-door.z-.5)<1.2);
+        if (occupied && !door.open) setDoor(door, true);
+        if (door.open && near) door.closeAt = Math.max(door.closeAt || 0, now + 1000);
+        if (door.open && !near && now >= (door.closeAt || 0)) setDoor(door, false);
         door.openT = Math.max(0, Math.min(1, door.openT + (door.open ? 1 : -1) * dt * 2.5));
     }
     arenaMap.closedDoorCells = [...doors.values()].filter(d => d.openT < .75).map(d => d.id);
@@ -813,6 +840,7 @@ function simulate(now) {
                 * Math.min(1, Math.hypot(input.moveX, input.moveY));
             const oldX = player.x, oldZ = player.z;
             moveCircle(arenaMap, player, input, movementScale / ARENA_CONFIG.tickRate);
+            bumpDoor(player, input);
             player.brain.stuckTicks = Math.hypot(input.moveX, input.moveY) > 0 && Math.hypot(player.x - oldX, player.z - oldZ) < 0.001 ? player.brain.stuckTicks + 1 : 0;
             player.vx *= movementScale; player.vz *= movementScale;
             pickupFor(player, now);
@@ -831,7 +859,7 @@ function simulate(now) {
             player.input = input;
             if (input.weapon && player.weapons.has(input.weapon)) player.weapon = input.weapon;
             if (input.tap) { player.yaw = input.yaw; player.pitch = input.pitch; }
-            else { moveCircle(arenaMap, player, input, 1 / ARENA_CONFIG.tickRate); moved = true; }
+            else { moveCircle(arenaMap, player, input, 1 / ARENA_CONFIG.tickRate); bumpDoor(player, input); moved = true; }
             pickupFor(player, now);
             if (input.fire) fire(player, now);
             if (!player.alive) break;

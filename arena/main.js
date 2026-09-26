@@ -3,6 +3,7 @@ import {createPaintTint} from './paint-tint.js';
 import {drawSupplyMap} from './supply-map.js';
 import {ClientMovement} from '../shared/arena/client-movement.js';
 import {ServerClock,pushSample,sampleAt} from './interpolation.js';
+import {choiceGroup} from './choice-group.js';
 import {findPaintSurface} from './paint-surface.js';
 import {createStaffPreview} from './staff-preview.js';
 import { arenaRoute } from '../shared/arena/navigation.js';
@@ -15,12 +16,12 @@ import { MuzzleFlash } from '../src/gunfx.js';
 import { FaceAnim, FACE_DEFAULTS } from '../src/face.js';
 import { OFFICE_ARENA, OFFICE_MAP_HASH } from '../shared/arena/maps.js';
 import { COLORS, PRESETS, ARENA_CONFIG, ARENA_WEAPONS, cleanName } from '../shared/arena/rules.js';
-import { buildArenaBody, buildArenaTool, attachArenaWeapon, updateArenaBodyPose, disposeArenaBody } from '../src/arena/arena-models.js';
+import { buildArenaBody, buildArenaTool, attachArenaWeapon, updateArenaBodyPose, disposeArenaBody, disposeArenaVisual } from '../src/arena/arena-models.js';
 import { LEVELS } from '../src/levels.js';
 import { World } from '../src/world.js';
 import { buildViewmodels } from '../src/viewmodels.js';
 import { applyPose } from '../src/handrig.js';
-import { buildAmmo, buildHealth, buildTableLegPickup, buildSprayerPickup, buildNailgunPickup, buildRollerPickup } from '../src/models.js';
+import { buildAmmo, buildHealth } from '../src/models.js';
 import { initAudio, startSong, setRoom, playSound, isMuted, toggleMute, getOutputVolume, setOutputVolume, audioHealth } from '../src/audio.js';
 
 // The production route mounts Arena in a shadow root owned by the main game.
@@ -73,10 +74,20 @@ try {
 } catch {}
 function saveProfile(){try{localStorage.setItem(profileKey,JSON.stringify({name:cleanName($('name').value),preset:$('preset').value,color:$('color').value}));}catch{}}
 $('name').addEventListener('change',saveProfile);
+// In-theme choices replace the native dropdowns; the selects stay the source of truth.
+const choiceSyncs=[
+    choiceGroup($('preset'),{className:'choice-staff'}),
+    choiceGroup($('color'),{className:'choice-paint',decorate:(button,value)=>{const dot=document.createElement('span');dot.className='choice-swatch';dot.style.background=`#${hex(value).toString(16).padStart(6,'0')}`;button.prepend(dot);}}),
+    choiceGroup($('preview-pose'),{className:'choice-compact'}),
+    choiceGroup($('preview-held'),{className:'choice-tools',decorate:(button,value)=>{const icon=document.createElement('canvas');icon.width=12;icon.height=7;drawToolIcon(icon,value);button.prepend(icon);}}),
+    choiceGroup($('bot-count'),{className:'choice-compact'}),
+    choiceGroup($('crosshair-setting'),{className:'choice-compact'}),
+];
+const syncChoices=()=>choiceSyncs.forEach(sync=>sync());
 
 function updateStaffPreview(){
     const preset=$('preset').value,color=$('color').value;
-    staffPreview.set(preset,color);saveProfile();
+    staffPreview.set(preset,color);saveProfile();syncChoices();
     $('preview-rank').textContent=$('preview-arsenal').classList.contains('hidden')?PRESETS[preset].label:$('preview-tool-name').textContent;
     $('preview-color').textContent=`${color[0].toUpperCase()+color.slice(1)} paint`;
     $('paint-swatch').style.background=`#${hex(color).toString(16).padStart(6,'0')}`;
@@ -208,24 +219,24 @@ addEventListener('resize', resize); resize();
 function hex(name) { return COLORS[name] ?? COLORS.brass; }
 
 function disposePickup(mesh) {
-    mesh.removeFromParent();
-    const geometries = new Set(), materials = new Set();
-    mesh.traverse(object => {
-        if (object.geometry) geometries.add(object.geometry);
-        for (const material of [].concat(object.material || [])) {
-            if (!material.userData.shared) materials.add(material);
-        }
-    });
-    geometries.forEach(geometry => geometry.dispose());
-    materials.forEach(material => material.dispose());
+    disposeArenaVisual(mesh);
 }
 
 const pickupBuilders = {
     paint: buildAmmo, food: buildHealth,
-    paintbrush: () => buildArenaTool('paintbrush'),
-    tableLeg: buildTableLegPickup, sprayer: buildSprayerPickup,
-    nailgun: buildNailgunPickup, roller: buildRollerPickup,
+    paintbrush: () => floorTool('paintbrush'), tableLeg: () => floorTool('tableLeg'),
+    sprayer: () => floorTool('sprayer'), nailgun: () => floorTool('nailgun'), roller: () => floorTool('roller'),
 };
+// Weapon stations show the same detailed tool players hold, enlarged and
+// resting on the floor so it reads from across the room.
+function floorTool(weapon) {
+    const group = new THREE.Group(), tool = buildArenaTool(weapon);
+    tool.scale.setScalar(1.45);
+    group.add(tool);
+    const bounds = new THREE.Box3().setFromObject(group), center = bounds.getCenter(new THREE.Vector3());
+    tool.position.sub(new THREE.Vector3(center.x, bounds.min.y, center.z));
+    return group;
+}
 
 function syncPickup(pickup) {
     const model = pickup.model || pickup.weapon || pickup.kind;
@@ -238,12 +249,6 @@ function syncPickup(pickup) {
     if (!mesh) {
         if (!Number.isFinite(pickup.x) || !Number.isFinite(pickup.z)) return;
         mesh = (pickupBuilders[model] || buildAmmo)();
-        // The arm-free campaign brush is a real tool silhouette, not an ammo can.
-        if (model === 'paintbrush') {
-            const bounds = new THREE.Box3().setFromObject(mesh);
-            const center = bounds.getCenter(new THREE.Vector3());
-            for (const child of mesh.children) child.position.sub(new THREE.Vector3(center.x, bounds.min.y, center.z));
-        }
         mesh.userData.pickupModel = model;
         mesh.userData.restYaw = mesh.rotation.y;
         mesh.traverse(object => { if (object.isMesh) object.castShadow = false; });
@@ -1202,7 +1207,7 @@ $('volume-setting').addEventListener('input',event=>{setOutputVolume(Number(even
 $('test-sound').addEventListener('click',()=>{initAudio();playSound('collect');$('audio-test-status').textContent=isMuted()?'Sound is switched off.':getOutputVolume()===0?'Volume is at zero.':'Played the pickup sound.';});
 $('bob-setting').checked=settings.bob;
 $('bob-setting').addEventListener('change',event=>{settings.bob=event.target.checked;saveSettings();});
-$('crosshair-setting').value=settings.crosshair;
+$('crosshair-setting').value=settings.crosshair;syncChoices();
 const applyCrosshair=()=>{$('crosshair').dataset.shape=settings.crosshair;$('crosshair').textContent=settings.crosshair==='cross'?'+':'';};
 applyCrosshair();
 $('crosshair-setting').addEventListener('change',event=>{settings.crosshair=event.target.value;applyCrosshair();saveSettings();});
