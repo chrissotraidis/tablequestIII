@@ -203,3 +203,5 @@
 @media(max-width:720px){#arena-bench{height:128px;padding:6px 12px}#arena-bench .rack-slot{height:48px;width:46px}#arena-bench .trough{width:105px;height:25px}}
 
 #arena-bench,#arena-bench *{font-variant-numeric:lining-nums tabular-nums}#arena-bench #arena-face{width:108px;height:108px}
+/* 5.2: Georgia only has old-style figures (0 reads as o); numbers use a serif with lining figures */
+#arena-bench #stats,#arena-bench .plaque-value,#arena-bench .trough-value,#timer{font-family:'Palatino Linotype',Palatino,'Book Antiqua','Times New Roman',serif}

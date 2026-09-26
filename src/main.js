@@ -118,6 +118,7 @@ function captureFloorReflections() {
     const w = game.world;
     if (!w || reflectionKey === w) return;
     reflectionKey = w;
+    renderer.shadowMap.needsUpdate = true; // the capture must see this floor's shadows
     try {
         const size = QUALITY[qualityName].ao ? 256 : 128;
         const cubeTarget = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType, generateMipmaps: false });
@@ -390,7 +391,7 @@ const MENU_DETAILS = [
 const OPTIONS = ['generation', 'scoreboard', 'quality', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 // Every release is a single-file build served beside this one.
 const GENERATIONS = [
-    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5.1', note: 'THIS BUILD · 2026 · REBUILT VISUALS, PAINTED PORTRAIT, ARENA ONLINE', url: null },
+    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5.2', note: 'THIS BUILD · 2026 · REBUILT VISUALS, PAINTED PORTRAIT, ARENA ONLINE', url: null },
     { key: 'v4', label: 'GEN 4 · MODERN 4.1', note: 'PREVIOUS · LIT 3D, FLOATING TOOLS, FIRST ARENA', url: 'generations/v4/index.html' },
     { key: 'v21', label: 'GEN 2.1 · 3D REMASTER', note: 'CLASSIC · FIVE WEAPONS, DESTRUCTIBLE FURNITURE, WORKBENCH UI', url: 'generations/v2/index.html' },
     { key: 'v20', label: 'GEN 2.0 · FIRST 3D REMASTER', note: 'THE FIRST WEBGL BUILD · THREE WEAPONS · FIRST COMMIT', url: 'generations/v1/index.html' },
@@ -1319,7 +1320,7 @@ function step(now, render = true) {
             game.update(dt, elapsed);
         }
         hud.update(game.player, game);
-        if (now - lastFaceDrawAt > 66) { hud.drawFace(game.player, elapsed, game); lastFaceDrawAt = now; }
+        if (now - lastFaceDrawAt > 15) { hud.drawFace(game.player, elapsed, game); lastFaceDrawAt = now; } // 5.2: up to ~60 fps (was 15)
         hud.drawMinimap(game, game.player);
         hud.setLockHint(!input.pointerLocked);
     }
@@ -1334,6 +1335,10 @@ function step(now, render = true) {
         if (!backdropOnly || now - lastBackdropAt >= 32) {
             lastBackdropAt = now;
             renderer.info.reset();
+            // 5.2: on high-refresh displays (>100 fps) the world shadow map is redrawn every other frame,
+            // which is still 60 updates a second; at 60 Hz it stays every frame.
+            shadowFrame++;
+            renderer.shadowMap.needsUpdate = !(state === 'play' && rawFrameMs < 10 && shadowFrame % 2);
             postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
         }
     }
@@ -1341,16 +1346,17 @@ function step(now, render = true) {
     clearFrameInput();
 }
 
-let backdropMode = false, lastBackdropAt = 0;
+let backdropMode = false, lastBackdropAt = 0, shadowFrame = 0;
+renderer.shadowMap.autoUpdate = false; // 5.2: step() decides when the world shadow map is redrawn
 function setBackdropMode(on) {
     backdropMode = on;
     const q = QUALITY[qualityName];
     postfx.gtao.enabled = !on && q.ao && !adaptivePerformanceMode;
     postfx.bloom.enabled = !on && q.bloom && !adaptivePerformanceMode;
-    postfx.smaa.enabled = !on && q.samples > 0;
     renderPixelRatio = on ? Math.min(1, preferredPixelRatio()) : preferredPixelRatio();
     renderer.setPixelRatio(renderPixelRatio); renderer.setSize(window.innerWidth, window.innerHeight);
     postfx.setPixelRatio(renderPixelRatio); postfx.setSize(window.innerWidth, window.innerHeight);
+    postfx.updateSmaa(on ? false : null);
 }
 function loop(now) {
     requestAnimationFrame(loop);

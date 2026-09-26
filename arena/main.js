@@ -1348,7 +1348,7 @@ function render() {
     if(eliminationUntil && now>eliminationUntil){$('elimination-notice').classList.add('hidden');eliminationUntil=0;}
     if (noticeUntil && now > noticeUntil) { $('pickup-notice').classList.add('hidden'); noticeUntil = 0; }
     face.update(dt, {...FACE_DEFAULTS, hp: localPlayer?.health ?? 100, dead: localPlayer?.alive === false, moving: Math.hypot(localPlayer?.vx || 0, localPlayer?.vz || 0) > .1, fireAge: vmAnim.recoil > .8 ? .05 : 99});
-    if(!hud.classList.contains('hidden') && now-lastFaceFrame>=66){face.draw($('arena-face').getContext('2d'));lastFaceFrame=now;renderAudit.faceDraws++;}
+    if(!hud.classList.contains('hidden') && now-lastFaceFrame>=15){face.draw($('arena-face').getContext('2d'));lastFaceFrame=now;renderAudit.faceDraws++;}
     productionWorld.dressing?.update?.(dt, now / 1000);
     if (roomState?.state==='results') {
         const wait=Math.max(0,Math.ceil((roomState.resultsAt+10000-Date.now())/1000));
