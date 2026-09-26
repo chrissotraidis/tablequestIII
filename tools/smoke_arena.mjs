@@ -9,7 +9,7 @@ const port = 4182;
 const clientCount = Math.max(2, Math.min(8, Number(process.env.TQ_ARENA_CLIENTS || 2)));
 const outDir = resolve(repo, 'docs/evidence/arena');
 mkdirSync(outDir, { recursive: true });
-const server = spawn(process.execPath, ['server/arena-server.mjs'], { cwd: repo, env: { ...process.env, PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
+const server = spawn(process.execPath, ['server/arena-server.mjs'], { cwd: repo, env: { ...process.env, PORT: String(port), TQ_ARENA_COUNTDOWN_MS: process.env.TQ_ARENA_COUNTDOWN_MS || '1500' }, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = '';
 server.stdout.on('data', (chunk) => { log += chunk; });
 server.stderr.on('data', (chunk) => { log += chunk; });

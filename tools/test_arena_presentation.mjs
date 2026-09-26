@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {findPaintSurface} from '../arena/paint-surface.js';
 import {ClientMovement,INPUT_STEP,takeTickInputs} from '../shared/arena/client-movement.js';
+import {ServerClock,pushSample,sampleAt,MAX_DELAY_MS} from '../arena/interpolation.js';
 import {moveCircle} from '../shared/arena/movement.js';
 const wall=new THREE.Mesh(new THREE.BoxGeometry(1,2,1),new THREE.MeshBasicMaterial());
 wall.position.set(2.5,1,2.5);wall.updateMatrixWorld(true);
@@ -47,4 +48,21 @@ const burst=Array.from({length:8},(_,i)=>({seq:i,tap:i%4===0}));const drained=[]
 assert.deepEqual(drained,[2,2,1,1],'Backlogs catch up without letting taps spend movement steps');
 for(let i=0;i<500;i++)prediction.step(map,{moveX:0,moveY:1,yaw:0,pitch:0},++seq);
 assert(prediction.state.x<=18.74,'Predicted movement must respect walls');
+// A remote player walking at 3.7 m/s, 15 Hz snapshots arriving 40-100 ms late
+// in bunches, drawn at 60 Hz: every rendered frame must advance steadily.
+{
+ const clock=new ServerClock(),samples=[],arrivals=[];let arriveLast=0;
+ for(let t=0;t<3000;t+=1000/15){const at=Math.max(arriveLast,t+40+rand()*60);arriveLast=at;arrivals.push({at,s:{t,x:3.7*t/1000,z:0,yaw:0}});}
+ let last=null,worst=0;
+ for(let now=500;now<2900;now+=1000/60){
+  for(const a of arrivals.filter(a=>a.at<=now && !a.used)){a.used=true;clock.sample(a.s.t,now);pushSample(samples,a.s);}
+  const x=sampleAt(samples,clock.renderTime(now)).x;
+  if(last!==null && now>1500)worst=Math.max(worst,Math.abs((x-last)-3.7/60));
+  last=x;
+ }
+ // One frame of walking is 6.2 cm; the old snap-to-latest path froze and
+ // jumped by 12-18 cm here.
+ assert(worst<.02,`Remote staff must move evenly between jittered snapshots (worst frame error ${worst.toFixed(4)} m)`);
+ assert(clock.delay()<MAX_DELAY_MS,'Interpolation delay stays bounded');
+}
 console.log(`Arena presentation: PASS (anchored paint, clipped edges, no surface/no decal; fixed-step prediction under 40-100 ms jitter, max correction ${(maxCorrection*1000).toFixed(2)} mm vs ${receivedAt-predictedAt} ms authority delay; backlog/tap budget; walls)`);

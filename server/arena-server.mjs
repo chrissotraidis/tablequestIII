@@ -1,9 +1,6 @@
 import {chooseBotWeapon} from '../shared/arena/bot-weapons.js';
 import { arenaRoute } from '../shared/arena/navigation.js';
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import { extname, join as pathJoin, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { performance, monitorEventLoopDelay } from 'node:perf_hooks';
@@ -15,7 +12,6 @@ import { moveCircle, segmentBlocked, insideMap } from '../shared/arena/movement.
 import { MAX_MESSAGE_BYTES, PROTOCOL_VERSION, message, parseMessage } from '../shared/arena/protocol.js';
 import { MAX_QUEUED_INPUTS, takeTickInputs } from '../shared/arena/client-movement.js';
 
-const HERE = fileURLToPath(new URL('../', import.meta.url));
 const HOST = process.env.HOST || '127.0.0.1';
 const PORT = Number(process.env.PORT || 4180);
 const ROUND_MS = Number(process.env.TQ_ARENA_ROUND_MS || ARENA_CONFIG.roundMs);
@@ -226,9 +222,12 @@ function removeBots() {
     for (const [slot, player] of room.players) if (player.bot) room.players.delete(slot);
 }
 
+// Spawn looking into the Office instead of at the nearest wall.
+function faceRoom(x, z) { return Math.atan2(OFFICE_ARENA.height / 2 - z, OFFICE_ARENA.width / 2 - x); }
+
 function resetPlayer(p) {
     const [x, z] = OFFICE_ARENA.spawns[p.slot % OFFICE_ARENA.spawns.length];
-    p.x = x; p.z = z; p.vx = 0; p.vz = 0; p.yaw = 0; p.pitch = 0;
+    p.x = x; p.z = z; p.vx = 0; p.vz = 0; p.yaw = faceRoom(x, z); p.pitch = 0;
     p.health = ARENA_CONFIG.maxHealth; p.paint = 30; p.weapon = 'paintbrush';
     p.weapons = new Set(['paintbrush', 'tableLeg']); p.cooldownAt = 0; p.fireRequested=false; p.alive = true; p.respawnAt = 0;
     p.kills = 0; p.deaths = 0; p.lastSeq = -1; p.queuedSeq = -1; p.inputQueue = []; p.input = normalizeInput({}); p.inputAt = 0; p.ready = false;
@@ -791,7 +790,7 @@ function simulate(now) {
             if (player.inputQueue?.length) { player.lastSeq = player.inputQueue.at(-1).seq; player.inputQueue.length = 0; }
             if (now >= player.respawnAt) {
                 const [x, z] = safestSpawn(player);
-                player.x = x; player.z = z; player.health = ARENA_CONFIG.maxHealth; player.paint = 30; player.alive = true; player.weapon = 'paintbrush'; player.weapons = new Set(['paintbrush', 'tableLeg']);
+                player.x = x; player.z = z; player.yaw = faceRoom(x, z); player.pitch = 0; player.health = ARENA_CONFIG.maxHealth; player.paint = 30; player.alive = true; player.weapon = 'paintbrush'; player.weapons = new Set(['paintbrush', 'tableLeg']);
                 player.botTargetAt = room.tick + botTicks(1.5);
                 player.protectedUntil = now + 1500;
                 player.fireRequested=false;
@@ -967,10 +966,6 @@ function handleMessage(socket, raw) {
     if (data.type === 'ping') return send(socket, 'pong', { now: Date.now() });
 }
 
-function contentType(path) {
-    return { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' }[extname(path)] || 'application/octet-stream';
-}
-
 async function staticResponse(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
     if (url.pathname === '/health' || url.pathname === '/api/arena/health') {
@@ -987,33 +982,11 @@ async function staticResponse(req, res) {
         res.end(JSON.stringify({ rooms: [{ code: room.code, map: OFFICE_ARENA.name, state: room.state, players: participants, humans, maxPlayers: ARENA_CONFIG.maxPlayers, bots, joinable }] }));
         return;
     }
-    // The Arena host is also the game host. Keep campaign scoreboard,
-    // telemetry, and archive routes on the same origin so entering Arena does
-    // not silently break the rest of Table Quest.
-    if (url.pathname.startsWith('/api/')) return handleScoreboardRequest(req, res);
-    if (url.pathname === '/' || url.pathname === '/index.html') {
-        const path = existsSync(pathJoin(HERE, 'dist/index.html')) ? pathJoin(HERE, 'dist/index.html') : pathJoin(HERE, 'index.html');
-        const body = await readFile(path);
-        res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(body); return;
-    }
-    if (url.pathname === '/arena' || url.pathname === '/arena/') {
-        const path = existsSync(pathJoin(HERE, 'dist/arena/index.html')) ? pathJoin(HERE, 'dist/arena/index.html') : pathJoin(HERE, 'arena/index.html');
-        const body = await readFile(path);
-        res.setHeader('content-type', 'text/html; charset=utf-8'); res.end(body); return;
-    }
-    if (!url.pathname.startsWith('/arena/')) {
-        const safe = normalize(url.pathname).replace(/^\.\.(\/|\\|$)/, '');
-        const path = pathJoin(HERE, 'dist', safe);
-        try { const body = await readFile(path); res.setHeader('content-type', contentType(path)); res.end(body); }
-        catch { res.statusCode = 404; res.end('Not found'); }
-        return;
-    }
-    const relative = url.pathname.slice('/arena/'.length) || 'index.html';
-    const safe = normalize(relative).replace(/^\.\.(\/|\\|$)/, '');
-    const base = existsSync(pathJoin(HERE, 'dist/arena')) ? pathJoin(HERE, 'dist/arena') : pathJoin(HERE, 'arena');
-    const path = pathJoin(base, safe);
-    try { const body = await readFile(path); res.setHeader('content-type', contentType(path)); res.end(body); }
-    catch { res.statusCode = 404; res.end('Not found'); }
+    if (url.pathname === '/arena') { res.writeHead(301, { location: '/arena/' }); res.end(); return; }
+    // The Arena host is also the game host: the scoreboard handler serves the
+    // built game (compressed, cache-validated, path-checked) plus the campaign
+    // scoreboard and telemetry API on the same origin.
+    return handleScoreboardRequest(req, res);
 }
 
 const server = createServer((req, res) => staticResponse(req, res).catch(() => { res.statusCode = 500; res.end('Arena server error'); }));

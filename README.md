@@ -224,6 +224,8 @@ npm ci
 | `npm run build` | Modern single-file build → `dist/index.html` (the shipped game) |
 | `npm run preview` | Serve the built file on `http://localhost:4174` |
 | `npm run serve:scoreboard` | Serve `dist/` plus the persistent scoreboard API on `http://localhost:4176` |
+| `npm run serve:arena` | Serve the game, Arena multiplayer and scoreboard API on `http://localhost:4180` (the VPS entry point) |
+| `npm run package:vps` | Package the built game and server for a VPS → `artifacts/tablequest-runtime-<rev>.tgz` ([deploy guide](docs/online/VPS_DEPLOY.md)) |
 | `npm run test:scoreboard` | Verify eligibility, concurrent writes and restart persistence using an isolated temporary database |
 | `npm run test:leaderboard-client` | Check bounded retries/timeouts, offline behavior and late submission isolation |
 | `npm run test:sanity` | Check controls, delayed state changes, artwork and GPU resource cleanup against the local game |
@@ -370,7 +372,7 @@ Released under the [MIT License](LICENSE).
 
 ### Daily play reports and incident logs on a VPS
 
-Serve the built game with `npm run serve:scoreboard` behind your HTTPS reverse proxy. Set
+Serve the built game with `npm run serve:arena` behind your HTTPS reverse proxy ([VPS_DEPLOY.md](docs/online/VPS_DEPLOY.md)). Set
 `TQ_DATA_FILE=/srv/tablequest-data/leaderboard.json` and
 `TQ_TELEMETRY_FILE=/srv/tablequest-data/telemetry.jsonl` to keep both files on persistent storage outside `dist/`.
 Open [docs/online/VPS_SCOREBOARD.md](docs/online/VPS_SCOREBOARD.md) before the public URL goes live.

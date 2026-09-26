@@ -12,6 +12,7 @@
     "smoke:arena": "npm run build:arena && node tools/smoke_arena.mjs",
     "smoke:arena:eight": "npm run build:arena && TQ_ARENA_CLIENTS=8 node tools/smoke_arena.mjs",
     "serve:arena": "node server/arena-server.mjs",
+    "package:vps": "node tools/package_runtime.mjs",
     "preview": "vite preview",
     "serve:scoreboard": "node server/scoreboard-server.mjs",
     "test:scoreboard": "node tools/test_scoreboard.mjs",

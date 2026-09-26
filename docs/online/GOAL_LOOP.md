@@ -139,3 +139,7 @@ Expanded resource verification to 150 held-tool replacements across all three st
 ## Loop 24 — Reduce covered-scene rendering
 
 Applied menu cadence while the match menu/reconnect screen covers play, preserving online simulation. Browser samples verified 34.4 ms menu frames and 9.2 ms resumed frames, plus changing standings and clean leave. [ARENA_REFINEMENT_22.md](ARENA_REFINEMENT_22.md) records limits. Goal remains active.
+
+## Loop — Internet play and VPS packaging (September 26)
+
+An audit with a jitter relay showed Arena worked only on localhost: prediction drift, snapshot-snapping remote staff, no heartbeat or auto-reconnect, and a deploy recipe that omitted the Arena server's files. [ARENA_REFINEMENT_23.md](ARENA_REFINEMENT_23.md) records the fixes and measurements; [VPS_DEPLOY.md](VPS_DEPLOY.md) is the deployment path. Live VPS acceptance remains open until a host is provided.

@@ -37,5 +37,9 @@ try{
  const player=room.players.get(healthy.welcome.slot);
  send(healthy,{type:'input',matchId:room.matchId,seq:1,moveY:1,yaw:0});
  await wait(()=>player.lastSeq===1,'fresh input accepted');
+ const base=`http://127.0.0.1:${server.address().port}`;
+ const page=await fetch(base+'/arena/',{headers:{'accept-encoding':'gzip'}});
+ assert.equal(page.status,200);assert.equal(page.headers.get('content-encoding'),'gzip','Game pages are served compressed');
+ assert.equal((await fetch(base+'/arena',{redirect:'manual'})).status,301,'/arena redirects to /arena/');
  console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed)');
 }catch(error){console.error(error);process.exitCode=1;}finally{for(const client of clients)client.terminate();server.close();setTimeout(()=>process.exit(process.exitCode||0),100);}

@@ -856,7 +856,7 @@ function connect() {
                 playSound(data.destroyed ? 'wood_break' : 'wood_hit');
             }
 
-            if (data.kind === 'match-start') { resumeRequired = false; countdown.classList.add('hidden'); paused = false; lobby.classList.add('hidden'); pausePanel.classList.add('hidden'); hud.classList.remove('hidden'); playSound('alert'); }
+            if (data.kind === 'match-start') { localPlayer = null; resumeRequired = false; countdown.classList.add('hidden'); paused = false; lobby.classList.add('hidden'); pausePanel.classList.add('hidden'); hud.classList.remove('hidden'); playSound('alert'); }
             if (data.kind === 'fire') {
                 const entry = bodies.get(data.slot);
                 if (entry) { entry.pose.fireT = 0.18; if (data.weapon === 'tableLeg') entry.pose.swingT = 0.46; }

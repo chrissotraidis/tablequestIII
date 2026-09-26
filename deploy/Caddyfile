@@ -1,0 +1,7 @@
+# /etc/caddy/Caddyfile
+# Caddy obtains HTTPS certificates automatically and proxies WebSockets
+# (wss://your-domain/arena/ws) without extra settings. Replace the domain.
+tablequest.example.com {
+    encode zstd gzip
+    reverse_proxy 127.0.0.1:4180
+}
