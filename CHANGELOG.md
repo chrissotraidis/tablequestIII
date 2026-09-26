@@ -1,5 +1,39 @@
 # Changelog
 
+## 2026-09-26 — 4.1: Arena online
+
+Table Quest gets its first multiplayer mode. The campaign is unchanged.
+
+### Added
+
+- **Arena — 8 Players.** An Office free-for-all for up to eight staff (humans plus server bots), five minutes, most eliminations wins. It has lobby chat, ready-up and countdown, results with rematch, all five tools as weapon stations, breakable cover, and campaign-style doors: walk in to open, E to open or close the one you face, and they swing shut behind you.
+- **Online play that holds up on real connections.**
+  - The server applies each input once at a fixed 30 Hz step, and the client predicts exactly that step and draws smoothly between steps.
+  - Other players are drawn between snapshots on an adaptive delay.
+  - A heartbeat frees dead connections, and dropped players reconnect automatically to their slot and score.
+  - Slow clients skip snapshots instead of growing server memory.
+- **Hosting.**
+  - One server (`npm run serve:arena`) serves the game, Arena and the scoreboard, with gzip and cache revalidation.
+  - `npm run package:vps` builds a self-contained release, and the VPS guide covers systemd and Caddy HTTPS.
+  - An optional `TQ_ACCESS_PASSWORD` puts a sign-in page in front of everything.
+- **Arena lobby.** Staff, paint and tool choices are in-theme buttons, with a rotatable staff preview and a weapon inspector.
+
+### Changed
+
+- Other players' held tools and the weapon stations use the detailed first-person models in each player's paint color.
+
+### Verified
+
+- Every Arena, scoreboard, leaderboard and audio suite passes, as do the eight-browser smoke test, the classic frozen check and level validation.
+- Browser measurements through a 40–100 ms jitter relay:
+  - zero correction for your own movement at median and p90
+  - constant drawn walking speed
+  - no remote-player freezes
+  - reconnect in about 0.26 s
+- See `docs/online/ARENA_REFINEMENT_23.md` and `_24.md`.
+- Not yet verified: public VPS hosting, and feel with real players.
+
+
 ## 2026-09-11 — VPS scoreboard live reference
 
 - Documented the remaining scoreboard host traps and public restart checks in [`docs/online/VPS_SCOREBOARD.md`](docs/online/VPS_SCOREBOARD.md). Local tests are not a deployed service.

@@ -23,7 +23,7 @@
 <p align="center">
   <img alt="three.js" src="https://img.shields.io/badge/engine-three.js-111111?style=flat-square&logo=threedotjs&logoColor=white" />
   <img alt="Single HTML build" src="https://img.shields.io/badge/build-single_HTML-c9a227?style=flat-square" />
-  <img alt="Version 4.0" src="https://img.shields.io/badge/version-4.0_MODERN-2f6fd8?style=flat-square" />
+  <img alt="Version 4.1" src="https://img.shields.io/badge/version-4.1_MODERN_%2B_ARENA-2f6fd8?style=flat-square" />
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2f855a?style=flat-square" />
 </p>
 
@@ -57,6 +57,8 @@ particle board.
 
 Click the game once to capture the mouse. `Esc` pauses. Everything else is on the **How to Play** screen and in
 [Controls](#controls) below.
+
+**Arena (online beta).** Main menu → **Arena — 8 Players** is an eight-staff free-for-all in the Office: pick a look and paint color, join the lobby, fill empty slots with bots or wait for friends, ready up, and play a five-minute round. Arena needs the game server, so opening the file directly only gives you the campaign. Run `npm ci && npm run build && npm run build:arena && npm run serve:arena` and open `http://localhost:4180`; other devices on your network can join with your machine's address. To host it for friends, follow [the VPS guide](docs/online/VPS_DEPLOY.md), including the optional shared password.
 
 ## Four generations, one package
 
@@ -295,7 +297,9 @@ screenshot evidence. **Start at [`docs/modern/INDEX.md`](docs/modern/INDEX.md).*
 | [`docs/online/GOAL_LOOP.md`](docs/online/GOAL_LOOP.md) | Stable baseline, goals and acceptance gates for social links, Zo preparation and Arena planning |
 | [`docs/online/PROGRESS.md`](docs/online/PROGRESS.md) | Implementation evidence and remaining live deployment checks |
 | [`docs/online/VPS_SCOREBOARD.md`](docs/online/VPS_SCOREBOARD.md) | Live-host scoreboard worries, env, and restart gates; not a deployed service |
-| [`docs/online/ARENA_PLAN.md`](docs/online/ARENA_PLAN.md) | Proposed eight-player lobby/deathmatch mode and adaptations of all six maps; not implemented |
+| [`docs/online/VPS_DEPLOY.md`](docs/online/VPS_DEPLOY.md) | Host the game, Arena and scoreboard on a VPS: package, systemd, Caddy HTTPS, optional password |
+| [`docs/online/ARENA_REFINEMENT_24.md`](docs/online/ARENA_REFINEMENT_24.md) | Latest Arena pass (jitter, doors, tools, menus, password) with measurements; earlier passes are `ARENA_REFINEMENT*.md` |
+| [`docs/online/ARENA_PLAN.md`](docs/online/ARENA_PLAN.md) | Original eight-player plan (Office is built; the other five maps are not) |
 | [`docs/online/ARENA_RESEARCH.md`](docs/online/ARENA_RESEARCH.md) | Technical research behind the Arena plan |
 
 ## The classic generation
