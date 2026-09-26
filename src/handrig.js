@@ -31,9 +31,9 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const FINGERS = ['index-finger', 'middle-finger', 'ring-finger', 'pinky-finger'];
 const PHAL = ['phalanx-proximal', 'phalanx-intermediate', 'phalanx-distal'];
 
-/** S1: hands and arms are switched OFF — the weapons float (Doom/Quake presentation). Everything below stays intact
- *  so they can come back; see docs/modern/HANDS_REINTRODUCTION.md. Flip this to true to re-attach them. */
-export const SHOW_HANDS = true;
+/** 5.2: hands and arms are switched OFF for good in the campaign and Arena; the tools float (Doom/Quake
+ *  presentation, as in 4.1). The rig stays here only for the handLab harness. */
+export const SHOW_HANDS = false;
 
 let models = null; // { L: scene, R: scene }
 let loading = null;

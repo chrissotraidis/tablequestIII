@@ -1,0 +1,139 @@
+{
+  "url": "http://127.0.0.1:4180/",
+  "capturedAt": "2026-09-26T15:27:39.205Z",
+  "errors": [],
+  "metrics": {
+    "floor1-load": 351,
+    "f1-reception": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 192,
+      "tris": 155424,
+      "textures": 70,
+      "geometries": 195
+    },
+    "f1-corridor": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 288,
+      "tris": 217880,
+      "textures": 80,
+      "geometries": 211
+    },
+    "floor2-load": 560,
+    "f2-openplan": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 380,
+      "tris": 404168,
+      "textures": 87,
+      "geometries": 238
+    },
+    "f2-desks": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 271,
+      "tris": 323872,
+      "textures": 88,
+      "geometries": 243
+    },
+    "floor3-load": 527,
+    "f3-archives": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 258,
+      "tris": 291688,
+      "textures": 79,
+      "geometries": 206
+    },
+    "f3-stacks": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 235,
+      "tris": 272064,
+      "textures": 82,
+      "geometries": 220
+    },
+    "floor4-load": 535,
+    "f4-showroom": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 380,
+      "tris": 419088,
+      "textures": 110,
+      "geometries": 270
+    },
+    "f4-floor": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 244,
+      "tris": 305460,
+      "textures": 110,
+      "geometries": 270
+    },
+    "floor5-load": 650,
+    "f5-factory": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 435,
+      "tris": 515158,
+      "textures": 95,
+      "geometries": 332
+    },
+    "f5-line": {
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 296,
+      "tris": 374238,
+      "textures": 95,
+      "geometries": 332
+    },
+    "floor6-load": 582,
+    "f6-penthouse": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 198,
+      "tris": 90346,
+      "textures": 97,
+      "geometries": 178
+    },
+    "f6-hall": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0,
+      "calls": 120,
+      "tris": 61750,
+      "textures": 97,
+      "geometries": 178
+    },
+    "arena-match": {
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "hitches": 0
+    }
+  }
+}

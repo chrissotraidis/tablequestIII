@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-09-27 — 5.2: smoother Sandy, no hands, faster frames
+
+Same floors, tools, music, intro and rules as 5.1.
+
+- **Sandy's portrait:** the smudges under her eyes are gone. They came from painted-on "eyelids" drawn in the wrong place; she now blinks with a real painted closed-eye frame. She glances left and right on her own, and grin, hurt and low-health faces are repainted from the same pose, so changes melt instead of showing a double image. The portrait redraws up to 60 times a second (it was 15).
+- **Hands removed** in the campaign and Arena. The tools float, as in 4.1.
+- **Performance** (Ultra, 2x Retina, M3 Max, Floor 2): 8.4 ms to 6.3 ms per frame, about 120 to 150 fps, so a 120 Hz display no longer drops frames. Draw calls are halved (614 to 312).
+  - ambient occlusion reuses the scene's depth instead of drawing everything a second time, with its buffer capped at 0.8x the window
+  - no SMAA pass at Retina density
+  - the world shadow map refreshes at 60 Hz on displays faster than 100 Hz
+  - the tool-only shadow pass is gone with the hands
+- **HUD numbers:** zeros no longer read as the letter o ("0/3", "0K · 0D"). Georgia only has old-style figures, so counters now use a serif with lining figures.
+- **Details:** see [docs/v5/PROGRESS_5.2.md](docs/v5/PROGRESS_5.2.md).
+
 ## 2026-09-26 — 5.1: polish pass from playtest notes
 
 Same floors, tools, music, intro and rules as 5.0. Collision is identical to 4.1 on all six floors.

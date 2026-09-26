@@ -1,1 +1,1 @@
-Sandy HUD portraits (sandy-*.webp) were generated for this project with OpenAI image generation on 2026-09-26, using the Table Quest box art as a likeness reference. Project-owned artwork.
+Sandy HUD portraits (sandy-*.webp) were generated for this project with OpenAI image generation, using the Table Quest box art as a likeness reference (neutral and dead on 2026-09-26). On 2026-09-27 blink, lookl, lookr, grin, hurt and low were regenerated as pixel-aligned edits of the neutral painting. Project-owned artwork.

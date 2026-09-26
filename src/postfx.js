@@ -122,6 +122,14 @@ export class PostFX {
         this.gtao.blendIntensity = 0.92;
         this.gtao.updateGtaoMaterial({ radius: 0.42, distanceExponent: 1.6, thickness: 1.2, scale: 1.15, samples: 16, distanceFallOff: 1 });
         this.gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 16 });
+        // 5.2: the denoiser was a second 16-tap pass over the AO buffer; 8 taps at half resolution look the same
+        this.gtao.updatePdMaterial({ samples: 8 });
+        // 5.2: AO reads the depth the main pass already wrote and rebuilds normals from it, instead of
+        // drawing every mesh a second time with a normal material (that re-draw was ~600 calls a frame).
+        for (const rt of [this.composer.renderTarget1, this.composer.renderTarget2]) {
+            rt.depthTexture = new THREE.DepthTexture(size.x, size.y); rt.depthTexture.type = THREE.UnsignedIntType;
+        }
+        this.gtao.setGBuffer(this.composer.renderTarget1.depthTexture);
         this.bloom = new UnrealBloomPass(size.clone(), 0.35, 0.4, 0.85);
         this.output = new OutputPass();
         this.grade = new ShaderPass(GradeShader);
@@ -144,7 +152,7 @@ export class PostFX {
     setQuality(name) {
         const q = QUALITY[name] || QUALITY.high;
         this.quality = q;
-        this.smaa.enabled = q.samples > 0;
+        this.updateSmaa();
         this.gtao.enabled = q.ao;
         this.bloom.enabled = q.bloom && !this.performanceMode;
         this.aoScale = q.aoScale; this.bloomScale = q.bloomScale ?? 1;
@@ -158,14 +166,23 @@ export class PostFX {
         this.composer.setSize(w, h);
         this.bloom.setSize(Math.round(w * (this.bloomScale ?? 1)), Math.round(h * (this.bloomScale ?? 1)));
         // AO runs at a fraction of the drawing-buffer size on lower presets.
-        const ratio = this.renderer.getPixelRatio() * (this.aoScale ?? 1);
+        // 5.2: capped at 0.8x the window size. AO is soft shading; at Retina 2x the half-res buffer
+        // was still one sample per screen point and the single most expensive pass.
+        const ratio = Math.min(0.8, this.renderer.getPixelRatio() * (this.aoScale ?? 1));
         this.gtao.setSize(Math.round(w * ratio), Math.round(h * ratio));
         this.grade.uniforms.aspect.value = w / h;
     }
 
     setPixelRatio(value) {
         this.composer.setPixelRatio(value);
+        this.updateSmaa();
         if (this.width) this.setSize(this.width, this.height);
+    }
+
+    /** 5.2: SMAA only below Retina density. At 2x the pixels are too small for stair-steps to read, and the pass cost 1.4 ms. */
+    updateSmaa(force = null) {
+        const dense = this.renderer.getPixelRatio() >= 1.75;
+        this.smaa.enabled = force ?? ((this.quality?.samples ?? 0) > 0 && !dense);
     }
 
     setPerformanceMode(on = true) {
@@ -212,6 +229,10 @@ export class PostFX {
         const target = Math.min(0.0018, Math.abs(yawRate) * 0.00028);
         this.motion += (target - this.motion) * 0.25;
         u.motion.value = this.motion;
+        if (this.gtao.enabled) { // the scene lands in whichever buffer the composer reads from this frame
+            const depth = this.composer.readBuffer.depthTexture;
+            this.gtao.gtaoMaterial.uniforms.tDepth.value = depth; this.gtao.pdMaterial.uniforms.tDepth.value = depth;
+        }
         this.composer.render();
     }
 }

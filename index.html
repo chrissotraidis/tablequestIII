@@ -1886,6 +1886,8 @@
 
 
         #bench, #bench * { font-variant-numeric: lining-nums tabular-nums; }
+        /* 5.2: Georgia only has old-style figures (0 reads as o); numbers use a serif with lining figures */
+        #bench .counter-value, #bench .plaque-value, #bench .trough-value { font-family: "Palatino Linotype", Palatino, "Book Antiqua", "Times New Roman", serif; }
         /* 5.1 bench: larger type and portrait, damage trail, pulses, clickable tools */
         #bench { height: 146px; padding: 12px 24px; }
         #bench .hud-left { gap: 12px; } #bench .hud-center { gap: 18px; } #bench .rack { gap: 5px; }
@@ -2052,7 +2054,7 @@
                 </section>
             </main>
             <footer class="menu-footer-bar">
-                <span>© 199X ARTISAN SOFTWARE · TABLE QUEST 5.1</span>
+                <span>© 199X ARTISAN SOFTWARE · TABLE QUEST 5.2</span>
                 <span>W/S OR ↑/↓ SELECT · ENTER CONFIRM · ESC BACK</span>
             </footer>
         </div>
@@ -2098,12 +2100,12 @@
             <div class="mm-panel vs-panel">
                 <h2>Versions <small>EVERY GENERATION OF THE GAME · CLICK ONE TO PLAY IT</small></h2>
                 <div id="vs-list" class="vs-list"></div>
-                <div class="mm-panel-footer">CLICK A VERSION OR ↑↓ + ENTER · ESC BACK · A PLAYING VERSION HAS A "BACK TO 5.1" BAR</div>
+                <div class="mm-panel-footer">CLICK A VERSION OR ↑↓ + ENTER · ESC BACK · A PLAYING VERSION HAS A "BACK TO 5.2" BAR</div>
             </div>
         </div>
         <div id="gen-player" class="overlay hidden">
             <div class="gp-bar">
-                <button id="gp-back" type="button">← RETURN TO 5.1</button>
+                <button id="gp-back" type="button">← RETURN TO 5.2</button>
                 <span id="gp-title">GEN 2.1 · 3D REMASTER</span>
                 <a id="gp-newtab" href="#" target="_blank" rel="noopener">OPEN IN A NEW TAB ↗</a>
             </div>

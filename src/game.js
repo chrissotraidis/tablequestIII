@@ -162,7 +162,7 @@ export class Game {
         // N2: a shadow-casting key in camera space so hands and tools shade each other (contact shadows)
         this.vmSun = new THREE.DirectionalLight(0xfff4e8, 1.1); this.vmSun.position.set(0.45, 0.7, 0.25);
         this.vmSun.target = new THREE.Object3D(); this.vmSun.target.position.set(0, -0.15, -0.55); camera.add(this.vmSun.target);
-        this.vmSun.castShadow = true; this.vmSun.shadow.mapSize.set(512, 512);
+        this.vmSun.castShadow = SHOW_HANDS; this.vmSun.shadow.mapSize.set(512, 512); // 5.2: this camera-space shadow was for hands on tools; without hands it only cost a pass
         const sc = this.vmSun.shadow.camera; sc.left = -0.5; sc.right = 0.5; sc.top = 0.45; sc.bottom = -0.45; sc.near = 0.01; sc.far = 2.5; sc.layers.set(1);
         this.vmSun.shadow.bias = -0.0006; this.vmSun.shadow.normalBias = 0.004; this.vmSun.layers.set(1); camera.add(this.vmSun);
         this.vmFill = new THREE.HemisphereLight(0xe8eef4, 0x4a4038, 0.25); this.vmFill.layers.set(1); camera.add(this.vmFill);
