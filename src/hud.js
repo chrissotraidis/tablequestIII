@@ -55,7 +55,7 @@ const TOOL_ICON = { // 12×7 pixel tools, drawn 3× into the rack slot canvases
     sprayer:    ['..rrrrr.....', '.rrrrrrr.ss.', '.rrrrrrrsss.', '..rrrrr.ss..', '....dd......', '....dd......', '....ddd.....'],
 };
 const ICON_COL = { b: '#8a5a2e', h: '#d8d5cc', w: '#8a5a2c', r: '#cc3322', o: '#e07820', s: '#8a929c', d: '#2b3038', m: '#4a525c', y: '#ffaa22' };
-function drawToolIcon(c, key) {
+export function drawToolIcon(c, key) {
     const rows = TOOL_ICON[key]; if (!rows) return;
     const ctx = c.getContext('2d'); ctx.imageSmoothingEnabled = false; ctx.clearRect(0, 0, c.width, c.height);
     rows.forEach((row, y) => [...row].forEach((ch, x) => { if (ch !== '.') { ctx.fillStyle = ICON_COL[ch]; ctx.fillRect(x, y, 1, 1); } }));

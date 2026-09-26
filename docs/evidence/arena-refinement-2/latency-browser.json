@@ -1,0 +1,85 @@
+{
+  "correction": 0,
+  "doors": [
+    {
+      "id": "16,9",
+      "openT": 0.9999999999999998
+    },
+    {
+      "id": "23,9",
+      "openT": 0
+    },
+    {
+      "id": "7,19",
+      "openT": 1
+    },
+    {
+      "id": "32,19",
+      "openT": 1
+    }
+  ],
+  "drawCalls": 207,
+  "feedbackAudit": {
+    "confirmationMs": 210.80000001192093,
+    "inputAt": 108969.19999998808,
+    "localFeedbackMs": 0.5,
+    "weapon": "paintbrush"
+  },
+  "frameMsP95": 9.199999988079073,
+  "local": {
+    "alive": true,
+    "bot": false,
+    "deaths": 0,
+    "health": 100,
+    "kills": 0,
+    "lastSeq": 2500,
+    "paint": 99,
+    "pitch": 0,
+    "protectionMs": 0,
+    "respawnMs": 0,
+    "slot": 0,
+    "vx": 0,
+    "vz": 0,
+    "weapon": "paintbrush",
+    "weapons": [
+      "paintbrush",
+      "tableLeg"
+    ],
+    "x": 2.5,
+    "yaw": 0,
+    "z": 3.5
+  },
+  "manifestProps": 156,
+  "paintAudit": {
+    "anchored": 232,
+    "particlesOnly": 258
+  },
+  "predicted": {
+    "alive": true,
+    "bot": false,
+    "deaths": 0,
+    "health": 100,
+    "kills": 0,
+    "lastSeq": 2500,
+    "paint": 99,
+    "pitch": 0,
+    "protectionMs": 0,
+    "respawnMs": 0,
+    "slot": 0,
+    "vx": 0,
+    "vz": 0,
+    "weapon": "paintbrush",
+    "weapons": [
+      "paintbrush",
+      "tableLeg"
+    ],
+    "x": 2.5,
+    "yaw": 0,
+    "z": 3.5
+  },
+  "propMismatches": [],
+  "roundTripMs": 205,
+  "shadows": true,
+  "state": "active",
+  "worldProps": 156
+}

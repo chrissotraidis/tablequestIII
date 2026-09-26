@@ -6,13 +6,13 @@ Zo-specific placement and service registration stay in [ZO_DEPLOYMENT.md](ZO_DEP
 
 ## What must be running
 
-One Node process that serves `dist/` and same-origin `/api/*`:
+One Node process that serves `dist/`, same-origin `/api/*` and the Arena WebSocket. Install it with [VPS_DEPLOY.md](VPS_DEPLOY.md):
 
 ```sh
-node server/scoreboard-server.mjs
+node server/arena-server.mjs
 ```
 
-`dist/` and `server/` must be siblings. Runtime install needs no `node_modules` and no Vite. Do **not** use `npm run dev` or `npm run preview` on the VPS: preview serves the built game without the scoreboard API.
+Ship the `npm run package:vps` archive; it includes `ws` and the shared Arena code. Do **not** use `npm run dev` or `npm run preview` on the VPS: preview serves the built game without the scoreboard API or Arena.
 
 Keep exactly one writer. The JSON queue is process-local. Two overlapping processes on the same files can lose scores.
 

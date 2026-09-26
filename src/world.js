@@ -194,6 +194,7 @@ export class World {
             const mesh = new THREE.Mesh(merged, m);
             mesh.castShadow = true;
             mesh.receiveShadow = true;
+            mesh.userData.decalSurface = true;
             this.group.add(mesh);
             geos.forEach(g => g.dispose());
         }
@@ -206,6 +207,7 @@ export class World {
         floor.rotation.x = -Math.PI / 2;
         floor.position.set(w / 2, 0, h / 2);
         floor.receiveShadow = true;
+        floor.userData.decalSurface = true;
         this.group.add(floor);
 
         const ceil = new THREE.Mesh(

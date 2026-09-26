@@ -1,11 +1,18 @@
 {
   "name": "sandys-table-quest-modern",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:arena": "vite build --config arena/vite.config.js",
+    "test:arena": "node tools/test_arena_server.mjs",
+    "test:arena:bots": "node tools/test_arena_bots.mjs",
+    "smoke:arena": "npm run build:arena && node tools/smoke_arena.mjs",
+    "smoke:arena:eight": "npm run build:arena && TQ_ARENA_CLIENTS=8 node tools/smoke_arena.mjs",
+    "serve:arena": "node server/arena-server.mjs",
+    "package:vps": "node tools/package_runtime.mjs",
     "preview": "vite preview",
     "serve:scoreboard": "node server/scoreboard-server.mjs",
     "test:scoreboard": "node tools/test_scoreboard.mjs",
@@ -30,7 +37,10 @@
     "test:incidents": "node tools/incident_sanity.mjs",
     "test:telemetry": "node tools/test_telemetry.mjs",
     "test:audio-health": "node tools/test_audio_health.mjs && node tools/test_audio_voice.mjs && node tools/test_logger.mjs",
-    "test:audio-incident": "node tools/audio_incident_sanity.mjs"
+    "test:audio-incident": "node tools/audio_incident_sanity.mjs",
+    "test:arena:refinement": "node tools/test_arena_refinement.mjs && node tools/test_arena_interactions.mjs && node tools/test_arena_presentation.mjs && node tools/test_arena_resources.mjs && node tools/test_arena_paint_tint.mjs && node tools/test_arena_vacancy.mjs && node tools/test_arena_combat_feedback.mjs && node tools/test_arena_bot_weapons.mjs && node tools/test_arena_bot_supply.mjs && node tools/test_arena_idle.mjs && node tools/test_arena_connection.mjs && node tools/test_arena_access.mjs",
+    "simulate:arena": "node tools/simulate_arena.mjs",
+    "generate:arena-manifest": "node tools/arena_manifest.mjs"
   },
   "keywords": [],
   "author": "",
@@ -39,7 +49,8 @@
   "dependencies": {
     "three": "^0.184.0",
     "vite": "^8.0.16",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "ws": "^8.18.3"
   },
   "devDependencies": {
     "playwright-core": "^1.56.1"

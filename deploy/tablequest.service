@@ -1,0 +1,27 @@
+# /etc/systemd/system/tablequest.service
+# One Node process serves the game, the Arena WebSocket and the scoreboard.
+# Keep it to one process: the JSON scoreboard and the Arena room live in memory.
+[Unit]
+Description=Table Quest (game, Arena, scoreboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=tablequest
+WorkingDirectory=/opt/tablequest/current
+ExecStart=/usr/bin/node server/arena-server.mjs
+Environment=HOST=127.0.0.1
+Environment=PORT=4180
+Environment=TQ_DATA_FILE=/var/lib/tablequest/leaderboard.json
+Environment=TQ_TELEMETRY_FILE=/var/lib/tablequest/telemetry.jsonl
+Environment=TQ_TELEMETRY_MAX_BYTES=16777216
+# Optional shared password: put TQ_ACCESS_PASSWORD=... in this root-only file.
+EnvironmentFile=-/etc/tablequest.env
+Restart=always
+RestartSec=2
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/tablequest
+
+[Install]
+WantedBy=multi-user.target

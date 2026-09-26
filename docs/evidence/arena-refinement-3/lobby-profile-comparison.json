@@ -1,0 +1,12 @@
+{
+  "before": {
+    "seconds": 44.869411,
+    "nonIdlePercent": 19.780674188034254
+  },
+  "after": {
+    "seconds": 58.365821,
+    "nonIdlePercent": 4.621309104861215
+  },
+  "relativeNonIdleReductionPercent": 76.63725178964455,
+  "scope": "Same browser, standalone unjoined lobby, default shadows; sampled CPU activity, not GPU utilization or gameplay FPS. Unequal capture durations normalized by duration."
+}

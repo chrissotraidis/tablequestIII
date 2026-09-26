@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import {damageBearing} from '../arena/combat-feedback.js';
+const p={x:10,z:10};
+assert.equal(damageBearing(p,{x:11,z:10},0),0);
+assert.equal(damageBearing(p,{x:10,z:11},0),90);
+assert.equal(damageBearing(p,{x:10,z:9},0),-90);
+assert.equal(Math.abs(damageBearing(p,{x:9,z:10},0)),180);
+assert(Math.abs(damageBearing(p,{x:10,z:11},Math.PI/2))<1e-9);
+assert.equal(damageBearing(p,p,0),null);assert.equal(damageBearing(p,null,0),null);assert.equal(damageBearing(p,{x:NaN,z:1},0),null);
+console.log('Combat feedback: PASS (front/right/left/back, turning, absent/invalid sources)');

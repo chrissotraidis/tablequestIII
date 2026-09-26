@@ -22,12 +22,11 @@ Keep this deployment to one Node process. The JSON write queue coordinates reque
 From the repository root after validation:
 
 ```sh
-tar -czf /tmp/tablequest-runtime.tgz dist server
-tar -tzf /tmp/tablequest-runtime.tgz
-shasum -a 256 /tmp/tablequest-runtime.tgz
+npm run build && npm run build:arena
+npm run package:vps
 ```
 
-Review the archive listing. It should contain only the generated public files and the Node server source. Runtime installation needs no `node_modules`, Vite dev server, package manager or build step on Zo. The server expects `dist/` and `server/` to be siblings.
+This writes `artifacts/tablequest-runtime-<rev>.tgz` and its `.sha256`. The archive holds `dist/`, `server/`, `shared/`, `src/levels.js`, the `ws` package and a minimal `package.json`; the Arena server needs all of them. No build step or package install runs on Zo. See [VPS_DEPLOY.md](VPS_DEPLOY.md) for the same release on a plain VPS.
 
 **Do not copy the local `data/` folder**, development scores, telemetry, browser saves, `.env` files, credentials, `.git`, or the entire personal workspace. The public leaderboard starts empty on Zo. This also keeps private development telemetry out of the conference deployment.
 
@@ -58,7 +57,7 @@ In Zo, use Sites → Services, or ask Zo to register the service with these sett
 | Label | `tablequest` (check for an existing service before creating another) |
 | Mode | `http` |
 | Local port | `4176`, if unused and accepted by Zo |
-| Entrypoint | `node server/scoreboard-server.mjs` |
+| Entrypoint | `node server/arena-server.mjs` (serves the game, Arena WebSocket and scoreboard API) |
 | Working directory | `/home/workspace/tablequest/releases/conference-2026-09-09-1` |
 | Visibility | Private while checking if available; public for attendee access |
 | Environment | Values from [`deploy/zo.env.example`](../../deploy/zo.env.example), adjusted to the selected data directory |

@@ -1,0 +1,100 @@
+{
+  "durationMs": 60000,
+  "events": {
+    "match-start": 1,
+    "pickup": 29,
+    "fire": 374,
+    "impact": 354,
+    "hit": 91,
+    "door": 2,
+    "cover-hit": 124,
+    "death": 15,
+    "explosion": 14,
+    "respawn": 14
+  },
+  "bots": [
+    {
+      "rank": 1,
+      "slot": 1,
+      "name": "MORA",
+      "kills": 3,
+      "deaths": 2,
+      "cellsVisited": 48,
+      "distance": 90.2
+    },
+    {
+      "rank": 2,
+      "slot": 3,
+      "name": "PAX",
+      "kills": 3,
+      "deaths": 2,
+      "cellsVisited": 75,
+      "distance": 100.4
+    },
+    {
+      "rank": 3,
+      "slot": 2,
+      "name": "JUNO",
+      "kills": 2,
+      "deaths": 2,
+      "cellsVisited": 100,
+      "distance": 112.4
+    },
+    {
+      "rank": 4,
+      "slot": 5,
+      "name": "SOL",
+      "kills": 2,
+      "deaths": 2,
+      "cellsVisited": 71,
+      "distance": 98.2
+    },
+    {
+      "rank": 5,
+      "slot": 7,
+      "name": "KITE",
+      "kills": 2,
+      "deaths": 2,
+      "cellsVisited": 69,
+      "distance": 107.5
+    },
+    {
+      "rank": 6,
+      "slot": 6,
+      "name": "VALE",
+      "kills": 2,
+      "deaths": 3,
+      "cellsVisited": 74,
+      "distance": 100.7
+    },
+    {
+      "rank": 7,
+      "slot": 4,
+      "name": "RHEA",
+      "kills": 1,
+      "deaths": 2,
+      "cellsVisited": 69,
+      "distance": 99.4
+    },
+    {
+      "rank": 8,
+      "slot": 0,
+      "name": "Simulation observer",
+      "kills": 0,
+      "deaths": 0,
+      "cellsVisited": 1,
+      "distance": 0
+    }
+  ],
+  "metrics": {
+    "startedAt": "2026-09-12T00:30:43.188Z",
+    "connections": 1,
+    "rejected": 0,
+    "ticks": 1790,
+    "tickMsP95": 0.51,
+    "eventLoopP99Ms": 0.001,
+    "snapshots": 895,
+    "snapshotBytes": 5424469,
+    "protocolErrors": 0
+  }
+}

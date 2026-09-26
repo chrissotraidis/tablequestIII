@@ -4,6 +4,8 @@ import { createReadStream, constants } from 'node:fs';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { randomUUID, createHash } from 'node:crypto';
+import { gzip } from 'node:zlib';
+import { promisify } from 'node:util';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
@@ -206,17 +208,38 @@ function allowed(req, pathname) {
 
 const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
 
+// The single-file builds are large text (the main game is ~12 MB). Compress
+// each version once, off the event loop, and reuse it for every visitor.
+const gzipAsync = promisify(gzip);
+const compressible = new Set(['.html', '.js', '.css', '.json', '.svg']);
+const gzipCache = new Map();
+function gzipped(file, etag) {
+    const key = `${file}|${etag}`;
+    if (!gzipCache.has(key)) {
+        for (const old of gzipCache.keys()) if (old.startsWith(`${file}|`)) gzipCache.delete(old);
+        const pending = readFile(file).then((raw) => gzipAsync(raw, { level: 6 }));
+        pending.catch(() => gzipCache.delete(key));
+        gzipCache.set(key, pending);
+    }
+    return gzipCache.get(key);
+}
+
 async function serveStatic(req, res, pathname) {
-    const requested = pathname === '/' ? '/index.html' : pathname;
+    const requested = pathname.endsWith('/') ? `${pathname}index.html` : pathname;
     const file = resolve(publicRoot, `.${normalize(requested)}`);
     if (file !== publicRoot && !file.startsWith(`${publicRoot}/`)) return json(res, 403, { error: 'Forbidden' });
     try {
         const info = await stat(file);
         if (!info.isFile()) throw Object.assign(new Error('Not found'), { code: 'ENOENT' });
         const etag = `W/"${info.size.toString(16)}-${info.mtimeMs.toString(16)}"`;
-        const headers = { 'content-type': types[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', etag };
+        const headers = { 'content-type': types[extname(file)] || 'application/octet-stream', 'cache-control': 'no-cache', etag, vary: 'accept-encoding' };
         if (String(req.headers['if-none-match'] || '').split(',').map(value => value.trim()).some(value => value === '*' || value === etag)) {
             res.writeHead(304, headers); return res.end();
+        }
+        if (compressible.has(extname(file)) && info.size > 1024 && /\bgzip\b/.test(String(req.headers['accept-encoding'] || ''))) {
+            const body = await gzipped(file, etag);
+            res.writeHead(200, { ...headers, 'content-encoding': 'gzip', 'content-length': body.length });
+            return res.end(req.method === 'HEAD' ? undefined : body);
         }
         res.writeHead(200, { ...headers, 'content-length': info.size });
         if (req.method === 'HEAD') return res.end();
