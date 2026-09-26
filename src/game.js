@@ -166,6 +166,8 @@ export class Game {
         const sc = this.vmSun.shadow.camera; sc.left = -0.5; sc.right = 0.5; sc.top = 0.45; sc.bottom = -0.45; sc.near = 0.01; sc.far = 2.5; sc.layers.set(1);
         this.vmSun.shadow.bias = -0.0006; this.vmSun.shadow.normalBias = 0.004; this.vmSun.layers.set(1); camera.add(this.vmSun);
         this.vmFill = new THREE.HemisphereLight(0xe8eef4, 0x4a4038, 0.25); this.vmFill.layers.set(1); camera.add(this.vmFill);
+        // 5.1: a warm back rim so tool silhouettes separate from dark rooms
+        this.vmBack = new THREE.DirectionalLight(0xffd9a8, 0.9); this.vmBack.position.set(-0.3, 0.5, -1.2); this.vmBack.target = this.vmSun.target; this.vmBack.layers.set(1); camera.add(this.vmBack);
         camera.layers.set(0); // the world camera draws layer 0; PostFX renders layer 1 through the viewmodel camera
         // MODERN M2.4: recoil presentation per weapon. Camera kick is a visual
         // spring that fully recovers, so aim is never displaced (balance §2.2).
@@ -227,6 +229,31 @@ export class Game {
         hud.toast(`MOUSE SENSITIVITY: ${(this.sens * 1000).toFixed(1)}`, 1200);
     }
 
+    /** 5.1: tint the viewmodel lights from the floor's rig so tools belong to the room. */
+    matchViewmodelLight() {
+        const rig = this.world?.rig; if (!rig) return;
+        const key = new THREE.Color(rig.key.color), acc = new THREE.Color(rig.accents?.color ?? 0xffe0c0);
+        this.vmSun.color.copy(key).lerp(new THREE.Color(0xffffff), 0.35); this.vmSun.intensity = 1.35;
+        this.vmFill.color.copy(new THREE.Color(rig.hemi?.sky ?? 0xe8eef4)); this.vmFill.groundColor.copy(new THREE.Color(rig.hemi?.ground ?? 0x4a4038)); this.vmFill.intensity = 0.45;
+        this.vmBack.color.copy(acc); this.vmBack.intensity = 1.0;
+    }
+
+    /** 5.1: give the tools their own studio reflections. Meshes that inherit scene.environment use the
+     *  faint global intensity, so metal read as flat grey; an explicit envMap keeps a per-material strength. */
+    polishViewmodels(env) {
+        if (!env) return;
+        const seen = new Set();
+        for (const vm of Object.values(this.viewmodels)) vm.traverse(o => {
+            if (!o.isMesh || o.isSkinnedMesh || o.userData.isHand) return;
+            for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+                if (!m?.isMeshStandardMaterial || seen.has(m)) continue; seen.add(m);
+                m.envMap = env;
+                m.envMapIntensity = m.metalness > 0.5 ? 0.95 : m.roughness < 0.35 ? 0.6 : m.roughness < 0.7 ? 0.35 : 0.15;
+                m.needsUpdate = true;
+            }
+        });
+    }
+
     loadLevel(index, { keepStats = true, silent = false } = {}) {
         // tear down old
         if (this.world) this.world.dispose();
@@ -266,6 +293,7 @@ export class Game {
         this.levelIndex = index;
         this.level = LEVELS[index];
         this.world = new World(this.scene, this.level, index);
+        this.matchViewmodelLight();
         this.world.effects = this.effects; // MODERN M5.5: dressing sparks/steam use the particle pools
 
         const prev = this.player;

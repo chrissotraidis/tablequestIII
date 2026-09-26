@@ -1871,7 +1871,50 @@
         #barks .bark-text { font-size: 13px; letter-spacing: 1px; color: #fff; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); padding: 3px 8px; font-style: italic; }
         #barks .bark.boss .bark-text { color: #ffd35a; border-color: rgba(255,211,90,.5); font-size: 15px; }
         #barks .bark.boss .bark-rank { color: #ff5a4a; }
-    </style>
+            .mm-panel-actions { display: flex; justify-content: flex-start; margin-top: 14px; }
+        .mm-back { min-height: 40px; padding: 8px 20px; border: 1px solid #c9a227; border-radius: 3px; background: #2a1c10; color: #ffd35a; font: 700 14px Arial, sans-serif; letter-spacing: 2px; cursor: pointer; }
+        .mm-back:hover, .mm-back:focus-visible { background: #ffd35a; color: #181208; outline: none; }
+        .opt-row[data-opt="generation"] .opt-value b { white-space: nowrap; }
+
+        /* 5.1 intro readability: small captions were 9-10px at 60% opacity. Same sequence, clearer type. */
+        #intro-screen .intro-overline { font-size: clamp(13px, 1.05vw, 16px); letter-spacing: 5px; color: #f0c98a; text-shadow: 0 2px 6px #000; }
+        #intro-screen .intro-skip { font-size: 12px; letter-spacing: 2px; color: #ffe0a8; background: rgba(20, 12, 6, .82); padding: 9px 14px; }
+        #intro-screen .intro-story-progress b { font-size: 12px; white-space: nowrap; letter-spacing: 3px; color: rgba(240, 205, 150, .92); }
+        #intro-screen .intro-sat-head, #intro-screen .intro-sat-foot { font-size: 11.5px; letter-spacing: 1.5px; color: rgba(190, 220, 240, .95); text-shadow: 0 1px 3px #000; }
+        #intro-screen .intro-sat-head #mb-sat-floor { color: #ffd35a; }
+        #intro-screen p, #intro-screen .intro-tagline { text-shadow: 0 2px 8px rgba(0, 0, 0, .9); }
+
+
+        #bench, #bench * { font-variant-numeric: lining-nums tabular-nums; }
+        /* 5.1 bench: larger type and portrait, damage trail, pulses, clickable tools */
+        #bench { height: 146px; padding: 12px 24px; }
+        #bench .hud-left { gap: 12px; } #bench .hud-center { gap: 18px; } #bench .rack { gap: 5px; }
+        #bench .plaque { min-width: 96px; }
+        #bench .plaque-label { font-size: 13px; }
+        #bench .plaque-value { font-size: 34px; }
+        #bench .gauge-label { font-size: 15px; letter-spacing: 3.5px; }
+        #bench .trough { width: clamp(150px, 13vw, 210px); height: 36px; }
+        #bench .trough > div { position: absolute !important; left: 0; top: 0; }
+        #bench .trough-value { font-size: 25px; z-index: 2; }
+        #bench #healthchip { height: 100%; width: 100%; background: linear-gradient(180deg, #ffe0a0, #e8a040); opacity: .85; transition: width .6s ease .35s; z-index: 0; }
+        #bench #healthbar { z-index: 1; }
+        #bench .trough.low { animation: tq-low 0.9s ease-in-out infinite; }
+        @keyframes tq-low { 50% { box-shadow: inset 0 2px 6px rgba(0,0,0,.85), 0 0 16px rgba(255,60,40,.85); border-color: #ff5a4a; } }
+        #bench #face-canvas { width: 122px; height: 122px; }
+        #bench .portrait-plate { font-size: 12px; }
+        #bench .counter-label { font-size: 13px; min-width: 60px; }
+        #bench .counter-value { font-size: 25px; }
+        #bench .wpn-name { font-size: 15px; letter-spacing: 4px; color: #ffe0a8; }
+        #bench .rack-slot { width: clamp(58px, 5.1vw, 76px); height: 66px; pointer-events: auto; cursor: pointer; transition: transform .12s, border-color .12s; }
+        #bench .rack-slot:hover:not(.empty) { transform: translateY(-3px); border-color: #e4c383; }
+        #bench .rack-slot.active { transform: translateY(-4px); }
+        #bench .rack-slot .ricon { width: 44px; height: 25px; }
+        #bench .rack-slot .wname { font-size: 12px; }
+        #bench .rack-slot .num { font-size: 11px; }
+        #bench .rack-slot.empty { opacity: .45; cursor: default; }
+        @media (max-width: 1240px) { #bench { height: 124px; } #bench .trough { width: 150px; height: 30px; } #bench .trough-value { font-size: 19px; } #bench #face-canvas { width: 86px; height: 86px; } #bench .rack-slot { width: 60px; height: 56px; } #bench .wpn-name { font-size: 12px; } #bench .counter-value { font-size: 19px; } #bench .gauge-label { font-size: 13px; } }
+
+</style>
 </head>
 
 <body>
@@ -1932,7 +1975,7 @@
                     </div>
                 </div>
                 <div class="hud-center">
-                    <div class="gauge"><span class="gauge-label">Health</span><div class="trough" id="health-trough"><div id="healthbar"></div><span class="trough-value" id="hud-health">100</span></div></div>
+                    <div class="gauge"><span class="gauge-label">Health</span><div class="trough" id="health-trough"><div id="healthchip"></div><div id="healthbar"></div><span class="trough-value" id="hud-health">100</span></div></div>
                     <div class="portrait"><canvas id="face-canvas" width="192" height="192"></canvas><div class="portrait-plate">SANDY</div></div>
                     <div class="gauge"><span class="gauge-label">Paint</span><div class="trough" id="paint-trough"><div id="paintbar"></div><span class="trough-value" id="hud-ammo">30</span></div></div>
                 </div>
@@ -2009,7 +2052,7 @@
                 </section>
             </main>
             <footer class="menu-footer-bar">
-                <span>© 199X ARTISAN SOFTWARE · TABLE QUEST 5.0</span>
+                <span>© 199X ARTISAN SOFTWARE · TABLE QUEST 5.1</span>
                 <span>W/S OR ↑/↓ SELECT · ENTER CONFIRM · ESC BACK</span>
             </footer>
         </div>
@@ -2032,6 +2075,7 @@
                     <div class="opt-row" data-opt="bob"><span class="opt-label">Head bob</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-bob">FULL</b><i class="opt-arrow">›</i></span></div>
                     <div class="opt-row" data-opt="sound"><span class="opt-label">Sound</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-sound">ON</b><i class="opt-arrow">›</i></span></div>
                 </div>
+                <div class="mm-panel-actions"><button id="opt-back" class="mm-back" type="button" data-native-keys>← BACK</button></div>
                 <div class="mm-panel-footer">↑↓ SELECT · ←→ ADJUST · ENTER TOGGLE · ESC BACK</div>
             </div>
         </div>
@@ -2054,12 +2098,12 @@
             <div class="mm-panel vs-panel">
                 <h2>Versions <small>EVERY GENERATION OF THE GAME · CLICK ONE TO PLAY IT</small></h2>
                 <div id="vs-list" class="vs-list"></div>
-                <div class="mm-panel-footer">CLICK A VERSION OR ↑↓ + ENTER · ESC BACK · A PLAYING VERSION HAS A "BACK TO 5.0" BAR</div>
+                <div class="mm-panel-footer">CLICK A VERSION OR ↑↓ + ENTER · ESC BACK · A PLAYING VERSION HAS A "BACK TO 5.1" BAR</div>
             </div>
         </div>
         <div id="gen-player" class="overlay hidden">
             <div class="gp-bar">
-                <button id="gp-back" type="button">← RETURN TO 5.0</button>
+                <button id="gp-back" type="button">← RETURN TO 5.1</button>
                 <span id="gp-title">GEN 2.1 · 3D REMASTER</span>
                 <a id="gp-newtab" href="#" target="_blank" rel="noopener">OPEN IN A NEW TAB ↗</a>
             </div>

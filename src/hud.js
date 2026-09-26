@@ -15,8 +15,13 @@
  */
 import * as THREE from 'three';
 import { CELL } from './config.js';
-import { FaceAnim, FACE_DEFAULTS } from './face.js';
-const faceAnim = new FaceAnim(); let faceLast = 0;
+import { FACE_DEFAULTS } from './face.js';
+import { PortraitAnim } from './portrait.js';
+let rackGame = null;
+// 5.1: click a tool on the bench to switch to it (when the mouse is free).
+document.addEventListener('click', (e) => { const slot = e.target.closest?.('#weapon-rack .rack-slot:not(.empty)'); if (slot && rackGame) { rackGame.switchWeapon(Number(slot.dataset.slot)); } });
+const faceAnim = new PortraitAnim(); let faceLast = 0; // 5.1: painted likeness
+export const portraitForTest = faceAnim;
 
 const $ = (id) => document.getElementById(id);
 
@@ -155,7 +160,7 @@ export const hud = {
         if (lastVals.hp !== hp) { if (lastVals.hp !== undefined && hp < lastVals.hp) poke(time); lastVals.hp = hp; }
         setText('hud-health', hp);
         const hbw = Math.max(0, Math.round(player.health)) + '%';
-        if (lastVals._hbw !== hbw) { lastVals._hbw = hbw; $('healthbar').style.width = hbw; }
+        if (lastVals._hbw !== hbw) { lastVals._hbw = hbw; $('healthbar').style.width = hbw; const chip = $('healthchip'); if (chip) chip.style.width = hbw; }
         const hpEl = $('hud-health');
         const hpState = hp <= 25 ? 'low' : hp <= 50 ? 'mid' : 'ok';
         if (lastVals._hpState !== hpState) { lastVals._hpState = hpState; hpEl.style.color = hpState === 'low' ? '#ff5a4a' : hpState === 'mid' ? '#ffb070' : ''; $('health-trough')?.classList.toggle('low', hpState === 'low'); }
@@ -185,9 +190,10 @@ export const hud = {
                 const k = player.weapons[i];
                 const def = k && game.weaponDefs[k];
                 const cls = 'rack-slot' + (i === player.currentWeapon ? ' active' : '') + (def ? '' : ' empty');
-                html += `<div class="${cls}"><canvas class="ricon" width="12" height="7" data-w="${k || ''}"></canvas><span class="wname">${def ? (def.short || def.name) : '—'}</span><span class="num">${i + 1}</span></div>`;
+                html += `<div class="${cls}" data-slot="${i + 1}" title="${def ? def.name + ' · key ' + (i + 1) : ''}"><canvas class="ricon" width="12" height="7" data-w="${k || ''}"></canvas><span class="wname">${def ? (def.short || def.name) : '—'}</span><span class="num">${i + 1}</span></div>`;
             }
             $('weapon-rack').innerHTML = html;
+            rackGame = game;
             $('weapon-rack').querySelectorAll('.ricon').forEach((c, i) => drawToolIcon(c, c.dataset.w || ['paintbrush', 'tableLeg', 'nailgun', 'roller', 'sprayer'][i]));
         }
 

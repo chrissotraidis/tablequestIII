@@ -101,6 +101,7 @@ function applyQuality() {
     postfx.setQuality(qualityName);
     postfx.setPixelRatio(renderPixelRatio);
     postfx.setSize(window.innerWidth, window.innerHeight);
+    if (backdropMode) setBackdropMode(true);
 }
 
 function applyFloorLook() {
@@ -260,6 +261,7 @@ const game = new Game(scene, camera, {
 });
 
 game.viewCamera = postfx.vmCamera;
+game.polishViewmodels(roomEnvironment); // 5.1: studio reflections on the tools
 
 function snapshotLevel() {
     const p = game.player;
@@ -388,7 +390,7 @@ const MENU_DETAILS = [
 const OPTIONS = ['generation', 'scoreboard', 'quality', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 // Every release is a single-file build served beside this one.
 const GENERATIONS = [
-    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5', note: 'THIS BUILD · 2026 · REBUILT VISUALS, HANDS, ARENA ONLINE', url: null },
+    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5.1', note: 'THIS BUILD · 2026 · REBUILT VISUALS, PAINTED PORTRAIT, ARENA ONLINE', url: null },
     { key: 'v4', label: 'GEN 4 · MODERN 4.1', note: 'PREVIOUS · LIT 3D, FLOATING TOOLS, FIRST ARENA', url: 'generations/v4/index.html' },
     { key: 'v21', label: 'GEN 2.1 · 3D REMASTER', note: 'CLASSIC · FIVE WEAPONS, DESTRUCTIBLE FURNITURE, WORKBENCH UI', url: 'generations/v2/index.html' },
     { key: 'v20', label: 'GEN 2.0 · FIRST 3D REMASTER', note: 'THE FIRST WEBGL BUILD · THREE WEAPONS · FIRST COMMIT', url: 'generations/v1/index.html' },
@@ -534,6 +536,7 @@ function closeGenerationPlayer() {
     playSound('menu_select');
 }
 $('gp-back').addEventListener('click', closeGenerationPlayer);
+$('opt-back').addEventListener('click', () => { playSound('menu_select'); menuSub = null; showOnly('menu-screen'); renderMenu(); });
 $('gp-frame').addEventListener('load', () => { if ($('gp-frame').src !== 'about:blank' && !$('gp-frame').src.endsWith('about:blank')) $('gp-loading').classList.add('hidden'); });
 let versionIdx = 0;
 function renderVersions() {
@@ -745,8 +748,8 @@ function updateMute(m) {
 // menu mouse support
 document.querySelectorAll('#menu-items .menu-item').forEach((el, i) => {
     el.addEventListener('click', () => { if (arenaReturnLock) return; menuIdx = i; renderMenu(); menuSelect(); });
-    el.addEventListener('mouseenter', () => { if (arenaReturnLock) return; menuIdx = i; renderMenu(); });
-    el.addEventListener('focus', () => { if (arenaReturnLock) return; menuIdx = i; renderMenu(); });
+    el.addEventListener('mouseenter', () => { if (arenaReturnLock || menuIdx === i) return; menuIdx = i; renderMenu(); playSound('menu_move'); });
+    el.addEventListener('focus', () => { if (arenaReturnLock || menuIdx === i) return; menuIdx = i; renderMenu(); });
 });
 document.querySelectorAll('#pause-items .menu-item').forEach((el, i) => {
     el.addEventListener('click', () => { pauseIdx = i; renderPause(); pauseSelect(); });
@@ -1322,14 +1325,33 @@ function step(now, render = true) {
     }
     if (audioMeterOn) hud.audioMeter(audioDebug(), getMeter());
     if (state === 'pause') hud.drawFace(game.player, elapsed, game);
-    if (render && !generationPlayerOpen && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || ((state === 'menu' || state === 'intro') && menuBackdrop))) {
-        renderer.info.reset();
-        postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
+    // 5.1: behind the main menu and intro the Lobby is only a dimmed backdrop.
+    // Draw it at 30 fps and half resolution without AO/bloom so the menu stays
+    // responsive on any machine (it was a full Ultra frame every refresh).
+    const backdropOnly = (state === 'menu' || state === 'intro') && menuBackdrop;
+    if (backdropOnly !== backdropMode) setBackdropMode(backdropOnly);
+    if (render && !generationPlayerOpen && (state === 'play' || state === 'pause' || state === 'transition' || state === 'gameover' || backdropOnly)) {
+        if (!backdropOnly || now - lastBackdropAt >= 32) {
+            lastBackdropAt = now;
+            renderer.info.reset();
+            postfx.render(state === 'play' ? elapsed : menuCamT, state === 'play' ? (game.yawRate || 0) : 0);
+        }
     }
     samplePerformance(now, rawFrameMs);
     clearFrameInput();
 }
 
+let backdropMode = false, lastBackdropAt = 0;
+function setBackdropMode(on) {
+    backdropMode = on;
+    const q = QUALITY[qualityName];
+    postfx.gtao.enabled = !on && q.ao && !adaptivePerformanceMode;
+    postfx.bloom.enabled = !on && q.bloom && !adaptivePerformanceMode;
+    postfx.smaa.enabled = !on && q.samples > 0;
+    renderPixelRatio = on ? Math.min(1, preferredPixelRatio()) : preferredPixelRatio();
+    renderer.setPixelRatio(renderPixelRatio); renderer.setSize(window.innerWidth, window.innerHeight);
+    postfx.setPixelRatio(renderPixelRatio); postfx.setSize(window.innerWidth, window.innerHeight);
+}
 function loop(now) {
     requestAnimationFrame(loop);
     step(now);

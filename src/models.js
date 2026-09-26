@@ -20,9 +20,26 @@ const SUIT_COLORS = { 0: 0x2244aa, 1: 0x666a70, 2: 0x1a1a22, boss: 0x8b0a1a };
 let fritosTexture = null;
 function getFritosTexture() {
     if (!fritosTexture) {
-        fritosTexture = new THREE.TextureLoader().load(fritosUrl);
+        // 5.1: the original PNG carries hundreds of almost-invisible white pixels
+        // scattered through its transparent area. Mipmaps and filtering blew them
+        // up into specks floating around the bag, so the art is cleaned once on
+        // load: faint pixels become fully clear, the bag's own edge stays hard.
+        const canvas = document.createElement('canvas');
+        fritosTexture = new THREE.CanvasTexture(canvas);
         fritosTexture.colorSpace = THREE.SRGBColorSpace;
         fritosTexture.magFilter = THREE.NearestFilter; // keep the pixel-art crunch
+        fritosTexture.generateMipmaps = false;
+        fritosTexture.minFilter = THREE.LinearFilter;
+        const img = new Image();
+        img.onload = () => {
+            canvas.width = img.width; canvas.height = img.height;
+            const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+            const data = ctx.getImageData(0, 0, img.width, img.height), d = data.data;
+            for (let i = 0; i < d.length; i += 4) { if (d[i + 3] < 128) { d[i] = d[i + 1] = d[i + 2] = d[i + 3] = 0; } else d[i + 3] = 255; }
+            ctx.putImageData(data, 0, 0);
+            fritosTexture.needsUpdate = true;
+        };
+        img.src = fritosUrl;
     }
     return fritosTexture;
 }
@@ -178,8 +195,8 @@ export function buildHealth() {
     const g = new THREE.Group();
     const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: getFritosTexture(),
-        transparent: true,
-        alphaTest: 0.08,
+        transparent: false,
+        alphaTest: 0.5,
     }));
     sprite.center.set(0.5, 0); // anchor at the bag's bottom edge
     sprite.scale.set(0.5, 0.56, 1);
