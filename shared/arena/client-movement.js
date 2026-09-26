@@ -44,10 +44,11 @@ export class ClientMovement {
         if(this.correction<.8){this.offset.x+=dx;this.offset.z+=dz;this.prev.x-=dx;this.prev.z-=dz;}
         else {this.offset={x:0,z:0};this.prev={x:this.state.x,z:this.state.z};}
     }
-    view(dt,now=performance.now()){
+    // alpha: how far the render frame is into the next fixed step (0..1).
+    view(dt,alpha=1){
         if(!this.state)return null;
         const decay=Math.exp(-12*dt);this.offset.x*=decay;this.offset.z*=decay;
-        const t=Math.max(0,Math.min(1,(now-this.stepAt)/(INPUT_STEP*1000)));
+        const t=Math.max(0,Math.min(1,alpha));
         return {x:this.prev.x+(this.state.x-this.prev.x)*t+this.offset.x,z:this.prev.z+(this.state.z-this.prev.z)*t+this.offset.z};
     }
 }

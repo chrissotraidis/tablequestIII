@@ -41,7 +41,7 @@ for(let ms=0;ms<6000;ms+=1000/60){
 }
 assert(receivedAt-predictedAt>=80,'The fixture must actually delay authority');
 assert(maxCorrection<.005,`Deterministic prediction must not rubber-band under jitter (max correction ${maxCorrection.toFixed(4)} m)`);
-const settled=prediction.view(1/60,1e12);
+const settled=prediction.view(1/60,1);
 assert(Math.hypot(settled.x-server.x,settled.z-server.z)<.01,'Prediction must converge to authority after stopping');
 // A burst backlog drains at two steps per tick, and taps never move.
 const burst=Array.from({length:8},(_,i)=>({seq:i,tap:i%4===0}));const drained=[];while(burst.length)drained.push(takeTickInputs(burst).filter(i=>!i.tap).length);

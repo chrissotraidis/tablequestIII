@@ -702,7 +702,7 @@ function updateSnapshot(snapshot) {
         if (door) { door.targetT = state.openT; door.serverOpen = state.open; }
     }
     snapshotAt = performance.now();
-    serverClock.sample(snapshot.serverTime);
+    serverClock.sample(snapshot.serverTime, clientNow());
     pruneBodies(snapshot.players);
     let scoresChanged = false;
     for (const player of snapshot.players) {
@@ -1010,15 +1010,10 @@ function predictLocalFire(now){
 }
 let currentWeapon = 'paintbrush';
 let weaponRequest = null;
-// Send movement at an exact 30 Hz average to match the server's input budget.
-// A background tab or stall resets the timeline instead of bursting.
-let nextInputAt = performance.now();
-(function inputLoop() {
-    const now = performance.now();
-    if (now - nextInputAt > 250) nextInputAt = now;
-    for (let i = 0; i < 3 && now >= nextInputAt; i++) { sendInput(); nextInputAt += 1000 / 30; }
-    setTimeout(inputLoop, Math.max(0, nextInputAt - performance.now()));
-})();
+// Fixed 30 Hz movement steps are taken from the render loop (see render), so
+// the drawn camera can blend exactly between the last two steps each frame.
+let inputAccumulator = 0;
+const clientNow = () => performance.timeOrigin + performance.now();
 
 // One settings form serves both menus, so values and handlers cannot drift.
 const settingsDialog=$('settings-dialog'),settingsForm=$('match-settings');
@@ -1240,6 +1235,12 @@ function render() {
     lastMenuFrame=now;
     const frameDt=(now-lastRenderAt)/1000;lastRenderAt=now;
     const dt = Math.min(frameDt, 0.05);
+    // Fixed movement steps at an exact 30 Hz average, aligned with drawing.
+    if (roomState?.state === 'active' && ws?.readyState === WebSocket.OPEN) {
+        inputAccumulator += Math.min(frameDt, 0.1);
+        for (let i = 0; i < 3 && inputAccumulator >= 1 / 30; i++) { sendInput(); inputAccumulator -= 1 / 30; }
+        if (inputAccumulator >= 1 / 30) inputAccumulator = 0;
+    } else inputAccumulator = 0;
     renderAudit.frames++;
     if(auditOutput) {
         frameSamples.push(frameDt*1000); if(frameSamples.length>300) frameSamples.shift();
@@ -1255,7 +1256,7 @@ function render() {
     updateCountdown(now);
     updateResultsWait(now);
     const blend = 1 - Math.exp(-24 * dt);
-    const remoteTime = serverClock.renderTime();
+    const remoteTime = serverClock.renderTime(clientNow());
     for (const [slot, entry] of bodies) {
         const sample = sampleAt(entry.samples, remoteTime);
         if (sample) { entry.body.group.position.set(sample.x, 0, sample.z); entry.pose.yaw = sample.yaw; }
@@ -1281,7 +1282,8 @@ function render() {
         if (auditOutput && slot !== localSlot) { const trace = (window.__tqRemoteTrace ||= []); trace.push([now, slot, entry.body.group.position.x, entry.body.group.position.z]); if (trace.length > 4000) trace.shift(); }
     }
     if(localPlayer && roomState?.state==='active' && localPlayer.alive){
-        const view=movement.view(dt);if(view)camera.position.set(view.x,.7,view.z);
+        const view=movement.view(dt,inputAccumulator*30);if(view)camera.position.set(view.x,.7,view.z);
+        if (auditOutput) { const trace = (window.__tqCamTrace ||= []); trace.push([now, camera.position.x, camera.position.z, seq]); if (trace.length > 4000) trace.shift(); }
         predictLocalFire(now);
         while(pendingShots[0] && now-pendingShots[0].at>1200)pendingShots.shift();
     } else if (localPlayer && ['active','countdown'].includes(roomState?.state)) camera.position.lerp(cameraTarget, blend);
