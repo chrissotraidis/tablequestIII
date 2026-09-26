@@ -1,5 +1,25 @@
 # Changelog
 
+## 2026-09-26 — 5.0: Table Quest 5
+
+The same six floors, tools, Cartel and Arena rules, rebuilt to look a generation newer. 4.1 stays playable under **Versions**.
+
+- **Renderer:**
+  - Graphics quality presets (Ultra/High/Medium/Low)
+  - ambient occlusion
+  - SMAA anti-aliasing
+  - reflections captured from each floor
+  - sharper shadows
+  - Arena uses the same post-processing as the campaign
+- **Surfaces:** every wall, floor and ceiling regenerated with real height detail (bevels, grout, grain, pores), up to 2048 px.
+- **First-person hands** are back, in the campaign and in Arena: better grips, slimmer sleeves and skin shading.
+- **Characters:** bevelled, shaded staff with a fabric weave; Arena players are the detailed campaign staff in their paint color.
+- **Effects:** pooled particles, lit wet paint, no per-impact memory churn.
+- **Online:** bounded lag compensation, and the push from walking into another player is predicted.
+- **Performance:** Ultra runs at about 115–119 fps at 2× Retina on an M3 Max.
+- **Details:** see [docs/v5/PROGRESS.md](docs/v5/PROGRESS.md).
+
+
 ## 2026-09-26 — 4.1: Arena online
 
 Table Quest gets its first multiplayer mode. The campaign is unchanged.

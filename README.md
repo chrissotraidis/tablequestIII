@@ -23,7 +23,7 @@
 <p align="center">
   <img alt="three.js" src="https://img.shields.io/badge/engine-three.js-111111?style=flat-square&logo=threedotjs&logoColor=white" />
   <img alt="Single HTML build" src="https://img.shields.io/badge/build-single_HTML-c9a227?style=flat-square" />
-  <img alt="Version 4.1" src="https://img.shields.io/badge/version-4.1_MODERN_%2B_ARENA-2f6fd8?style=flat-square" />
+  <img alt="Version 5.0" src="https://img.shields.io/badge/version-5.0-2f6fd8?style=flat-square" />
   <img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2f855a?style=flat-square" />
 </p>
 

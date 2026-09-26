@@ -119,7 +119,7 @@ function captureFloorReflections() {
     reflectionKey = w;
     try {
         const size = QUALITY[qualityName].ao ? 256 : 128;
-        const cubeTarget = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType });
+        const cubeTarget = new THREE.WebGLCubeRenderTarget(size, { type: THREE.HalfFloatType, generateMipmaps: false });
         const cube = new THREE.CubeCamera(0.1, 60, cubeTarget);
         const cx = w.w / 2, cz = w.h / 2;
         // nearest open cell to the map centre
@@ -130,6 +130,15 @@ function captureFloorReflections() {
         const vmVisible = game.vmRoot?.visible; if (game.vmRoot) game.vmRoot.visible = false;
         scene.add(cube); cube.update(renderer, scene); scene.remove(cube);
         if (game.vmRoot) game.vmRoot.visible = vmVisible;
+        // Reject a capture with non-finite texels (bright lamps in a black room
+        // overflowed half floats on the Factory and blacked out every surface).
+        const probe = new Uint16Array(size * size * 4);
+        let finite = true;
+        for (let face = 0; face < 6 && finite; face++) {
+            renderer.readRenderTargetPixels(cubeTarget, 0, 0, size, size, probe, face);
+            for (let i = 0; i < probe.length; i += 4) { const e = probe[i] & 0x7c00; if (e === 0x7c00 || (probe[i + 1] & 0x7c00) === 0x7c00 || (probe[i + 2] & 0x7c00) === 0x7c00) { finite = false; break; } }
+        }
+        if (!finite) { cubeTarget.dispose(); scene.environment = roomEnvironment; scene.environmentIntensity = 0.18; gameLog('render.reflections-rejected', { floor: game.levelIndex + 1 }, 'warn'); return; }
         const pmrem = new THREE.PMREMGenerator(renderer);
         const env = pmrem.fromCubemap(cubeTarget.texture);
         pmrem.dispose(); cubeTarget.dispose();
