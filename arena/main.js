@@ -2,6 +2,7 @@ import {damageBearing} from './combat-feedback.js';
 import {createPaintTint} from './paint-tint.js';
 import {drawSupplyMap} from './supply-map.js';
 import {ClientMovement} from '../shared/arena/client-movement.js';
+import {ServerClock,pushSample,sampleAt} from './interpolation.js';
 import {findPaintSurface} from './paint-surface.js';
 import {createStaffPreview} from './staff-preview.js';
 import { arenaRoute } from '../shared/arena/navigation.js';
@@ -164,6 +165,7 @@ let paused = false;
 let connected = false;
 let resumeRequired = false;
 let explicitLeave = false;
+let reconnectAttempts = 0;
 const keys = new Set();
 let roomPoll = null;
 let countdownDeadline = 0;
@@ -172,6 +174,8 @@ let countdownValue = null;
 let snapshotAt = 0;
 let localPlayer = null;
 const movement=new ClientMovement();
+const serverClock=new ServerClock();
+const PICKUP_DEFS=new Map(OFFICE_ARENA.pickups.map(p=>[p.id,p]));
 let predictionMap={...OFFICE_ARENA,closedDoorCells:OFFICE_ARENA.doors.map(d=>d.id)};
 const pendingShots=[];
 let feedbackAudit=null;
@@ -327,7 +331,7 @@ function getBody(player) {
         const preset = PRESETS[player.preset]?.model ?? 0;
         const body = buildArenaBody({ variant: preset, color: hex(player.color) });
         scene.add(body.group);
-        entry = { body, identity, tool: null, weapon: null, target: new THREE.Vector3(), targetYaw: 0,
+        entry = { body, identity, tool: null, weapon: null, target: new THREE.Vector3(), targetYaw: 0, samples: [],
             initialized: false, pose: { yaw: 0, pitch: 0, movement: 0, phase: player.slot, alive: false, fireT: 0, flinchT: 0, deathT: undefined, deathSide: 1 } };
         bodies.set(player.slot, entry);
     }
@@ -689,6 +693,8 @@ function standingsRows(roster) {
 
 function updateSnapshot(snapshot) {
     if (!roomState || snapshot.matchId !== roomState.matchId) return;
+    // Snapshots carry only live pickup state; the shared map owns the rest.
+    snapshot.pickups = (snapshot.pickups || []).map((p) => ({ ...PICKUP_DEFS.get(p.id), ...p, model: PICKUP_DEFS.get(p.id)?.weapon || PICKUP_DEFS.get(p.id)?.kind }));
     lastSnapshot = snapshot;
     predictionMap={...OFFICE_ARENA,blockingCells:OFFICE_ARENA.blockingCells.filter(id=>!snapshot.destroyedCover.includes(id)),closedDoorCells:snapshot.doors.filter(d=>d.openT<.75).map(d=>d.id)};
     for (const state of snapshot.doors || []) {
@@ -696,6 +702,7 @@ function updateSnapshot(snapshot) {
         if (door) { door.targetT = state.openT; door.serverOpen = state.open; }
     }
     snapshotAt = performance.now();
+    serverClock.sample(snapshot.serverTime);
     pruneBodies(snapshot.players);
     let scoresChanged = false;
     for (const player of snapshot.players) {
@@ -758,7 +765,9 @@ function updateSnapshot(snapshot) {
             entry.body.group.position.copy(entry.target);
             entry.pose.yaw = entry.targetYaw;
             entry.initialized = true;
+            entry.samples.length = 0;
         }
+        pushSample(entry.samples, { t: snapshot.serverTime, x: player.x, z: player.z, yaw: entry.targetYaw });
         entry.pose.pitch = player.pitch;
         entry.pose.speed = Math.hypot(player.vx, player.vz);
         entry.pose.movement = Math.min(1, entry.pose.speed / 5.6);
@@ -791,7 +800,7 @@ function connect() {
     const socket = ws;
     explicitLeave = false;
     $('connect').disabled = true;
-    status.textContent = 'Joining the Office lobby…';
+    status.textContent = reconnectAttempts ? 'Connection lost · reconnecting…' : 'Joining the Office lobby…';
     ws.addEventListener('open', () => {
         if (ws !== socket) return;
         ws.send(JSON.stringify({ v: 1, type: 'hello', protocol: 1, roomCode: $('room-code').value, reconnectToken: sessionStorage.getItem(tokenKey), name: cleanName($('name').value), preset: $('preset').value, color: $('color').value }));
@@ -801,11 +810,15 @@ function connect() {
         const data = JSON.parse(event.data);
         if (data.type === 'welcome') {
             connected = true;
+            const resumed = reconnectAttempts > 0;
+            reconnectAttempts = 0;
+            if (resumed) { $('pickup-notice').textContent = 'Reconnected'; noticeUntil = performance.now() + 1500; }
             localSlot = data.slot; sessionStorage.setItem(tokenKey, data.token);
             const identity=data.room.roster.find(player=>player.slot===localSlot);
             if(identity){$('name').value=identity.name;$('preset').value=identity.preset;$('color').value=identity.color;updateStaffPreview();}
 
-            resumeRequired = data.room.state === 'active';
+            // An automatic reconnect returns straight to play.
+            resumeRequired = data.room.state === 'active' && !resumed;
             if (data.room.chat?.length) { $('chat-log').replaceChildren(); data.room.chat.forEach(appendChat); }
             initAudio(); setRoom('office');
             updateRoom(data.room);
@@ -884,21 +897,34 @@ function connect() {
             if (data.code === 'room_full' || data.code === 'round_locked') sessionStorage.removeItem(tokenKey);
             status.textContent = `${data.code === 'waiting_for_ready' ? 'READY CHECK' : 'ARENA'} · ${data.message}`;
             if (!connected) {
-                ws = null;
-                socket.close();
-                $('connect').disabled = false;
+                // During a reconnect let the close handler retry or reset.
+                if (reconnectAttempts) socket.close();
+                else { ws = null; socket.close(); $('connect').disabled = false; }
             }
         }
     });
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (event) => {
         if (ws !== socket) return;
         ws = null;
+        const wasJoined = connected;
         connected = false;
         $('ready').disabled = true;
         $('start').disabled = true;
         $('bot-toggle').disabled = true;
         $('bot-clear').disabled = true;
         if (explicitLeave) return;
+        // The server holds the slot for its reconnect grace period; retry
+        // quietly inside it instead of dropping the player to the lobby.
+        if ((wasJoined || reconnectAttempts) && event.code !== 4001 && sessionStorage.getItem(tokenKey) && reconnectAttempts < 7) {
+            reconnectAttempts++;
+            localPlayer = null; keys.clear(); fireHeld = false;
+            status.textContent = 'Connection lost · reconnecting…';
+            $('pickup-notice').textContent = 'Connection lost · reconnecting…'; $('pickup-notice').classList.remove('hidden'); noticeUntil = 0;
+            setTimeout(() => { if (!explicitLeave) connect(); }, Math.min(2000, 250 * 2 ** (reconnectAttempts - 1)));
+            return;
+        }
+        reconnectAttempts = 0;
+        $('pickup-notice').classList.add('hidden');
         lobby.classList.remove('joined','results-mode');
         $('connect').classList.remove('hidden');
         for(const id of ['ready','bot-toggle','bot-count','bot-clear','lobby-leave']) $(id).classList.add('hidden');
@@ -959,10 +985,13 @@ function currentInput(){
     const controlling=!paused && !resumeRequired && arenaVisible() && localPlayer?.alive;
     return {moveX:rehearsalInput?.moveX ?? (controlling ? (keys.has('KeyD')?1:0)-(keys.has('KeyA')?1:0) : 0),moveY:rehearsalInput?.moveY ?? (controlling ? (keys.has('KeyW')?1:0)-(keys.has('KeyS')?1:0) : 0),yaw,pitch,sprint:controlling && (keys.has('ShiftLeft')||keys.has('ShiftRight')),fire:rehearsalInput?.fire ?? (controlling && fireHeld),weapon:currentWeapon};
 }
-function sendInput(){
+function sendInput(tap=false){
     if(!ws || ws.readyState!==WebSocket.OPEN || roomState?.state!=='active')return;
-    rehearsalInput=!paused && !resumeRequired && arenaVisible() ? tourInput() : null;
-    ws.send(JSON.stringify({v:1,type:'input',matchId:roomState.matchId,seq:++seq,...currentInput()}));
+    if(!tap)rehearsalInput=!paused && !resumeRequired && arenaVisible() ? tourInput() : null;
+    const input={...currentInput(),tap};
+    ws.send(JSON.stringify({v:1,type:'input',matchId:roomState.matchId,seq:++seq,...input}));
+    // Predict exactly the step the server will apply for this input.
+    if(!tap && localPlayer?.alive)movement.step(predictionMap,input,seq);
 }
 function localFireFeedback(weapon){
     playSound({paintbrush:'shoot',tableLeg:'swing',sprayer:'spray',nailgun:'nail',roller:'roller_fire'}[weapon]);
@@ -981,7 +1010,7 @@ function predictLocalFire(now){
 }
 let currentWeapon = 'paintbrush';
 let weaponRequest = null;
-setInterval(sendInput, 1000 / 30);
+setInterval(() => sendInput(), 1000 / 30);
 
 // One settings form serves both menus, so values and handlers cannot drift.
 const settingsDialog=$('settings-dialog'),settingsForm=$('match-settings');
@@ -1069,7 +1098,7 @@ function pauseLocal(shouldPause = !paused) {
         resumeRequired = false; paused = false; lobby.classList.add('hidden'); pausePanel.classList.add('hidden'); hud.classList.remove('hidden'); status.textContent = 'LIVE · THE OFFICE'; requestPointerLockSafe(); return;
     }
     paused = true; keys.clear(); fireHeld = false;
-    sendInput();
+    sendInput(true);
     document.exitPointerLock?.();
     lobby.classList.add('hidden'); hud.classList.add('hidden'); pausePanel.classList.remove('hidden');
     $('pause-status').textContent = 'The round continues while you are away. Your staff remains in the room.';
@@ -1104,7 +1133,7 @@ addEventListener('keydown', (event) => {
     if (event.code === 'Escape') { if (!event.repeat) { if (!roomState || ['lobby','results'].includes(roomState.state)) returnToMain(); else if(roomState.state==='countdown') ws?.send(JSON.stringify({v:1,type:'ready',ready:false})); else pauseLocal(); } return; }
     if (event.code === 'KeyE' && !event.repeat && !paused && roomState?.state === 'active') ws?.send(JSON.stringify({v:1,type:'interact'}));
     if (paused || roomState?.state !== 'active') return;
-    if(!event.repeat){keys.add(event.code);sendInput();}
+    if(!event.repeat){keys.add(event.code);sendInput(true);}
     const index = Number(event.key) - 1;
     if (index >= 0 && index < toolOrder.length && !event.repeat) selectWeapon(toolOrder[index]);
 });
@@ -1125,7 +1154,7 @@ function selectWeapon(key) {
     if (paused || roomState?.state !== 'active' || !localPlayer?.alive) return;
     if (!localPlayer.weapons.includes(key)) { showFeed(`Find ${ARENA_WEAPONS[key].name} · ${({paintbrush:'central aisle',tableLeg:'north hall',sprayer:'west desks',nailgun:'east desks',roller:'south corridor'})[key]} · Tab → Field guide for map`); return; }
     if (currentWeapon === key) return;
-    currentWeapon = key; weaponRequest = key; updateWeaponHud(); playSound('weapon_switch');sendInput();
+    currentWeapon = key; weaponRequest = key; updateWeaponHud(); playSound('weapon_switch');sendInput(true);
 }
 $('arena-weapons').addEventListener('click', event => { const button = event.target.closest('[data-weapon]'); if (button) selectWeapon(button.dataset.weapon); });
 let lastWeaponWheelAt=-Infinity;
@@ -1138,7 +1167,7 @@ addEventListener('wheel', event => {
 }, {passive:false});
 addEventListener('keyup', (event) => {
     if (embeddedHost && !document.getElementById('arena-screen')?.classList.contains('hidden')) event.stopImmediatePropagation();
-    keys.delete(event.code); if(arenaVisible())sendInput();
+    keys.delete(event.code); if(arenaVisible())sendInput(true);
 });
 document.addEventListener('pointerlockchange', () => { if (!isPointerLocked() && !paused && !resumeRequired && arenaVisible() && roomState?.state === 'active') pauseLocal(true); });
 addEventListener('blur', () => { keys.clear(); fireHeld = false; if (arenaVisible() && !resumeRequired) pauseLocal(true); });
@@ -1146,11 +1175,11 @@ canvas.addEventListener('click', () => { if (!paused && roomState?.state === 'ac
 addEventListener('mousedown', (event) => {
     // When the embedded host owns pointer lock, Chromium retargets the locked
     // button event to #arena-root instead of the shadow canvas.
-    if (!paused && roomState?.state === 'active' && isPointerLocked() && event.button === 0) {fireHeld=true;predictLocalFire(performance.now());sendInput();}
+    if (!paused && roomState?.state === 'active' && isPointerLocked() && event.button === 0) {fireHeld=true;predictLocalFire(performance.now());sendInput(true);}
 });
 addEventListener('mousemove', (event) => { if (paused || roomState?.state !== 'active' || !isPointerLocked()) return; yaw += event.movementX * 0.0028 * settings.sensitivity; pitch = Math.max(-0.5, Math.min(0.5, pitch - event.movementY * 0.0028 * settings.sensitivity * (settings.invert ? -1 : 1))); });
-canvas.addEventListener('mousedown', (event) => { if (!paused && roomState?.state === 'active' && event.button === 0) {fireHeld=true;predictLocalFire(performance.now());sendInput();} });
-addEventListener('mouseup', (event) => { if(event.button===0){fireHeld=false;sendInput();} });
+canvas.addEventListener('mousedown', (event) => { if (!paused && roomState?.state === 'active' && event.button === 0) {fireHeld=true;predictLocalFire(performance.now());sendInput(true);} });
+addEventListener('mouseup', (event) => { if(event.button===0){fireHeld=false;sendInput(true);} });
 
 function showMatchPanel(name){
     for(const panel of ['standings','settings','guide']) $('match-'+panel).classList.toggle('hidden',panel!==name);
@@ -1218,10 +1247,15 @@ function render() {
     updateCountdown(now);
     updateResultsWait(now);
     const blend = 1 - Math.exp(-24 * dt);
+    const remoteTime = serverClock.renderTime();
     for (const [slot, entry] of bodies) {
-        entry.body.group.position.lerp(entry.target, blend);
-        const deltaYaw = entry.targetYaw - entry.pose.yaw;
-        entry.pose.yaw += Math.atan2(Math.sin(deltaYaw), Math.cos(deltaYaw)) * blend;
+        const sample = sampleAt(entry.samples, remoteTime);
+        if (sample) { entry.body.group.position.set(sample.x, 0, sample.z); entry.pose.yaw = sample.yaw; }
+        else {
+            entry.body.group.position.lerp(entry.target, blend);
+            const deltaYaw = entry.targetYaw - entry.pose.yaw;
+            entry.pose.yaw += Math.atan2(Math.sin(deltaYaw), Math.cos(deltaYaw)) * blend;
+        }
         entry.pose.time = now / 1000;
         if (now - snapshotAt < 250 && entry.pose.movement > 0.02) entry.pose.phase += dt * (4 + entry.pose.speed * 2.5);
         else entry.pose.movement = 0;
@@ -1237,7 +1271,6 @@ function render() {
         entry.body.group.visible = slot !== localSlot && (entry.pose.alive || Number.isFinite(entry.pose.deathT));
     }
     if(localPlayer && roomState?.state==='active' && localPlayer.alive){
-        movement.step(predictionMap,currentInput(),dt,seq+1);
         const view=movement.view(dt);if(view)camera.position.set(view.x,.7,view.z);
         predictLocalFire(now);
         while(pendingShots[0] && now-pendingShots[0].at>1200)pendingShots.shift();

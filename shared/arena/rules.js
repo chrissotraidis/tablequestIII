@@ -59,6 +59,7 @@ export function normalizeInput(value = {}) {
         pitch: Math.max(-0.55, Math.min(0.55, finite(value.pitch))),
         sprint: Boolean(value.sprint),
         fire: Boolean(value.fire),
+        tap: Boolean(value.tap),
         weapon: typeof value.weapon === 'string' && ARENA_WEAPONS[value.weapon] ? value.weapon : null,
         at: Date.now(),
     };
@@ -72,4 +73,3 @@ export function hashString(value) {
     }
     return (h >>> 0).toString(16).padStart(8, '0');
 }
-

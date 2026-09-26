@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {findPaintSurface} from '../arena/paint-surface.js';
-import {ClientMovement} from '../shared/arena/client-movement.js';
+import {ClientMovement,INPUT_STEP,takeTickInputs} from '../shared/arena/client-movement.js';
 import {moveCircle} from '../shared/arena/movement.js';
 const wall=new THREE.Mesh(new THREE.BoxGeometry(1,2,1),new THREE.MeshBasicMaterial());
 wall.position.set(2.5,1,2.5);wall.updateMatrixWorld(true);
@@ -12,27 +12,39 @@ const edge=findPaintSurface([wall],new THREE.Vector3(1.98,.7,2.02),new THREE.Vec
 assert(!edge || edge.size<.05,'A decal may not extend into a doorway');
 assert.equal(findPaintSurface([wall],new THREE.Vector3(1.7,.7,2.5),new THREE.Vector3(0,0,0)),null,'Body impacts are particles, never free-floating planes');
 
+
+// Fixed-step prediction against the real server input path. Inputs leave at
+// 30 Hz, cross an in-order jittery link (40-100 ms each way), the server
+// consumes them with takeTickInputs at 30 Hz and returns 15 Hz snapshots.
 const map={width:20,height:6,map:['####################',...Array(4).fill('#..................#'),'####################'],blockingCells:[],props:{}};
-const prediction=new ClientMovement();let server={x:2.5,z:2.5,lastSeq:-1};prediction.reset(server);
-const inputs=[],snapshots=[];let seq=0,held={moveX:0,moveY:0,yaw:0,pitch:0},predictedAt=null,receivedAt=null;
-// 60 Hz presentation, 30 Hz authoritative simulation, 15 Hz snapshots,
-// and four frames each way: approximately 133 ms round-trip delay.
-for(let frame=0;frame<180;frame++){
- const input={moveX:0,moveY:frame>=6&&frame<66 ? 1:0,yaw:0,pitch:0};
- if(frame%2===0)inputs.push({at:frame+4,input:{...input},seq:++seq});
- prediction.step(map,input,1/60,seq+1);
- const view=prediction.view(1/60);if(predictedAt===null && view.x>2.51)predictedAt=frame;
- for(const packet of inputs.filter(p=>p.at===frame)){held=packet.input;server.lastSeq=packet.seq;}
- if(frame%2===0)moveCircle(map,server,held,1/30);
- if(frame%4===0)snapshots.push({at:frame+4,player:{...server}});
- for(const packet of snapshots.filter(p=>p.at===frame)){
-  if(receivedAt===null && packet.player.x>2.51)receivedAt=frame;
-  prediction.reconcile(map,packet.player);
+let rngState=7;const rand=()=>((rngState=(rngState*1103515245+12345)%2147483648)/2147483648);
+const prediction=new ClientMovement();const server={x:2.5,z:2.5,lastSeq:-1,vx:0,vz:0,yaw:0,pitch:0};prediction.reset(server);
+const queue=[],toServer=[],toClient=[];let seq=0,upLast=0,downLast=0,predictedAt=null,receivedAt=null,maxCorrection=0;
+const link=(lane,last,at,payload)=>{const when=Math.max(last,at+40+rand()*60);lane.push({when,payload});return when;};
+for(let ms=0;ms<6000;ms+=1000/60){
+ const now=Math.round(ms);
+ const moveY=ms>=100&&ms<2000 ? 1 : ms>=2500&&ms<4000 ? -1 : 0, moveX=ms>=3000&&ms<4500 ? 1 : 0;
+ if(Math.round(ms/(1000/60))%2===0){
+  const input={moveX,moveY,yaw:.4,pitch:0,tap:false,seq:++seq};
+  upLast=link(toServer,upLast,now,input);prediction.step(map,input,seq,now);
+  if(predictedAt===null && prediction.state.x>2.51)predictedAt=now;
  }
+ for(const m of toServer.filter(m=>m.when<=now))queue.push(m.payload);
+ toServer.splice(0,toServer.filter(m=>m.when<=now).length);
+ if(Math.round(ms/(1000/60))%2===1){
+  for(const input of takeTickInputs(queue)){server.lastSeq=input.seq;if(!input.tap)moveCircle(map,server,input,INPUT_STEP);}
+  if(Math.round(ms/(1000/60))%4===1)downLast=link(toClient,downLast,now,{...server});
+ }
+ const arrived=toClient.filter(m=>m.when<=now);toClient.splice(0,arrived.length);
+ for(const m of arrived){if(receivedAt===null && m.payload.x>2.51)receivedAt=now;prediction.reconcile(map,m.payload);maxCorrection=Math.max(maxCorrection,prediction.correction);}
 }
-assert.equal(predictedAt,6,'Movement must respond on the first input frame');
-assert(receivedAt>predictedAt,'The fixture must actually delay authority');
-assert(Math.abs(prediction.view(1/60).x-server.x)<.01,'Prediction must converge to authority after stopping');
-for(let i=0;i<500;i++)prediction.step(map,{moveX:0,moveY:1,yaw:0,pitch:0},1/60,++seq);
+assert(receivedAt-predictedAt>=80,'The fixture must actually delay authority');
+assert(maxCorrection<.005,`Deterministic prediction must not rubber-band under jitter (max correction ${maxCorrection.toFixed(4)} m)`);
+const settled=prediction.view(1/60,1e12);
+assert(Math.hypot(settled.x-server.x,settled.z-server.z)<.01,'Prediction must converge to authority after stopping');
+// A burst backlog drains at two steps per tick, and taps never move.
+const burst=Array.from({length:8},(_,i)=>({seq:i,tap:i%4===0}));const drained=[];while(burst.length)drained.push(takeTickInputs(burst).filter(i=>!i.tap).length);
+assert.deepEqual(drained,[2,2,1,1],'Backlogs catch up without letting taps spend movement steps');
+for(let i=0;i<500;i++)prediction.step(map,{moveX:0,moveY:1,yaw:0,pitch:0},++seq);
 assert(prediction.state.x<=18.74,'Predicted movement must respect walls');
-console.log(`Arena presentation: PASS (anchored paint, clipped edges, no surface/no decal; first-frame movement vs ${(receivedAt-predictedAt)*1000/60|0} ms snapshot-only delay; authoritative convergence and walls)`);
+console.log(`Arena presentation: PASS (anchored paint, clipped edges, no surface/no decal; fixed-step prediction under 40-100 ms jitter, max correction ${(maxCorrection*1000).toFixed(2)} mm vs ${receivedAt-predictedAt} ms authority delay; backlog/tap budget; walls)`);

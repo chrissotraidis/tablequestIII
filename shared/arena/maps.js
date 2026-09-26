@@ -69,6 +69,16 @@ export const OFFICE_ARENA = Object.freeze({
         { id: 'sprayer', kind: 'weapon', weapon: 'sprayer', x: 7.5, z: 12.5, respawnMs: 25000 },
         { id: 'nailgun', kind: 'weapon', weapon: 'nailgun', x: 31.5, z: 13.5, respawnMs: 25000 },
         { id: 'roller', kind: 'weapon', weapon: 'roller', x: 19.5, z: 22.5, respawnMs: 25000 },
+        // Floor supplies sit a few steps from spawns, never on them, so a
+        // respawn does not hand out a free refill.
+        { id: 'supply-0', kind: 'paint', x: 4.5, z: 5.5, respawnMs: 10000, amount: 20 },
+        { id: 'supply-1', kind: 'food', x: 36.5, z: 5.5, respawnMs: 20000, amount: 25 },
+        { id: 'supply-2', kind: 'paint', x: 5.5, z: 15.5, respawnMs: 10000, amount: 20 },
+        { id: 'supply-3', kind: 'food', x: 35.5, z: 15.5, respawnMs: 20000, amount: 25 },
+        { id: 'supply-4', kind: 'paint', x: 11.5, z: 14.5, respawnMs: 10000, amount: 20 },
+        { id: 'supply-5', kind: 'food', x: 33.5, z: 11.5, respawnMs: 20000, amount: 25 },
+        { id: 'supply-6', kind: 'paint', x: 10.5, z: 19.5, respawnMs: 10000, amount: 20 },
+        { id: 'supply-7', kind: 'food', x: 25.5, z: 22.5, respawnMs: 20000, amount: 25 },
     ]),
 });
 

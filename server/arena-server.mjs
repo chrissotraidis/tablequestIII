@@ -13,6 +13,7 @@ import { OFFICE_ARENA, OFFICE_MAP_HASH, isSolidCell, validateOfficeManifest } fr
 import { ARENA_CONFIG, ARENA_WEAPONS, COLORS, PRESETS, cleanName, normalizeInput } from '../shared/arena/rules.js';
 import { moveCircle, segmentBlocked, insideMap } from '../shared/arena/movement.js';
 import { MAX_MESSAGE_BYTES, PROTOCOL_VERSION, message, parseMessage } from '../shared/arena/protocol.js';
+import { MAX_QUEUED_INPUTS, takeTickInputs } from '../shared/arena/client-movement.js';
 
 const HERE = fileURLToPath(new URL('../', import.meta.url));
 const HOST = process.env.HOST || '127.0.0.1';
@@ -45,12 +46,7 @@ function updateDoors(dt) {
     }
     arenaMap.closedDoorCells = [...doors.values()].filter(d => d.openT < .75).map(d => d.id);
 }
-const worldPickups = [...OFFICE_ARENA.pickups,
-    ...OFFICE_ARENA.spawns.slice(0, 8).map(([x, z], i) => ({
-        id: `supply-${i}`, kind: i % 2 ? 'food' : 'paint', x, z,
-        amount: i % 2 ? 25 : 20, respawnMs: i % 2 ? 20000 : 10000,
-    })),
-];
+const worldPickups = OFFICE_ARENA.pickups;
 
 const metrics = {
     startedAt: new Date().toISOString(),
@@ -175,6 +171,8 @@ function makePlayer(slot, data = {}) {
         kills: 0,
         deaths: 0,
         lastSeq: -1,
+        queuedSeq: -1,
+        inputQueue: [],
         input: normalizeInput({ yaw: 0 }),
         inputAt: 0,
         reservedUntil: 0,
@@ -200,10 +198,28 @@ function fillBots(limit = ARENA_CONFIG.maxPlayers) {
         bot.ready = true;
         bot.inputAt = Date.now();
         room.players.set(slot, bot);
+        distinctIdentity(bot);
         created.push(bot);
     }
     for (const player of room.players.values()) if (player.bot) player.ready = true;
     return created;
+}
+
+// Everyone defaults to the same look; keep staff distinguishable in the room.
+function distinctIdentity(player) {
+    const others = [...room.players.values()].filter((p) => p !== player);
+    if (others.some((p) => p.color === player.color)) {
+        const free = Object.keys(COLORS).find((color) => !others.some((p) => p.color === color));
+        if (free) player.color = free;
+    }
+    if (player.bot) return;
+    const base = player.name;
+    if (others.some((p) => p.name === base)) {
+        for (let n = 2; n < 20; n++) {
+            const name = `${[...base].slice(0, 17).join('')} ${n}`;
+            if (!others.some((p) => p.name === name)) { player.name = name; break; }
+        }
+    }
 }
 
 function removeBots() {
@@ -215,7 +231,7 @@ function resetPlayer(p) {
     p.x = x; p.z = z; p.vx = 0; p.vz = 0; p.yaw = 0; p.pitch = 0;
     p.health = ARENA_CONFIG.maxHealth; p.paint = 30; p.weapon = 'paintbrush';
     p.weapons = new Set(['paintbrush', 'tableLeg']); p.cooldownAt = 0; p.fireRequested=false; p.alive = true; p.respawnAt = 0;
-    p.kills = 0; p.deaths = 0; p.lastSeq = -1; p.input = normalizeInput({}); p.inputAt = 0; p.ready = false;
+    p.kills = 0; p.deaths = 0; p.lastSeq = -1; p.queuedSeq = -1; p.inputQueue = []; p.input = normalizeInput({}); p.inputAt = 0; p.ready = false;
     p.botTargetAt = room.tick + Math.ceil(ARENA_CONFIG.tickRate);
     p.protectedUntil = Date.now() + 1500;
     p.brain = makeBotBrain(p.slot);
@@ -245,9 +261,12 @@ function attachSocket(socket, player, data) {
     if (player.socket && player.socket !== socket) player.socket.close(4001, 'replaced');
     player.socket = socket;
     player.reservedUntil = 0;
+    // A reloaded page restarts its input sequence at zero.
+    player.lastSeq = -1; player.queuedSeq = -1; player.inputQueue = [];
     if (data.name) player.name = cleanName(data.name);
     if (data.preset) player.preset = presetValue(data.preset);
     if (data.color) player.color = colorValue(data.color);
+    distinctIdentity(player);
     // If the former host was the only human and temporarily disconnected,
     // transfer control back when that same reserved slot reconnects. Bots do
     // not own lobby controls.
@@ -295,9 +314,11 @@ function disconnect(socket) {
     const player = socket.player;
     if (!player || player.socket !== socket) return;
     player.socket = null;
-    player.ready = false;
-    cancelCountdown();
+    // Keep ready state for the reconnect grace period: one dropped connection
+    // should not cancel everyone's countdown. syncRoom still cancels when
+    // fewer than two connected staff remain.
     player.input = normalizeInput({ yaw: player.yaw, pitch: player.pitch });
+    player.inputQueue = [];
     player.inputAt = 0;
     player.reservedUntil = Date.now() + ARENA_CONFIG.disconnectGraceMs;
     if (room.hostSlot === player.slot) transferHost();
@@ -766,6 +787,8 @@ function simulate(now) {
     for (const player of room.players.values()) {
         if (!player.socket && !player.bot) continue;
         if (!player.alive) {
+            // Inputs sent while dead never move the respawned player.
+            if (player.inputQueue?.length) { player.lastSeq = player.inputQueue.at(-1).seq; player.inputQueue.length = 0; }
             if (now >= player.respawnAt) {
                 const [x, z] = safestSpawn(player);
                 player.x = x; player.z = z; player.health = ARENA_CONFIG.maxHealth; player.paint = 30; player.alive = true; player.weapon = 'paintbrush'; player.weapons = new Set(['paintbrush', 'tableLeg']);
@@ -781,24 +804,37 @@ function simulate(now) {
             }
             continue;
         }
-        const input = player.bot
-            ? botInput(player)
-            : ((now - player.inputAt > ARENA_CONFIG.inputTimeoutMs) ? normalizeInput({ yaw: player.yaw, pitch: player.pitch }) : player.input);
-        player.lastSeq = input.seq;
-        if (input.weapon && player.weapons.has(input.weapon)) player.weapon = input.weapon;
-        // moveCircle normalizes analog input to full speed. Scale bot displacement
-        // and reported velocity here to retain campaign chase/orbit/patrol speeds.
-        const movementScale = player.bot
-            ? (BOT_PACING[player.preset] || BOT_PACING.guard).speed / ARENA_CONFIG.walkSpeed
-                * Math.min(1, Math.hypot(input.moveX, input.moveY))
-            : 1;
-        const oldX = player.x, oldZ = player.z;
-        moveCircle(arenaMap, player, input, movementScale / ARENA_CONFIG.tickRate);
-        if (player.bot) player.brain.stuckTicks = Math.hypot(input.moveX, input.moveY) > 0 && Math.hypot(player.x - oldX, player.z - oldZ) < 0.001 ? player.brain.stuckTicks + 1 : 0;
-        if (player.bot) { player.vx *= movementScale; player.vz *= movementScale; }
-        pickupFor(player, now);
-        if (input.fire || player.fireRequested) fire(player, now);
-        player.fireRequested=false;
+        if (player.bot) {
+            const input = botInput(player);
+            player.lastSeq = input.seq;
+            if (input.weapon && player.weapons.has(input.weapon)) player.weapon = input.weapon;
+            // moveCircle normalizes analog input to full speed. Scale bot displacement
+            // and reported velocity here to retain campaign chase/orbit/patrol speeds.
+            const movementScale = (BOT_PACING[player.preset] || BOT_PACING.guard).speed / ARENA_CONFIG.walkSpeed
+                * Math.min(1, Math.hypot(input.moveX, input.moveY));
+            const oldX = player.x, oldZ = player.z;
+            moveCircle(arenaMap, player, input, movementScale / ARENA_CONFIG.tickRate);
+            player.brain.stuckTicks = Math.hypot(input.moveX, input.moveY) > 0 && Math.hypot(player.x - oldX, player.z - oldZ) < 0.001 ? player.brain.stuckTicks + 1 : 0;
+            player.vx *= movementScale; player.vz *= movementScale;
+            pickupFor(player, now);
+            if (input.fire) fire(player, now);
+            continue;
+        }
+        // Humans: apply each received input exactly once at the fixed step the
+        // client predicted with. Starvation holds position instead of guessing.
+        const inputs = takeTickInputs(player.inputQueue);
+        let moved = false;
+        for (const input of inputs) {
+            player.lastSeq = input.seq;
+            player.input = input;
+            if (input.weapon && player.weapons.has(input.weapon)) player.weapon = input.weapon;
+            if (input.tap) { player.yaw = input.yaw; player.pitch = input.pitch; }
+            else { moveCircle(arenaMap, player, input, 1 / ARENA_CONFIG.tickRate); moved = true; }
+            pickupFor(player, now);
+            if (input.fire) fire(player, now);
+            if (!player.alive) break;
+        }
+        if (!moved) { player.vx = 0; player.vz = 0; }
     }
     separatePlayers();
     stepProjectiles(1 / ARENA_CONFIG.tickRate, now);
@@ -815,7 +851,8 @@ function snapshot() {
         state: room.state,
         remainingMs: room.state === 'active' ? Math.max(0, room.deadline - now) : 0,
         players: [...room.players.values()].map((p) => ({ slot: p.slot, bot: Boolean(p.bot), x: +p.x.toFixed(4), z: +p.z.toFixed(4), yaw: +p.yaw.toFixed(4), pitch: +p.pitch.toFixed(4), vx: +p.vx.toFixed(3), vz: +p.vz.toFixed(3), health: p.health, paint: p.paint, alive: p.alive, protectionMs: Math.max(0,(p.protectedUntil || 0)-now), respawnMs: p.alive ? 0 : Math.max(0, p.respawnAt - Date.now()), kills: p.kills, deaths: p.deaths, weapon: p.weapon, weapons: [...p.weapons], lastSeq: p.lastSeq })),
-        pickups: [...room.pickups.values()].map((p) => ({ ...p, available: p.availableAt <= now, respawnRemainingMs: Math.max(0, p.availableAt - now), model: p.weapon || (p.kind === 'food' ? 'food' : 'paint') })),
+        // Positions and kinds are in the shared map; send only live state.
+        pickups: [...room.pickups.values()].map((p) => ({ id: p.id, available: p.availableAt <= now, respawnRemainingMs: Math.max(0, p.availableAt - now) })),
         destroyedCover: [...cover.values()].filter((p) => p.health <= 0).map((p) => p.id),
         projectiles: room.projectiles.map((p) => ({ id: p.id, weapon: p.weapon, size: p.size, color:p.owner?.color || 'brass', vx:+p.vx.toFixed(3), vy:+p.vy.toFixed(3), vz:+p.vz.toFixed(3), x: +p.x.toFixed(3), y: +p.y.toFixed(3), z: +p.z.toFixed(3) })),
     };
@@ -835,7 +872,13 @@ function tick() {
             const body = message('snapshot', snapshot());
             metrics.snapshots++;
             metrics.snapshotBytes += Buffer.byteLength(body);
-            for (const socket of recipients) socket.send(body);
+            for (const socket of recipients) {
+                // A client that cannot keep up skips snapshots instead of
+                // growing server memory; a hopeless backlog is dropped.
+                if (socket.bufferedAmount > 1024 * 1024) { metrics.slowDrops = (metrics.slowDrops || 0) + 1; socket.terminate(); continue; }
+                if (socket.bufferedAmount > 128 * 1024) { metrics.skippedSnapshots = (metrics.skippedSnapshots || 0) + 1; continue; }
+                socket.send(body);
+            }
         }
     }
     // Include serialization and socket enqueueing in server update cost.
@@ -863,10 +906,10 @@ function handleMessage(socket, raw) {
     if (data.type === 'input') {
         if (room.state !== 'active' || data.matchId !== room.matchId) return;
         const input = normalizeInput(data);
-        if (input.seq <= player.lastSeq) return;
-        player.lastSeq = input.seq;
-        if(input.fire && !player.input.fire)player.fireRequested=true;
-        player.input = input;
+        if (input.seq <= player.queuedSeq) return;
+        player.queuedSeq = input.seq;
+        player.inputQueue.push(input);
+        if (player.inputQueue.length > MAX_QUEUED_INPUTS) player.inputQueue.shift();
         player.inputAt = Date.now();
         return;
     }
@@ -977,6 +1020,8 @@ const server = createServer((req, res) => staticResponse(req, res).catch(() => {
 const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES, perMessageDeflate: false, maxBufferSize: 64 * 1024 });
 wss.on('connection', (socket) => {
     metrics.connections++;
+    socket.isAlive = true;
+    socket.on('pong', () => { socket.isAlive = true; });
     const timer = setTimeout(() => { if (!socket.player) socket.close(4000, 'hello timeout'); }, 5000);
     socket.on('message', (raw) => handleMessage(socket, raw));
     socket.on('close', () => { clearTimeout(timer); disconnect(socket); });
@@ -989,7 +1034,16 @@ server.on('upgrade', (req, socket, head) => {
 });
 
 const interval = setInterval(tick, TICK_MS);
-server.on('close', () => clearInterval(interval));
+// Sleeping laptops and dropped Wi-Fi leave half-open sockets that never send
+// close. Two missed pings (about 20 s) release the slot into reconnect grace.
+const heartbeat = setInterval(() => {
+    for (const socket of wss.clients) {
+        if (!socket.isAlive) { socket.terminate(); continue; }
+        socket.isAlive = false;
+        try { socket.ping(); } catch { socket.terminate(); }
+    }
+}, Number(process.env.TQ_ARENA_HEARTBEAT_MS || 10000));
+server.on('close', () => { clearInterval(interval); clearInterval(heartbeat); });
 
 export { server, room, tick, snapshot, validateOfficeManifest };
 
