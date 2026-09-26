@@ -1871,7 +1871,11 @@
         #barks .bark-text { font-size: 13px; letter-spacing: 1px; color: #fff; background: rgba(0,0,0,.55); border: 1px solid rgba(255,255,255,.18); padding: 3px 8px; font-style: italic; }
         #barks .bark.boss .bark-text { color: #ffd35a; border-color: rgba(255,211,90,.5); font-size: 15px; }
         #barks .bark.boss .bark-rank { color: #ff5a4a; }
-    </style>
+            .mm-panel-actions { display: flex; justify-content: flex-start; margin-top: 14px; }
+        .mm-back { min-height: 40px; padding: 8px 20px; border: 1px solid #c9a227; border-radius: 3px; background: #2a1c10; color: #ffd35a; font: 700 14px Arial, sans-serif; letter-spacing: 2px; cursor: pointer; }
+        .mm-back:hover, .mm-back:focus-visible { background: #ffd35a; color: #181208; outline: none; }
+        .opt-row[data-opt="generation"] .opt-value b { white-space: nowrap; }
+</style>
 </head>
 
 <body>
@@ -2032,6 +2036,7 @@
                     <div class="opt-row" data-opt="bob"><span class="opt-label">Head bob</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-bob">FULL</b><i class="opt-arrow">›</i></span></div>
                     <div class="opt-row" data-opt="sound"><span class="opt-label">Sound</span><span class="opt-value"><i class="opt-arrow">‹</i><b id="opt-sound">ON</b><i class="opt-arrow">›</i></span></div>
                 </div>
+                <div class="mm-panel-actions"><button id="opt-back" class="mm-back" type="button" data-native-keys>← BACK</button></div>
                 <div class="mm-panel-footer">↑↓ SELECT · ←→ ADJUST · ENTER TOGGLE · ESC BACK</div>
             </div>
         </div>
