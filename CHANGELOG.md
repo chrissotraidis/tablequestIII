@@ -1,5 +1,18 @@
 # Changelog
 
+## 2026-09-26 — 5.1: polish pass from playtest notes
+
+Same floors, tools, music, intro and rules as 5.0. Collision is identical to 4.1 on all six floors.
+
+- **Sandy's portrait:** a painted likeness with five expressions (neutral, grin, hurt, low, down), crossfaded with breathing, blinks, flinches and paint splats. Used in the campaign HUD, pause menu and Arena.
+- **Hands:** leather work gloves on smoothed hands for all five tools.
+- **Tools:** studio reflections on metal, paint and plastic; a warm rim light; the tool lights take each floor's colour.
+- **Bench HUD:** larger type, bigger portrait, a damage trail on the health bar, a low-health pulse, and clickable tool slots. Arena uses the same sizes. Numbers use lining figures, so "0K · 0D" no longer reads as "oK · oD".
+- **Menus:** the menu backdrop renders at 30 fps, at lower resolution and without AO or bloom, so the menu stays responsive. Full quality returns in play. Options has a Back button, the generation choice no longer wraps, and hover sounds play only when the selection changes.
+- **Intro:** captions are larger, brighter and shadowed. The sequence itself is unchanged.
+- **Fritos:** the stray specks floating around the pickup are gone (the texture's faint edge pixels are cleaned on load).
+- **Details:** see [docs/v5/PROGRESS_5.1.md](docs/v5/PROGRESS_5.1.md).
+
 ## 2026-09-26 — 5.0: Table Quest 5
 
 The same six floors, tools, Cartel and Arena rules, rebuilt to look a generation newer. 4.1 stays playable under **Versions**.

@@ -390,7 +390,7 @@ const MENU_DETAILS = [
 const OPTIONS = ['generation', 'scoreboard', 'quality', 'postfx', 'fov', 'sens', 'smooth', 'adssens', 'adstoggle', 'invert', 'sprinttoggle', 'bob', 'sound'];
 // Every release is a single-file build served beside this one.
 const GENERATIONS = [
-    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5', note: 'THIS BUILD · 2026 · REBUILT VISUALS, HANDS, ARENA ONLINE', url: null },
+    { key: 'v5', label: 'GEN 5 · TABLE QUEST 5.1', note: 'THIS BUILD · 2026 · REBUILT VISUALS, PAINTED PORTRAIT, ARENA ONLINE', url: null },
     { key: 'v4', label: 'GEN 4 · MODERN 4.1', note: 'PREVIOUS · LIT 3D, FLOATING TOOLS, FIRST ARENA', url: 'generations/v4/index.html' },
     { key: 'v21', label: 'GEN 2.1 · 3D REMASTER', note: 'CLASSIC · FIVE WEAPONS, DESTRUCTIBLE FURNITURE, WORKBENCH UI', url: 'generations/v2/index.html' },
     { key: 'v20', label: 'GEN 2.0 · FIRST 3D REMASTER', note: 'THE FIRST WEBGL BUILD · THREE WEAPONS · FIRST COMMIT', url: 'generations/v1/index.html' },
