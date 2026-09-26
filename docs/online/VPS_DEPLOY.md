@@ -35,11 +35,13 @@ sudo tar -xzf tablequest-runtime-<rev>.tgz -C /opt/tablequest/releases
 sudo ln -sfn /opt/tablequest/releases/tablequest-runtime-<rev> /opt/tablequest/current
 ```
 
-First time only, install the service and proxy from the release, then edit the domain in the Caddyfile:
+First time only, install the service, then add the site to Caddy. If this VPS already serves other sites through Caddy, **append** the block from `deploy/Caddyfile` (with your domain) to the existing `/etc/caddy/Caddyfile`; do not replace it. If another container or proxy already owns ports 80/443, add a route to that proxy for the domain pointing at `127.0.0.1:4180` instead of installing a second Caddy.
 
 ```sh
 sudo cp /opt/tablequest/current/deploy/tablequest.service /etc/systemd/system/
-sudo cp /opt/tablequest/current/deploy/Caddyfile /etc/caddy/Caddyfile   # set your domain
+sudo cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.bak-$(date +%F)       # if it exists
+sudo sh -c 'cat /opt/tablequest/current/deploy/Caddyfile >> /etc/caddy/Caddyfile'   # then set your domain
+sudo caddy validate --config /etc/caddy/Caddyfile
 sudo systemctl daemon-reload && sudo systemctl enable --now tablequest
 sudo systemctl reload caddy
 ```
