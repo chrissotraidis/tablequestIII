@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {WebSocket} from 'ws';
 process.env.TQ_ARENA_COUNTDOWN_MS='1500';
 process.env.TQ_ARENA_HEARTBEAT_MS='150';
-const {server,room}=await import('../server/arena-server.mjs');
+const {server,room,tick}=await import('../server/arena-server.mjs');
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 async function wait(test,label,timeout=5000){const end=Date.now()+timeout;while(!test()){if(Date.now()>end)throw Error(label);await sleep(20);}}
 const clients=[];
@@ -41,5 +41,16 @@ try{
  const page=await fetch(base+'/arena/',{headers:{'accept-encoding':'gzip'}});
  assert.equal(page.status,200);assert.equal(page.headers.get('content-encoding'),'gzip','Game pages are served compressed');
  assert.equal((await fetch(base+'/arena',{redirect:'manual'})).status,301,'/arena redirects to /arena/');
- console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed)');
+ // Backpressure: a lagging client skips snapshots, a hopeless one is dropped,
+ // and a healthy one keeps receiving.
+ const fake=(buffered)=>({readyState:WebSocket.OPEN,bufferedAmount:buffered,sent:0,dropped:false,send(){this.sent++;},terminate(){this.dropped=true;this.readyState=WebSocket.CLOSED;}});
+ const lagging=fake(200*1024),hopeless=fake(2*1024*1024),fine=fake(0);
+ const guests=[lagging,hopeless,fine].map((socket,i)=>({slot:90+i,socket,bot:false,alive:false,name:'fake',x:2,z:2,yaw:0,pitch:0,vx:0,vz:0,health:0,paint:0,kills:0,deaths:0,weapon:'paintbrush',weapons:new Set(),lastSeq:0,inputQueue:[],respawnAt:Infinity}));
+ for(const g of guests)room.players.set(g.slot,g);
+ for(let i=0;i<4;i++)tick();
+ for(const g of guests)room.players.delete(g.slot);
+ assert.equal(lagging.sent,0,'A client more than 128 KB behind skips snapshots');assert.equal(lagging.dropped,false);
+ assert.equal(hopeless.dropped,true,'A client more than 1 MB behind is disconnected');
+ assert(fine.sent>=1,'Healthy clients keep receiving snapshots');
+ console.log('Arena connection: PASS (heartbeat releases half-open sockets, answering clients stay, countdown survives one disconnect, fixed-step inputs consumed, distinct colors/names, gzip pages, slow-client skip/drop)');
 }catch(error){console.error(error);process.exitCode=1;}finally{for(const client of clients)client.terminate();server.close();setTimeout(()=>process.exit(process.exitCode||0),100);}

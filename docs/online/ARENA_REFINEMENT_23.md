@@ -34,3 +34,16 @@ Every existing test ran on localhost with zero delay, so these stayed hidden:
 ## Not verified
 
 Public VPS deployment, real `wss://` through Caddy, two humans on different networks, and subjective feel. These need the actual host.
+
+## Second pass (same day) — re-verification in a real browser
+
+Re-reading the diff found one real defect. Node's `setInterval` ran the server at 29 ticks/s while browsers sent 30 inputs/s, so about 2.5 inputs sat in each player's queue (~85 ms of hidden server-side lag, invisible to the mover but felt by everyone they shot at). Both the server tick and the client send loop now run on fixed deadlines (measured 30.1 ticks/s), and a backlog drains at two per tick above two queued inputs. Measured queue depth afterwards: 0.
+
+Claims that had only unit evidence were re-checked in headless Chrome against the real server:
+
+- **Auto-reconnect:** killing every live connection mid-match brought the player back in 259 ms, same slot, same score, match still active; the lobby never appeared; the HUD showed "Connection lost · reconnecting…" then "Reconnected".
+- **Remote smoothness:** an observer watching three moving bots through the 40–100 ms jitter relay recorded ~2,100 drawn frames: 0 freeze frames, 2 frames jumping more than three times the median step (respawn/collision).
+- **Own movement:** localhost and jittered probe runs show 0 correction at median and p90.
+- **Backpressure:** a paused local socket never builds a backlog on macOS (kernel buffers absorb several MB), so this is covered by a deterministic test on the snapshot loop instead: 200 KB behind skips, 2 MB behind is dropped, a healthy socket keeps receiving.
+
+"Delta pickups" is implemented as compact live state (id, available, respawn time), not a change-only stream; it cut pickups from 2.6 KB to about 0.9 KB per snapshot.

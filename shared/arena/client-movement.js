@@ -10,7 +10,7 @@ export const MAX_QUEUED_INPUTS = 10;
 // A backlog from a network burst drains at two steps per tick.
 export function takeTickInputs(queue) {
     const taken = [];
-    let budget = queue.length > 4 ? 2 : 1;
+    let budget = queue.length > 2 ? 2 : 1;
     while (queue.length && budget > 0) {
         const input = queue.shift();
         taken.push(input);

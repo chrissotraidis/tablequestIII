@@ -1010,7 +1010,15 @@ function predictLocalFire(now){
 }
 let currentWeapon = 'paintbrush';
 let weaponRequest = null;
-setInterval(() => sendInput(), 1000 / 30);
+// Send movement at an exact 30 Hz average to match the server's input budget.
+// A background tab or stall resets the timeline instead of bursting.
+let nextInputAt = performance.now();
+(function inputLoop() {
+    const now = performance.now();
+    if (now - nextInputAt > 250) nextInputAt = now;
+    for (let i = 0; i < 3 && now >= nextInputAt; i++) { sendInput(); nextInputAt += 1000 / 30; }
+    setTimeout(inputLoop, Math.max(0, nextInputAt - performance.now()));
+})();
 
 // One settings form serves both menus, so values and handlers cannot drift.
 const settingsDialog=$('settings-dialog'),settingsForm=$('match-settings');
@@ -1269,6 +1277,8 @@ function render() {
         }
         updateArenaBodyPose(entry.body, entry.pose);
         entry.body.group.visible = slot !== localSlot && (entry.pose.alive || Number.isFinite(entry.pose.deathT));
+        // Test mode only: per-frame drawn positions for smoothness checks.
+        if (auditOutput && slot !== localSlot) { const trace = (window.__tqRemoteTrace ||= []); trace.push([now, slot, entry.body.group.position.x, entry.body.group.position.z]); if (trace.length > 4000) trace.shift(); }
     }
     if(localPlayer && roomState?.state==='active' && localPlayer.alive){
         const view=movement.view(dt);if(view)camera.position.set(view.x,.7,view.z);

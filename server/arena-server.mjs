@@ -822,6 +822,9 @@ function simulate(now) {
         // Humans: apply each received input exactly once at the fixed step the
         // client predicted with. Starvation holds position instead of guessing.
         const inputs = takeTickInputs(player.inputQueue);
+        metrics.queueSamples = (metrics.queueSamples || 0) + 1;
+        metrics.queueTotal = (metrics.queueTotal || 0) + player.inputQueue.length;
+        metrics.inputQueueAvg = +(metrics.queueTotal / metrics.queueSamples).toFixed(2);
         let moved = false;
         for (const input of inputs) {
             player.lastSeq = input.seq;
@@ -1006,7 +1009,18 @@ server.on('upgrade', (req, socket, head) => {
     wss.handleUpgrade(req, socket, head, (client) => wss.emit('connection', client, req));
 });
 
-const interval = setInterval(tick, TICK_MS);
+// Hold an exact 30 Hz average. setInterval drifts late (measured 29 Hz), which
+// made browsers' 30 Hz inputs pile up in the queue as added latency.
+let nextTickAt = performance.now();
+let tickTimer = null;
+function tickLoop() {
+    const now = performance.now();
+    if (now - nextTickAt > 250) nextTickAt = now; // after a stall, do not burst
+    for (let i = 0; i < 4 && now >= nextTickAt; i++) { tick(); nextTickAt += TICK_MS; }
+    tickTimer = setTimeout(tickLoop, Math.max(0, nextTickAt - performance.now()));
+}
+tickLoop();
+const interval = { stop: () => clearTimeout(tickTimer) };
 // Sleeping laptops and dropped Wi-Fi leave half-open sockets that never send
 // close. Two missed pings (about 20 s) release the slot into reconnect grace.
 const heartbeat = setInterval(() => {
@@ -1016,7 +1030,7 @@ const heartbeat = setInterval(() => {
         try { socket.ping(); } catch { socket.terminate(); }
     }
 }, Number(process.env.TQ_ARENA_HEARTBEAT_MS || 10000));
-server.on('close', () => { clearInterval(interval); clearInterval(heartbeat); });
+server.on('close', () => { interval.stop(); clearInterval(heartbeat); });
 
 export { server, room, tick, snapshot, validateOfficeManifest };
 
